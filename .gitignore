@@ -1,0 +1,59 @@
+# ---- 环境/密钥（绝不入库，修订 B4）----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+application-local.yml
+secrets/
+
+# ---- 本地数据库 / 缓存 ----
+*.db
+*.sqlite
+*.sqlite3
+dump.rdb
+*.rdb
+
+# ---- 日志 ----
+*.log
+logs/
+*.log.*
+
+# ---- 构建产物 ----
+target/
+build/
+out/
+dist/
+*.jar
+*.war
+*.class
+
+# ---- 前端 ----
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+coverage/
+
+# 前端基线截图产物（运行期生成，重导出时重新纳入，见 docs/frontend-baseline/README.md）
+docs/frontend-baseline/screenshots/generated/
+
+# ---- 后端内嵌前端产物目录（ADR-009，构建期注入）----
+backend/src/main/resources/static/
+
+# ---- IDE / 系统 ----
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# ---- 临时 ----
+*.tmp
+*.swp
+*~
+.TEMP/
+
+# ---- gitleaks 报告（只留基线，报告不入库）----
+gitleaks-report.*

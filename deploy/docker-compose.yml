@@ -1,0 +1,24 @@
+# 全量（单制品，ADR-009）：只发一个 jar，nginx 不参与
+# M0 阶段占位；随 backend/frontend 成型后补全（构建可参考 01 §11.2 Dockerfile 多阶段）。
+services:
+  # 后端 + 内嵌前端（单 jar）
+  # build:
+  #   context: ..
+  #   dockerfile: backend/Dockerfile
+  # image: bluebird
+  # ports: ["8080:8080"]
+
+  # 依赖（与 dev compose 一致）
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: bluebird
+      POSTGRES_USER: bluebird
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-bluebird}
+    volumes:
+      - bluebird_pgdata:/var/lib/postgresql/data
+  redis:
+    image: redis:7
+
+volumes:
+  bluebird_pgdata:
