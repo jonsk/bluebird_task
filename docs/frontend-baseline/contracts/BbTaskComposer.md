@@ -1,6 +1,6 @@
 # 行为契约：addTaskBlock.vue → BbTaskComposer
 
-> 源：`bluebird_task_Front/src/views/todolistModule/components/addTaskBlock.vue`（已读源码 L1-278）
+> 源：`bluebird_task_Front/src/views/todolistModule/components/addTaskBlock.vue`（已读源码 L1-278；行号为导出时快照，以方法名/类名/字段名为准）
 
 | 项 | 契约内容 |
 |---|---|

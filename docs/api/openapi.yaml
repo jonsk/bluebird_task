@@ -1,0 +1,421 @@
+openapi: 3.0.3
+info:
+  title: BlueBird Task API
+  version: 0.1.0
+  description: >
+    蓝鸟任务系统 API 契约（单一事实源）。统一前缀 `/api/v1`；
+    统一响应 `ApiResult{code,message,data,traceId}`，`code==0` 为成功。
+    错误码区间：`1xxxx=common`、`2xxxx=identity`、`3xxxx=task`、`4xxxx=file`、`5xxxx=audit`。
+    时间统一 ISO8601 + `+08:00`。详见 `Task/02后端模块详细设计.md`。
+servers:
+  - url: /api/v1
+    description: 同源（单制品内嵌前端，ADR-009）
+tags:
+  - name: auth
+  - name: user
+  - name: org
+  - name: task
+  - name: tag
+  - name: category
+  - name: menu
+  - name: file
+  - name: audit
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: 账号密码登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '200': { $ref: '#/components/responses/Token' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: 登出
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: 刷新 token（匿名，凭 refresh token）
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/Token' }
+  /auth/external/config:
+    get:
+      tags: [auth]
+      summary: 当前认证提供方配置（前端据此渲染登录入口）
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResult'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          provider: { type: string, enum: [LOCAL, OIDC, WECHAT] }
+                          corpId: { type: string, nullable: true }
+                          agentId: { type: string, nullable: true }
+  /users:
+    get:
+      tags: [user]
+      summary: 用户列表（人员选择器；手机号脱敏）
+      parameters:
+        - { name: deptId, in: query, schema: { type: integer, format: int64 } }
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/UserPage' }
+    post:
+      tags: [user]
+      summary: 新增用户（ADMIN）
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /users/me:
+    get:
+      tags: [user]
+      summary: 当前用户
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }]
+  /users/{id}/password:
+    put:
+      tags: [user]
+      summary: 修改密码（首登 must_change_password 引导）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /departments:
+    get:
+      tags: [org]
+      summary: 部门树
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ApiResult' }] } }
+
+  /tasks:
+    get:
+      tags: [task]
+      summary: 任务列表（六大视图）
+      parameters:
+        - { name: scope, in: query, required: true, schema: { $ref: '#/components/schemas/Scope' } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        '200': { $ref: '#/components/responses/TaskPage' }
+    post:
+      tags: [task]
+      summary: 新建主任务
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TaskCreateReq' } } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /tasks/count:
+    get:
+      tags: [task]
+      summary: 各视图计数（recurring 按展开实例）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResult'
+                  - properties:
+                      data: { $ref: '#/components/schemas/CountVO' }
+  /tasks/calendar:
+    get:
+      tags: [task]
+      summary: 日历区间（有任务日期/实例）
+      parameters:
+        - { name: start, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: end, in: query, required: true, schema: { type: string, format: date-time } }
+      responses:
+        '200': { $ref: '#/components/responses/TaskList' }
+  /tasks/subtasks:
+    get:
+      tags: [task]
+      summary: 子任务列表
+      parameters: [{ name: parentId, in: query, required: true, schema: { type: integer, format: int64 } }]
+      responses:
+        '200': { $ref: '#/components/responses/TaskList' }
+  /tasks/{id}:
+    get:
+      tags: [task]
+      summary: 任务详情
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/TaskDetailVO' } } }]
+    put:
+      tags: [task]
+      summary: 更新任务
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    delete:
+      tags: [task]
+      summary: 软删除（不可逆：清空关联数据；见 R5）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /tasks/{id}/complete:
+    post:
+      tags: [task]
+      summary: 完成任务（周期任务可传 dueAt 指定实例，见 R2）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dueAt: { type: string, format: date-time, nullable: true }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /tasks/{id}/uncomplete:
+    post:
+      tags: [task]
+      summary: 取消完成（周期任务可传 dueAt）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /tasks/{id}/collect:
+    post:
+      tags: [task]
+      summary: 收藏
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    delete:
+      tags: [task]
+      summary: 取消收藏
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+
+  /tags:
+    get: { tags: [tag], summary: 我的标签, responses: { '200': { description: OK } } }
+    post: { tags: [tag], summary: 新增标签, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /tags/{id}:
+    put: { tags: [tag], summary: 改标签, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    delete: { tags: [tag], summary: 删标签, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /categories:
+    get: { tags: [category], summary: 分类树, responses: { '200': { description: OK } } }
+    post: { tags: [category], summary: 新增分类, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /categories/{id}:
+    put: { tags: [category], summary: 改分类, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    delete: { tags: [category], summary: 删分类, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /menus:
+    get: { tags: [menu], summary: 我的自定义栏, responses: { '200': { description: OK } } }
+    post: { tags: [menu], summary: 新增栏, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /menus/{id}/items:
+    post: { tags: [menu], summary: 添加任务到栏, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+
+  /files:
+    post:
+      tags: [file]
+      summary: 上传附件
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /files/{id}/preview:
+    get:
+      tags: [file]
+      summary: 预览（登录 + 任务访问权校验；后端按 id 代理，修 SSRF）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: 文件流 } }
+
+  /audit/operates:
+    get: { tags: [audit], summary: 操作日志分页（ADMIN）, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /audit/logins:
+    get: { tags: [audit], summary: 登录日志分页（ADMIN）, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+  responses:
+    Ok:
+      description: OK
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResult' }
+    Token:
+      description: Token pair
+      content:
+        application/json:
+          schema:
+            allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/TokenVO' } } }]
+    TaskList:
+      description: 任务列表
+      content:
+        application/json:
+          schema:
+            allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/TaskListData' } } }]
+    TaskPage:
+      description: 任务分页
+      content:
+        application/json:
+          schema:
+            allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/TaskListData' } } }]
+    UserPage:
+      description: 用户分页
+      content:
+        application/json:
+          schema:
+            allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: object, properties: { list: { type: array, items: { $ref: '#/components/schemas/UserVO' } }, total: { type: integer } } } } }]
+
+  schemas:
+    ApiResult:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: integer, example: 0 }
+        message: { type: string, example: ok }
+        data: { nullable: true }
+        traceId: { type: string, nullable: true }
+    TokenVO:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        mustChangePassword: { type: boolean }
+    Scope:
+      type: string
+      enum: [day, week, assigned, joined, collect, all]
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+    TaskStatus:
+      type: string
+      enum: [ACTIVE, DISABLED, ARCHIVED]
+    CountVO:
+      type: object
+      properties:
+        day: { type: integer }
+        week: { type: integer }
+        joined: { type: integer }
+        assigned: { type: integer }
+        collect: { type: integer }
+        all: { type: integer }
+    CycleRule:
+      type: object
+      description: 周期规则（JSONB，计算式展开；02 §4.3）
+      required: [freq, interval, dtstart, tz]
+      properties:
+        freq: { type: string, enum: [DAILY, WEEKLY, MONTHLY] }
+        interval: { type: integer, minimum: 1, default: 1 }
+        dtstart: { type: string, format: date-time }
+        byDay: { type: array, items: { type: string, enum: [MO, TU, WE, TH, FR, SA, SU] }, nullable: true, description: 仅 WEEKLY 生效 }
+        count: { type: integer, nullable: true, description: 与 until 互斥 }
+        until: { type: string, format: date, nullable: true }
+        tz: { type: string, default: Asia/Shanghai }
+    UserBrief:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+    UserVO:
+      allOf:
+        - $ref: '#/components/schemas/UserBrief'
+        - type: object
+          properties:
+            username: { type: string }
+            mobile: { type: string, description: 脱敏 138****0000 }
+            deptId: { type: integer, format: int64 }
+            deptName: { type: string }
+            roleCode: { type: string, enum: [ADMIN, COMMON] }
+    TagVO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+    CategoryBrief:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+    FileVO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        fileName: { type: string }
+        size: { type: integer, format: int64 }
+    TaskVO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        content: { type: string }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        completed: { type: boolean }
+        dueAt: { type: string, format: date-time, nullable: true }
+        remindAt: { type: string, format: date-time, nullable: true }
+        priority: { $ref: '#/components/schemas/Priority' }
+        cycleRule: { allOf: [{ $ref: '#/components/schemas/CycleRule' }], nullable: true }
+        cycleLastCompleted: { type: string, format: date-time, nullable: true }
+        owner: { $ref: '#/components/schemas/UserBrief' }
+        assignees: { type: array, items: { $ref: '#/components/schemas/UserBrief' } }
+        ccUsers: { type: array, items: { $ref: '#/components/schemas/UserBrief' } }
+        participantIds: { type: array, items: { type: integer, format: int64 } }
+        category: { allOf: [{ $ref: '#/components/schemas/CategoryBrief' }], nullable: true }
+        tags: { type: array, items: { $ref: '#/components/schemas/TagVO' } }
+        subtaskCompleted: { type: integer }
+        subtaskTotal: { type: integer }
+        files: { type: array, items: { $ref: '#/components/schemas/FileVO' } }
+        createdAt: { type: string, format: date-time }
+    TaskDetailVO:
+      allOf:
+        - $ref: '#/components/schemas/TaskVO'
+        - type: object
+          properties:
+            subtasks: { type: array, items: { $ref: '#/components/schemas/TaskVO' } }
+    TaskCreateReq:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        content: { type: string }
+        dueAt: { type: string, format: date-time, nullable: true }
+        remindAt: { type: string, format: date-time, nullable: true }
+        priority: { $ref: '#/components/schemas/Priority' }
+        cycleRule: { allOf: [{ $ref: '#/components/schemas/CycleRule' }], nullable: true }
+        categoryId: { type: integer, format: int64, nullable: true }
+        assigneeIds: { type: array, items: { type: integer, format: int64 } }
+        ccIds: { type: array, items: { type: integer, format: int64 } }
+        tagIds: { type: array, items: { type: integer, format: int64 } }
+        fileIds: { type: array, items: { type: integer, format: int64 } }
+    TaskListData:
+      type: object
+      properties:
+        list: { type: array, items: { $ref: '#/components/schemas/TaskVO' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }

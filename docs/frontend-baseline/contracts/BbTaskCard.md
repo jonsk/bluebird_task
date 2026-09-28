@@ -1,6 +1,6 @@
 # 行为契约：TaskCard.vue → BbTaskCard
 
-> 源：`bluebird_task_Front/src/views/todolistModule/components/TaskCard.vue`（基于源码 + 03 §2.3.1 导出）
+> 源：`bluebird_task_Front/src/views/todolistModule/components/TaskCard.vue`（基于源码 + 03 §2.3.1 导出）；行号为导出时快照，以方法名/类名/字段名为准（见 contracts/README 行号约定）
 
 | 项 | 契约内容 |
 |---|---|

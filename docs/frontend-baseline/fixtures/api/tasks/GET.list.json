@@ -1,0 +1,93 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-list-0001",
+  "data": {
+    "list": [
+      {
+        "id": 1201, "title": "提交季度报告", "content": "整理数据并评审",
+        "status": "ACTIVE", "completed": false,
+        "dueAt": "2026-09-28T18:00:00+08:00", "remindAt": "2026-09-28T09:00:00+08:00",
+        "priority": "HIGH", "cycleRule": null, "cycleLastCompleted": null,
+        "owner": { "id": 1, "name": "李四" },
+        "assignees": [{ "id": 11, "name": "张三" }], "ccUsers": [{ "id": 8, "name": "王五" }],
+        "participantIds": [1, 11, 8],
+        "category": { "id": 3, "name": "汇报" },
+        "tags": [{ "id": 1, "name": "重要" }],
+        "subtaskCompleted": 1, "subtaskTotal": 3, "files": [],
+        "createdAt": "2026-09-25T10:00:00+08:00"
+      },
+      {
+        "id": 1202, "title": "逾期演示任务", "content": "",
+        "status": "ACTIVE", "completed": false,
+        "dueAt": "2026-09-24T18:00:00+08:00", "remindAt": null,
+        "priority": "MEDIUM", "cycleRule": null, "cycleLastCompleted": null,
+        "owner": { "id": 1, "name": "李四" },
+        "assignees": [], "ccUsers": [], "participantIds": [1],
+        "category": null, "tags": [{ "id": 2, "name": "紧急" }],
+        "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
+        "createdAt": "2026-09-20T09:00:00+08:00"
+      },
+      {
+        "id": 1203, "title": "临期任务（展示绿色日期）", "content": "",
+        "status": "ACTIVE", "completed": false,
+        "dueAt": "2026-10-01T18:00:00+08:00", "remindAt": null,
+        "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null,
+        "owner": { "id": 11, "name": "张三" },
+        "assignees": [], "ccUsers": [{ "id": 1, "name": "李四" }], "participantIds": [11, 1],
+        "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
+        "createdAt": "2026-09-26T09:00:00+08:00"
+      },
+      {
+        "id": 1204, "title": "已完成任务（标题删除线）", "content": "",
+        "status": "ACTIVE", "completed": true,
+        "dueAt": "2026-09-27T18:00:00+08:00", "remindAt": null,
+        "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null,
+        "owner": { "id": 1, "name": "李四" },
+        "assignees": [], "ccUsers": [], "participantIds": [1],
+        "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
+        "createdAt": "2026-09-22T09:00:00+08:00"
+      },
+      {
+        "id": 1205, "title": "每日站会（无限循环周期）", "content": "DAILY 无限",
+        "status": "ACTIVE", "completed": false,
+        "dueAt": "2026-09-28T09:30:00+08:00", "remindAt": null,
+        "priority": "MEDIUM",
+        "cycleRule": { "freq": "DAILY", "interval": 1, "dtstart": "2026-09-28T09:30:00+08:00", "byDay": null, "count": null, "until": null, "tz": "Asia/Shanghai" },
+        "cycleLastCompleted": null,
+        "owner": { "id": 1, "name": "李四" },
+        "assignees": [{ "id": 11, "name": "张三" }], "ccUsers": [], "participantIds": [1, 11],
+        "category": null, "tags": [{ "id": 3, "name": "日常" }],
+        "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
+        "createdAt": "2026-09-01T09:00:00+08:00"
+      },
+      {
+        "id": 1206, "title": "每周一三五复盘（WEEKLY+byDay, count）", "content": "周期性",
+        "status": "ACTIVE", "completed": false,
+        "dueAt": "2026-09-28T17:00:00+08:00", "remindAt": null,
+        "priority": "HIGH",
+        "cycleRule": { "freq": "WEEKLY", "interval": 1, "dtstart": "2026-09-28T17:00:00+08:00", "byDay": ["MO", "WE", "FR"], "count": 12, "until": null, "tz": "Asia/Shanghai" },
+        "cycleLastCompleted": "2026-09-26T17:00:00+08:00",
+        "owner": { "id": 11, "name": "张三" },
+        "assignees": [], "ccUsers": [{ "id": 1, "name": "李四" }], "participantIds": [11, 1],
+        "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
+        "createdAt": "2026-09-10T09:00:00+08:00"
+      },
+      {
+        "id": 1207, "title": "每月报表（MONTHLY, until）", "content": "周期性",
+        "status": "ACTIVE", "completed": false,
+        "dueAt": "2026-09-30T18:00:00+08:00", "remindAt": null,
+        "priority": "MEDIUM",
+        "cycleRule": { "freq": "MONTHLY", "interval": 1, "dtstart": "2026-09-30T18:00:00+08:00", "byDay": null, "count": null, "until": "2026-12-31", "tz": "Asia/Shanghai" },
+        "cycleLastCompleted": null,
+        "owner": { "id": 1, "name": "李四" },
+        "assignees": [], "ccUsers": [], "participantIds": [1],
+        "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
+        "createdAt": "2026-09-01T09:00:00+08:00"
+      }
+    ],
+    "total": 7,
+    "page": 1,
+    "size": 20
+  }
+}

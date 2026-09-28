@@ -1,0 +1,184 @@
+# BlueBird 重构 · 决策记录（ADR）
+
+> 上级文档：`01蓝鸟重构方案.md`、`02后端模块详细设计.md`、`03前端模块详细设计.md`
+> 说明：本文为架构决策记录（ADR）留痕，固化评审已确认的关键决策，供实施与后续追溯。
+> 评审来源：评审留痕见 `Task/` 下 `0204评审_一审意见.md` … `0217评审_十三审意见.md` 系列（修订 F10/十三审：原引用的 `02模块详细设计_审核意见.md`、`04复审意见.md` 已随命名调整不存在）。
+
+---
+
+## ADR-001 · 整体技术选型与 Monorepo
+
+- **状态**：已确认
+- **背景**：旧系统为前后端分仓（Spring Boot 3.2 + 若依 Vue3），需整体重写。
+- **决策**：
+  - 新建 Git 仓库，**Monorepo 单仓库**（`backend/` + `frontend/` + `deploy/` + `docs/`）。
+  - 后端 Java 21 + Spring Boot 3.3 + MyBatis-Plus + Flyway + PostgreSQL 13+（基线按 16 开发）+ Redis 7。
+  - 前端 Vue 3 + Vite 5 + TypeScript + Pinia + Element Plus + Tailwind。
+  - 私有化部署（Linux、无 K8s），支持 Docker Compose 与手动 jar 两种方式。
+  - **开源协议**：Apache-2.0（`LICENSE` 为必交付件）。
+- **后果**：团队沿用主栈，风险最低；密钥从空库起步，历史不复制。
+
+> 注：`docs/adr/` 目录规划在 M0 产出（本文件先行于 `Task/` 目录落地）。
+
+---
+
+## ADR-002 · 数据迁移破坏性决策（B3/B5）
+
+- **状态**：已废弃（ADR-007 取代）
+- **背景**：原决策处理旧→新数据迁移的语义/数据丢失口径。
+- **决策**：因 ADR-007 确认不迁移旧数据（空库起步，旧系统废弃），本 ADR 全部失效。
+- **后果**：无迁移即无数据保真问题；原「task_user 历史归并」「多分类→单分类迁移口径」等不再适用。设计决策本身（单一分类、无手动排序）保留于 `01` §8.3。
+
+---
+
+## ADR-003 · RBAC 权限模型简化（N1）
+
+- **状态**：已确认（复审新增，升格为破坏性决策）
+- **背景**：旧库存在完整 RBAC 多对多（`sys_role`/`sys_role_auth`/`sys_user_role`/`sys_user_auth`/`sys_auth`）；新模型坍缩为 `sys_user.role_code` 单列（ADMIN/COMMON）。
+- **决策**：
+  - 新系统不建 `sys_role`/`sys_role_auth`/`sys_user_role`/`sys_user_auth`/`sys_auth` 等表，仅用 `sys_user.role_code` 单列。
+  - 按钮级权限本期不做，`sys_permission` 不建；如后续需要再补。
+- **后果**：丢失「一个用户多角色」「角色含多权限」能力；`@PreAuthorize` 仅做角色级判断。
+> 修订 ADR-007：因不迁移旧数据，原「旧四张关联表丢弃、按管理员标记映射」的迁移口径不再适用；RBAC 简化决策本身保留。
+
+---
+
+## ADR-004 · schema 单一真相源（B1）
+
+- **状态**：已确认
+- **背景**：旧仓库存在多份矛盾 schema（根 `sql/blue_bird.sql` 缺表、`resources/sql/02_create_tables.sql` 最完整但从未被加载、`sql/main.sql`+`data2.sql` 为 SQLite），且 classpath 上无可加载权威 schema。
+- **决策**：以 `01` §8 DDL + Flyway `V1__init.sql` 为唯一真相源，M0 冻结；删除/归档 SQLite 与残缺 SQL；`spring.sql.init` 弃用，schema 完全交由 Flyway。
+- **后果**：纯净部署不再缺表；新系统空库起步，schema 完全由 Flyway 管理（ADR-007）。
+
+---
+
+## ADR-005 · 成功码与响应体统一（C4）
+
+- **状态**：已确认
+- **决策**：新系统成功码统一为 `0`（旧 `ResponseResult` 为 200/500）。因旧系统直接停用、新系统重新部署（ADR-007），不存在新旧并行/双跑期，无需兼容旧 200 成功码。
+- **后果**：不长期兼容旧 200 成功码。
+
+---
+
+## ADR-006 · 外部身份源（部署时选定，不可变更）
+
+- **状态**：部分取代（认证/同步架构由 ADR-008 重构；「部署时选定不可变」「不加 external_source 列」仍有效）
+- **背景**：系统需支持接入外部身份源，**同一部署只启用一个外部源**，**部署时选定后不可变更**（如需更换须重新部署）。自身账号密码登录始终保留（且为**默认**——`provider=LOCAL`，仅本地账密，外部源可选，见 ADR-008）。
+- **仍有效决策**：
+  1. **部署时选定不可变**：`app.identity.provider` 部署时确定，运行期不切换；更换须重新部署。取值 `LOCAL|OIDC|WECHAT`（ADR-008）。
+  2. **数据模型**：`sys_user.external_id` 记录外部源用户标识，不加 `external_source` 列（部署时即确定，无需运行时区分）。
+  3. **前端**：`GET /api/v1/auth/external/config` 返回当前 provider 类型 + 前端渲染所需配置；`LOCAL` 时不渲染外部登录入口。
+- **被 ADR-008 取代的决策**：
+  - ~~`ExternalIdentityAdapter` 接口 + 每 IDP 一个 Adapter 实现~~ → ADR-008 改为 OIDC 统一认证（Spring Security OAuth2 Client 配置式），企微例外保留 `WechatIdentityAdapter`；默认 `LOCAL` 不装配外部源。
+  - ~~`app.identity.provider=WECHAT|DINGTALK|FEISHU|GOOGLE`~~ → ADR-008 简化为 `LOCAL|OIDC|WECHAT`（`LOCAL` 为默认，仅本地账密）。
+  - ~~`ExternalIdentityAdapter.syncOrg()` 拉取模式~~ → ADR-008 改为组织同步独立配置（SCIM/PULL/PUSH/NONE 四模式）。
+
+---
+
+## ADR-007 · 不迁移旧数据（空库起步，旧系统废弃）
+
+- **状态**：已确认
+- **背景**：经确认，新系统**不存在新旧数据迁移问题**——旧系统不再继续运行，旧系统历史数据完全不要，新系统空库起步。
+- **决策**：
+  1. **不迁移**：新系统以 Flyway `V1__init.sql` 建空库，不编写任何 ETL/迁移脚本，不保留旧库 → 新库的 ID 映射表。
+  2. **数据初始化**：部署后由 ADMIN 手工建用户 + 外部身份源通讯录同步（`OrgSyncService` 每日 01:00 或手动触发）。
+  3. **旧系统废弃**：旧系统不再并行运行，无双跑期、无新旧前端切换过渡。
+  4. **前序 ADR 调整**：ADR-002（迁移破坏性决策）、ADR-003（RBAC 简化）、ADR-004（schema 真相源）中涉及「迁移」的表述已失效，保留决策本身（RBAC 简化、schema 单一真相源仍有效），但迁移口径不再适用。
+- **后果**：
+  - 无迁移工作量、无迁移风险、无数据保真问题（如旧 `task_user` 无 role 的 ASSIGNEE/CC 归并问题不再存在）。
+  - 里程碑 M5 由「迁移+联调」改为「联调+压测+上线」。
+  - 成功标准中「历史口径限定」「迁移核对预期」等描述全部删除。
+  - 用户/组织数据依赖 ADMIN 手建 + 外部源同步，首次部署需确保外部源可连通。
+
+---
+
+## ADR-008 · 身份对接架构重构（OIDC 统一认证 + 组织同步解耦）
+
+- **状态**：已确认
+- **背景**：ADR-006 最初按「每个 IDP 一个 Adapter」设计（WechatIdentityAdapter / DingtalkIdentityAdapter / FeishuIdentityAdapter / GoogleIdentityAdapter）。随着需求扩展至 Keycloak / Casdoor / 竹云 / Azure / Okta 等，每新增一个 IDP 就写一个 Adapter，复杂度线性增长，不可持续。
+- **决策**：参考 GitLab / Grafana 等主流软件实践，重构为「**标准协议为主 + 定制为辅**」：
+  0. **默认本地账密**：`app.identity.provider=LOCAL`（**默认**）——仅本地账号密码登录，不装配任何外部源，适合不需要对接统一身份源的私有化/单机部署；OIDC / WECHAT 为**可选**，仅在需要时切换开启。`external/config` 返回 `provider=LOCAL` 时前端不渲染外部登录入口。
+  1. **认证层（可选启用）统一走 OIDC**：使用 Spring Security OAuth2 Client，配置式接入任意 OIDC 兼容 IDP（Google / Keycloak / Casdoor / 竹云 / Azure / Okta / 钉钉 / 飞书等），**零代码**。仅企业微信因 OIDC 支持不完整保留 `WechatIdentityAdapter` 作为例外。OIDC / WECHAT 仅在 `provider` 选中时装配（`@ConditionalOnProperty`）。（注：本 ADR 既定 OIDC 统一认证架构不变，`LOCAL` 只是新增一个关闭外部源的默认取值。）
+  2. **组织同步与认证解耦**：独立配置 `app.orgsync.mode`，四种模式可插拔，**部署时选定不可变更**（与 `app.identity.provider` 同一约束，更换须重新部署，ADR-006/ADR-007）：
+     - `SCIM`：暴露 `/api/v1/scim/v2/*` 标准端点，被动接收 SCIM 2.0 兼容 IDP（Keycloak / Casdoor / Okta / Entra ID）推送，**零代码**。
+     - `PULL`：定时主动拉取，适配企微 / 钉钉 / 飞书（各写 OrgSyncAdapter）。
+     - `PUSH`：暴露 `/api/v1/org/push` 接收端点，适配竹云等私有 IDM 推送（写定制 OrgPushAdapter）。
+     - `NONE`（**默认**）：不同步，用户由 ADMIN 手工创建；若启用 OIDC 也可首次登录自动建号（`role_code=COMMON`，`dept_id=NULL`），ADMIN 手动分配部门。
+  3. **用户自动建号策略**：OIDC 用户首次登录时，若 `sys_user` 无对应 `external_id` 且 `app.identity.auto-create-user=true`，则自动建号（`role_code=COMMON`，`dept_id=NULL`）；企微保持「不自动建号」（须先同步或 ADMIN 手建）；`LOCAL` 无外部源、无自动建号。
+  4. **`app.identity.provider` 简化**：从 `WECHAT|DINGTALK|FEISHU|GOOGLE` 简化为 `LOCAL|OIDC|WECHAT`（`LOCAL` 默认仅本地账密；OIDC 覆盖所有标准 IDP，企微单独）。
+- **后果**：
+  - 默认 `LOCAL` 下系统**只支持本地账号密码**，不依赖任何外部 IDP，私有化部署最简；需要对接统一身份时再切换 `OIDC` 或 `WECHAT`（重新部署）。
+  - 认证层新增 OIDC IDP **零代码**（仅配置 `issuer/clientId/clientSecret`）。
+  - 组织同步按协议类型分四种模式，标准协议（SCIM）零代码，私有协议写一个 Adapter。
+  - ADR-006 中「每 IDP 一个 Adapter」「`@ConditionalOnProperty` 单选」「`ExternalIdentityAdapter.syncOrg()` 拉取模式」等设计被本 ADR 取代。
+  - 企微作为唯一非标准例外保留单独 Adapter。
+- **关系**：取代 ADR-006 的 Adapter 架构；ADR-006 的「部署时选定不可变」「不加 external_source 列」仍有效。
+
+---
+
+## ADR-009 · 前端产物内嵌后端 jar（单制品部署，不使用 Nginx）
+
+- **状态**：已确认
+- **背景**：新项目以私有化/单机部署为主，运维要求「**只发一个 jar**」即可运行，免去 nginx + 前端静态目录的分离部署与版本同步。旧系统实测本即以 jar 内 `static/index.html` 形式提供过前端页面。
+- **决策**：
+  1. **单制品**：前端 `pnpm build` 的 `dist` 在**打包期**注入 `backend/src/main/resources/static/`，随 jar 发布；对外**只有一个 `bluebird-task.jar`**。
+  2. **不使用 Nginx**：页面与 `/api/v1` 由内嵌 Tomcat **同源**提供；TLS/限流等如需，交由外部网关，不在本项目制品内。
+  3. **SPA history 回退**：新增 `SpaForwardController`，对「非 `/api/v1/**`、非静态资源、`Accept: text/html`」的请求回退 `index.html`；**API 的 404 仍返回 JSON `ApiResult`**，不被回退吞掉。
+  4. **静态资源策略**：`/assets/**` 长缓存 `immutable`；`/index.html` `no-cache`；`server.compression.enabled=true` 替代 Nginx gzip。
+  5. **构建接线**：Docker 多阶段（node 构建前端 → maven 内嵌打包），Dockerfile 位于 `backend/Dockerfile`、**构建上下文=仓根**；容器外由 CI/本地先构建前端再 `mvn package`（`maven-resources-plugin` 拷贝 dist）。
+  6. `frontend/dist`、`backend/src/main/resources/static/` 为构建产物，**不入 git**。
+- **后果**：
+  - 部署/回滚简化为「替换一个 jar」；同源，无 CORS。
+  - 前端与后端**同版本发布**（不可独立升级前端）；不支持 CDN/边缘缓存；jar 体积增大约数 MB。
+  - 开发期不受影响：仍用 Vite dev server + 代理联调。
+  - `deploy/` 中原独立 `frontend`、`nginx` 服务移除（见 `01 §11.1`）。
+- **关系**：落地于 `01 §6`（仓结构）、`01 §11`（DevOps）、`02 §1.7.1`、`03 §3.2/§8`；与 ADR-007（空库起步）无冲突。
+
+---
+
+## ADR-010 · 运行时配置释放（config extraction）
+
+- **状态**：已确认
+- **背景**：交付物为「单个 jar」，但用户要求**运行时可修改配置**、避免每次改配置就重打包。旧系统已用 `BlueBirdApplication.checkAndCopyConfig()` 实现「tar 内默认配置复制到运行目录」模式，已验证可行。
+- **决策**：
+  1. **默认内置**：jar 内打包一份默认配置 `classpath:/application.yml`（**不含真实密钥**，仅占位符 / 本地默认）。
+  2. **首次释放**：启动时（`ConfigFileReleaser`，`ApplicationRunner`）检测运行目录（= jar 所在目录 / CWD）的 `application.yml`，不存在则复制内置默认过去；**已存在则不覆盖**。
+  3. **后续读取**：Spring 默认优先级 `file:./application.yml` > `classpath:/application.yml`，用户改外部文件**重启即生效**（无需重打包）。
+  4. **升级不覆盖**：新 jar 替换旧 jar 后，运行目录已有配置**保留**。
+  5. **敏感值不入内置**：内置默认配置**不含真实密钥**，仅保护 `${...}` 占位。可自生成的密钥由首次运行**自动生成**（见本 ADR §6：`JWT_SECRET`、`BOOTSTRAP_ADMIN_*`）；必须与外部系统一致的（`DB_URL/USER/PASSWORD`、`REDIS_PASSWORD`、`OIDC_CLIENT_ID/SECRET`、`WECHAT_CORP_SECRET`、`ORGSYNC_PUSH_TOKEN`）用 `${...}` 占位，由环境变量 / systemd `EnvironmentFile` 注入，用户如需明文自行写运行目录文件并控权限。**自生成项亦允许环境变量覆盖**（部署方显式指定则用之）。
+     > **空值覆盖保护**：自动生成的密钥写入**释放出的 `./application.yml`**（`chmod 600`），**不在 `.env` 留空占位**。Spring 属性优先级为「OS 环境变量 > `file:./application.yml`」——若经 `EnvironmentFile`/Compose `env_file` 注入 `.env` 中留空的 `JWT_SECRET=`/`BOOTSTRAP_ADMIN_PASSWORD=`，空串会**覆盖自动生成值**，使首次 ADMIN 回落人工引导。`.env` 仅承载外部注入类；需自定义自生成密钥时才填**非空**值（见 `01 §15.1`）。
+  6. **密钥分类生成**（能自生成的才首次生成；必须与外部系统一致的只留占位）：
+     - **自生成**（首次跑随机生成，写入释放出的配置文件，`chmod 600`，不入仓库/内置默认）：
+       - `JWT_SECRET`：首次生成随机 32B（HS256，≥256bit），预填，每套部署唯一；
+       - `BOOTSTRAP_ADMIN_PASSWORD`：首次生成强口令，控制台/受保护日志打印一次，`must_change_password=1` 强制首登改密。
+     - **外部注入**（首次跑只留 `${...}` 占位，本地不生成）：`DB_URL/USER/PASSWORD`、`REDIS_PASSWORD`、`OIDC_CLIENT_ID/SECRET`、`WECHAT_CORP_SECRET`、`ORGSYNC_PUSH_TOKEN`——必须与外部系统/部署一致，由用户配置或 `EnvironmentFile`/Compose 注入。
+     - **DB/Redis 口令**：纯 jar + 外部已有 PG/Redis 时，用户直接在配置中填写；若走一键 Compose，由**编排层**首次生成随机口令并同时注入 `postgres`/`redis` 与 backend（Compose 行事，非 jar 自行生成）。
+  7. **配置同时承载日志/存储目录**：释放出的 `application.yml` 含 `logging.file.name`（日志目录）与 `app.storage.root`（文件存储目录），首次默认值即可用，允许用户按需修改。
+  8. **配置丢失的自愈**：若运行目录配置文件被删，下次启动重新释放并重生成 `JWT_SECRET` → 已签发的 refresh token 失效、用户需重新登录（可控，重启即可自愈）。
+- **后果**：
+  - 交付物仍是单个 jar，配置零打包修改；升级时用户配置持久。
+  - 运行方式须固定 CWD=jar 目录（`cd <dir> && java -jar bluebird-task.jar`）。
+  - 明文写入运行目录的密钥不再受仓库保护，运维需保证目录权限（`chmod 600`）。
+- **关系**：落地于 `01 §11.7`、`02 §1.8.1`；与 ADR-009（单制品）、ADR-002 安全、ADR-004（单一真相源）互补，不冲突。
+
+---
+
+## ADR-011 · 生产安全与精简
+
+- **状态**：已确认
+- **背景**：在「不做大、保证功能与安全」前提下收口技术栈，并防止接口信息在生产暴露。
+- **决策**：
+  1. **PG 最低支持 13**：技术选型由「固定 16」放宽为「13+（按 16 开发，最小部署门槛 13）」，适配私有化客户常见环境。
+  2. **接口文档生产关闭**：springdoc 由 `springdoc.api-docs.enabled`/`swagger-ui.enabled` 统一受 `DOC_ENABLED`（默认 `false`）控制；**生产关闭** `/v3/api-docs` 与 `/swagger-ui`，二者同时从免鉴权白名单移除；仅 dev 联调 `DOC_ENABLED=true`。契约以 `docs/api/openapi.yaml` 静态文件为准（前后端生成/联调用它，不依赖运行时 doc），故关闭运行时不损失契约能力。
+  3. **去掉 IP 属地定位（ip2region）**：登录日志/操作日志不再采集 `address` 属地，`audit_operate_log`、`audit_login_log` 移除 `address` 列；`IpUtils` 仅取 IP。精简离线库依赖。
+  4. **OIDC / 企微依赖**：`spring-security-oauth2-client`、`wx-java-cp` 为**可选依赖**（Maven profile / 条件装配），默认 `provider=LOCAL` 打包时不引入，进一步瘦身；选用时再启用。
+  5. **前端 Mock 二选一**：保留 **MSW**，去 Prism（功能等价，避免双方案）。
+- **后果**：
+  - 生产不泄露接口文档；契约能力不损失（静态 `openapi.yaml`）。
+  - PG 部署兼容面扩大；依赖与镜像体积减小。
+  - 登录/操作日志不含 IP 属地信息（仅保留 IP 与 UA）。
+- **关系**：落地于 `01 §5/§7.5/§7.6/§7.9/§15.1`、`02 §1.7/§1.8/§1.10/§6.2-§6.4`、`03 §3.1`；与 ADR-001（选型）、ADR-009（单制品）、ADR-010（配置释放）一致。
+
+---
+
+> 关联文档：`01蓝鸟重构方案.md`（§1.3/§3/§4.2/§5/§7.5/§7.6/§7.7/§8.0/§8.2/§8.2.1/§8.3/§9/§11/§12/§13/§14/§15）、`02后端模块详细设计.md`（§1.7/§1.7.1/§1.8/§1.8.1/§2/§3/§4.2/§5/§6）、`03前端模块详细设计.md`（§2 重写质量保障/§3.2/§5 模块设计）、`.gitignore`（`backend/src/main/resources/static/`）。

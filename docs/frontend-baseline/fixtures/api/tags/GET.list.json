@@ -1,0 +1,10 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-tags-0001",
+  "data": [
+    { "id": 1, "name": "重要" },
+    { "id": 2, "name": "紧急" },
+    { "id": 3, "name": "日常" }
+  ]
+}

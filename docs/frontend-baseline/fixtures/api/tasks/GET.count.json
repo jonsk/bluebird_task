@@ -1,0 +1,13 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-count-0001",
+  "data": {
+    "day": 4,
+    "week": 5,
+    "joined": 2,
+    "assigned": 3,
+    "collect": 1,
+    "all": 9
+  }
+}

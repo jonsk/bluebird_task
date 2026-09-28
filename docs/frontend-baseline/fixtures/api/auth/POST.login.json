@@ -1,0 +1,10 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-login-0001",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiJ9.fixture.access",
+    "refreshToken": "eyJhbGciOiJIUzI1NiJ9.fixture.refresh",
+    "mustChangePassword": false
+  }
+}

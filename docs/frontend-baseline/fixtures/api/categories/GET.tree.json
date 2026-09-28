@@ -1,0 +1,15 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-categories-0001",
+  "data": [
+    {
+      "id": 3, "name": "汇报", "parentId": null,
+      "children": [
+        { "id": 31, "name": "周报", "parentId": 3, "children": [] },
+        { "id": 32, "name": "月报", "parentId": 3, "children": [] }
+      ]
+    },
+    { "id": 4, "name": "个人", "parentId": null, "children": [] }
+  ]
+}

@@ -1,6 +1,6 @@
 # 行为契约：childTaskList.vue → BbSubtaskList
 
-> 源：`bluebird_task_Front/src/views/todolistModule/components/childTaskList.vue`（已读源码 L1-43）
+> 源：`bluebird_task_Front/src/views/todolistModule/components/childTaskList.vue`（已读源码 L1-43；行号为导出时快照，以方法名/类名/字段名为准）
 
 | 项 | 契约内容 |
 |---|---|

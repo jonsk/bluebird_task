@@ -1,0 +1,14 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-users-0001",
+  "data": {
+    "list": [
+      { "id": 1, "username": "lisi", "name": "李四", "mobile": "138****0001", "deptId": 10, "deptName": "研发部", "roleCode": "COMMON" },
+      { "id": 11, "username": "zhangsan", "name": "张三", "mobile": "138****0011", "deptId": 10, "deptName": "研发部", "roleCode": "COMMON" },
+      { "id": 8, "username": "wangwu", "name": "王五", "mobile": "138****0008", "deptId": 20, "deptName": "市场部", "roleCode": "COMMON" },
+      { "id": 100, "username": "admin", "name": "管理员", "mobile": "138****0100", "deptId": 10, "deptName": "研发部", "roleCode": "ADMIN" }
+    ],
+    "total": 4, "page": 1, "size": 100
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-menus-0001",
+  "data": [
+    { "id": 900, "name": "本周重点", "items": [{ "id": 9001, "taskId": 1201 }, { "id": 9002, "taskId": 1206 }] },
+    { "id": 901, "name": "跟进事项", "items": [] }
+  ]
+}

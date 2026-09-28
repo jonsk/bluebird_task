@@ -1,0 +1,15 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-dept-0001",
+  "data": [
+    {
+      "id": 10, "name": "研发部", "parentId": null,
+      "children": [
+        { "id": 11, "name": "后端组", "parentId": 10, "children": [] },
+        { "id": 12, "name": "前端组", "parentId": 10, "children": [] }
+      ]
+    },
+    { "id": 20, "name": "市场部", "parentId": null, "children": [] }
+  ]
+}
