@@ -1,0 +1,15 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-users-me-0001",
+  "data": {
+    "id": 100,
+    "username": "admin",
+    "name": "管理员",
+    "mobile": "138****0100",
+    "deptId": 10,
+    "deptName": "研发部",
+    "roleCode": "ADMIN",
+    "mustChangePassword": false
+  }
+}

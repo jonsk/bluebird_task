@@ -18,16 +18,16 @@
 - 业务规则：
   - 与 `taskStore` 无任何关系：不写 `select_task_tree_node`，不触发任务列表查询，无选中联动。
   - 无默认选中节点，无部门筛选/选人联动。
-  - 重写契约应对接新接口 `GET /departments`（部门树，`docs/api/openapi.yaml` `/departments`；样例 `fixtures/api/users/GET.tree.json`），并与选人按部门筛选场景（E2E E-12，`/users?deptId=&keyword=`）联动。
+  - 重写契约应对接新接口 `GET /departments`（部门树，`docs/api/openapi.yaml` `/departments`；样例 `fixtures/api/departments/GET.tree.json`），并与选人按部门筛选场景（E2E E-12，`/users?deptId=&keyword=`）联动。
 - 边界与已知缺陷：
   - 纯静态 mock，组织机构数据从未接入后端接口，无法反映真实部门/人员。
   - `accordion` 行为与分类树的 `default-expand-all` 不一致，用户体验不统一。
-  - **实际不可达**：切换 `radioType` 的 `el-radio-group` 在 `LeftBox/index.vue` 中被注释，`radioType` 恒为 `'1'`，故本组件默认不渲染（是否已废弃：待确认）。
+  - **实际不可达**：切换 `radioType` 的 `el-radio-group` 在 `LeftBox/index.vue` 中被注释，`radioType` 恒为 `'1'`，故本组件默认不渲染。**去留决策（0303/N4）**：属"待确认"，需产品在 M1 明确——保留则应提供可用视图切换入口（本契约验收用例 1），废弃则从组件清单移除；在此之前**不阻断基线冻结**。
   - 无搜索/过滤、无虚拟滚动，大组织树会有性能与可用性问题。
   - 无人员脱敏处理，同层节点既可能是部门也可能是人员但无区分标识。
 - 验收用例：
   1. `radioType === '2'` 时渲染组织树；`radioType === '1'` 时不渲染（现状）；新组件需提供可用的视图切换入口。
-  2. 数据改为 `GET /departments`（fixtures `fixtures/api/users/GET.tree.json`），按 `id/name/parentId/children` 渲染部门层级。
+  2. 数据改为 `GET /departments`（fixtures `fixtures/api/departments/GET.tree.json`），按 `id/name/parentId/children` 渲染部门层级。
   3. 点击部门节点 → 触发按部门筛选（写入选中态并查询 `/users?deptId=` 或过滤任务列表）。
   4. `accordion` 展开收起行为符合预期，同层仅一个节点展开。
   5. 人员节点可见且展示脱敏手机号；人员节点不参与部门级筛选（待确认）。

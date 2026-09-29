@@ -58,7 +58,7 @@ docs/frontend-baseline/
 |---|---|---|
 | 业务行为契约 | 16 | ✅ 16（`contracts/Bb*.md`） |
 | 原子设计契约 | 14 | ✅ 14（`contracts/Bb*.md`，风格契约） |
-| E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`） |
+| E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`）；**旧基线已跑 9 项通过**（`scripts/golden-capture/e2e-baseline.mjs`） |
 | fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口：读态 + **写态** + **错误态** + 分类/栏详情态与空态）+ `fixtures/legacy-api/**`（旧接口） |
 | 黄金截图/录屏证据 | 采集 | ✅ **38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**（`screenshots/`，fixtures 注入，确定性；由仓根 `scripts/golden-capture/` 复现） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
@@ -101,6 +101,12 @@ docs/frontend-baseline/
   - **P3 补齐**（写操作 fixtures）：新增 24 份写态（tasks/tags/categories/menus/files/users）+ `tasks/GET.subtasks.json`；对齐 openapi 补 `PUT/DELETE /menus/{id}`、`DELETE /menus/{id}/items/{itemId}`。
   - **P5 补齐**（错误态 fixtures）：新增 `fixtures/api/_errors/` 9 份（对齐 `02 §1.4` ErrorCode）+ README。
   - **P4**（`/getInfo`、`/getRouters` 不可用）：信息项，baseline 用 `/admin/user/myself`（已验证），无需动作。
+- **2026-09-29（0303 审核修订 · 综合复核层）**：真实登录抓包复核（legacy 形态 100% 吻合）。
+  - **N1 闭环**（E2E 基线未跑）：新增 `scripts/golden-capture/e2e-baseline.mjs`，对旧前端跑通 **9 项**（E-01/03/04/06/09/11/12/16/17），`e2e/scenarios.md` 状态列已回填；其余 8 项标注 SKIP 原因（旧系统不可测/选择器不稳定/组件不可达）。
+  - **N2 闭环**（覆盖率缺口）：补 `fixtures/api/departments/GET.tree.json`、`users/GET.me.json`；`BbOrgTree` 数据源改为 `GET /departments`，不再复用 users 树。
+  - **N3**（合成数据）：`legacy-api/README.md` 增「合成 vs 真实」说明（结构真、数值合成，非缺陷）。
+  - **N4**（BbOrgTree 不可达）：契约标注**去留待确认**（不阻断冻结）；重写须提供可用视图切换入口。
+  - **N5**（写态计数）：`fixtures/README` 由「24」更正为 **21**（实测）。
 
 ## 6. 关联文档
 

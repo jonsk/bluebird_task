@@ -24,7 +24,8 @@ fixtures/
 │   │                               # 写态（2026-09-29 补）
 │   │   ├── POST.create.json · PUT.update.json · DELETE.remove.json
 │   │   └── POST.complete.json · POST.uncomplete.json · POST.collect.json · DELETE.collect.json
-│   ├── users/GET.index.json · GET.tree.json · POST.create.json · PUT.password.json
+│   ├── users/GET.index.json · GET.tree.json · GET.me.json · POST.create.json · PUT.password.json
+│   ├── departments/GET.tree.json   # 部门树（GET /departments）
 │   ├── tags/GET.list.json · POST.create.json · PUT.update.json · DELETE.remove.json
 │   ├── categories/
 │   │   ├── GET.tree.json           # 分类树（全字段 + 3 级嵌套）
@@ -70,11 +71,11 @@ fixtures/
 
 > **契约支撑**：本次同步在 `../../api/openapi.yaml` 补齐了此前缺失的 `Category` / `Menu` / `MenuItem` / `TaskBrief` 四个 schema（原 fixtures 无契约可依）。若后续确需「按 id 取单分类/单栏」的**独立接口**，需先改 `02 §3.x` 接口表与 openapi，再新增对应 `GET /{id}`——当前**刻意保守**，不擅自新增端点。
 
-## 1.3 写操作 / 错误态 fixtures（修订 0302/P3、P5）
+## 1.3 写操作 / 错误态 fixtures（修订 0302/P3、P5；0303/N5 修正计数）
 
 `api/**` 此前仅覆盖**读态 + 登录**，本次补齐两类：
 
-**写操作（P3）** —— 与 `openapi.yaml` 一一对应；成功返回 `ApiResult{code:0}`，create 返回新 id，其余 `data:null`（`Ok` 的 `data` 为 nullable）：
+**写操作（P3，实测 21 份）** —— 与 `openapi.yaml` 一一对应；成功返回 `ApiResult{code:0}`，create 返回新 id，其余 `data:null`（`Ok` 的 `data` 为 nullable）：
 
 | 端点 | fixture |
 |---|---|
@@ -112,6 +113,7 @@ fixtures/
 | `Menu` | `id,userId,name,sort,createdAt,items[]` | 自定义栏（用户私有）；`GET /menus?userId=` |
 | `MenuItem` | `id,menuId,taskId,sort,task:TaskBrief` | 栏内条目，内嵌任务摘要供直接渲染 |
 | `TaskBrief` | `id,title,completed,dueAt,priority` | 栏内/轻量引用任务的摘要 |
+| `Department` | `id,name,parentId,sort,children[]` | 部门树节点；`GET /departments`（`guides`：`BbOrgTree` 数据源） |
 | `CountVO` | `{day,week,joined,assigned,collect,all}` | 六大视图计数（recurring 按展开实例） |
 
 ## 5. MSW / Playwright 契约
@@ -125,6 +127,7 @@ fixtures/
 - ✅ **新接口形态**（`api/`，2026-09-28）：`tasks/GET.list|detail|count|calendar.json`、`users/GET.index|tree.json`、`tags/`、`categories/`、`menus/`、`audit/`、`auth/POST.login.json`，字段对齐 `../../api/openapi.yaml`。
 - ✅ **分类 / 自定义栏覆盖率补齐**（2026-09-29）：`categories` 增加**全字段 + 3 级嵌套**树、单节点详情态（`GET.detail.json`）、空态（`GET.tree.empty.json`）；`menus` 增加**条目内嵌任务摘要**的列表、单栏详情态（`GET.detail.json`）、空态（`GET.list.empty.json`）。同步补齐 openapi `Category/Menu/MenuItem/TaskBrief` schema（详见 §1.2）。
 - ✅ **周期任务全字段样例**（E-16 依赖，新形态）：`GET.list.json` 覆盖 DAILY 无限、WEEKLY+`byDay`+`count`、MONTHLY+`until`、`cycleLastCompleted` 已推进/未开始各一；`GET.calendar.json` 演示展开实例。
-- ✅ **写操作 / 错误态覆盖**（2026-09-29，修订 0302/P3、P5）：写态 24 份（tasks/tags/categories/menus/files/users）+ 子任务读态；错误态 9 份 + `_errors/README.md`（对齐 `02 §1.4`）；同步补 openapi `PUT/DELETE /menus/{id}` 等 3 端点。详见 §1.3。
+- ✅ **写操作 / 错误态覆盖**（2026-09-29，修订 0302/P3、P5；计数 0303/N5 修正）：写态 **21 份**（tasks 7 + tags 3 + categories 3 + menus 5 + users 2 + files 1）+ 子任务读态；错误态 9 份 + `_errors/README.md`（对齐 `02 §1.4`）；同步补 openapi `PUT/DELETE /menus/{id}` 等 3 端点。详见 §1.3。
+- ✅ **覆盖率缺口补齐**（2026-09-29，修订 0303/N2）：补 `users/GET.me.json`（`GET /users/me`）、`departments/GET.tree.json`（`GET /departments`）；`BbOrgTree` 数据源明确为后者（不再复用 users 树）。
 - ✅ **旧接口形态**（`legacy-api/`，2026-09-28）：线上抓包结构 + 合成数据，驱动 `../screenshots/` 黄金截图；真实密钥/口令已脱敏（见 `legacy-api/README.md`）。
 - ⏳ 待办：`users/GET.index.json` 按 `deptId/scope` 过滤子集（MSW handler 内过滤）；若确认需要「按 id 取单分类/单栏」独立接口，同步改 `02 §3.x` + openapi。

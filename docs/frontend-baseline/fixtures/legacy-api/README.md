@@ -31,6 +31,12 @@
 
 > 前端 `store/modules/task.js#formatServerObj` 负责将其映射为卡片展示字段（`dateText/tipsText/eachText/taskTypeNames/userNameList/isImportant` 等）。
 
+## 合成 vs 真实（修订 0303/N3）
+
+- **结构/端点/字段**：来自**真实抓包**，与线上系统 100% 吻合（含 snowflake ID 逐字符一致，见 `0302/0303 审核`）。
+- **数据值**：线上任务库为空（`count` 全 0、列表 `records:[]`），故 `dataset.json` 的任务正文与计数为**合成数据**（8 条任务、count 非 0），以便黄金截图有内容可渲染。此为**已声明的 SYNTHETIC，非缺陷**。
+- 结论：结构与真实一致、数值为合成——正是"确定性渲染"所需；不得据此推断线上业务数据。
+
 ## 安全说明（重要）
 
 - **线上真实响应含敏感值**：`/wechat/getWeChat` 返回明文 `corpSecret`、`/admin/user/myself` 返回密码哈希。本目录 fixtures 中这些字段一律**置空或合成**，**禁止**回填真实值。

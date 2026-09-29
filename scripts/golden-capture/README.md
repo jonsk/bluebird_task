@@ -13,8 +13,11 @@
 cd scripts/golden-capture
 npm install
 npx playwright install ffmpeg      # 仅录屏需要
-node capture.mjs                   # 采集截图 + 录屏 → docs/frontend-baseline/screenshots/
+node capture.mjs                   # 六大视图截图 + 录屏 → docs/frontend-baseline/screenshots/
 node capture-components.mjs        # 组件级：左栏/日历/新增块/各下拉/人员选择/标签配置
+node capture-extra.mjs             # 详情抽屉打开态
+node capture-states.mjs [empty|error|httperr|login]   # 空态 / 异常态截图
+node e2e-baseline.mjs              # E2E 基线：对旧前端跑 E-01..E-17（记录真实发出的写端点）
 node verify.mjs                    # 断言各视图卡片渲染数（防回归）
 node probe.mjs                     # 探针：登录并 dump 线上真实接口形态（勿提交其输出）
 ```
@@ -26,11 +29,18 @@ node probe.mjs                     # 探针：登录并 dump 线上真实接口�
 - **确定性**：固定视口 `1440×900`、禁用动画；登录响应亦被 fixture 覆盖。
 - **安全**：线上真实 `corpSecret`/密码哈希**不入库**（详见 `../../docs/frontend-baseline/fixtures/legacy-api/README.md`）。
 
+## E2E 基线（`e2e-baseline.mjs`）
+
+- 目的：落实 `03 §2.3.3`「**先对旧前端跑通作基线，再对新前端验收**」的**前半段**（原缺可执行脚本）。
+- 与截图 harness 同套 fixtures；在路由层**记录**真实发出的写操作端点（`/task/record/add|complete|del`、`/sysTag/add`、`/admin/user/list` 等），并支持 `failRule` 注入失败以验证**失败回滚**。
+- 结果：控制台摘要 + `../../docs/frontend-baseline/screenshots/generated/e2e-baseline.json`（不入库）；状态回填至 `../../docs/frontend-baseline/e2e/scenarios.md`。
+
 ## 产物
 
 - 截图 → `../../docs/frontend-baseline/screenshots/*.png`
 - 录屏 → `../../docs/frontend-baseline/screenshots/recordings/*.webm`
-- `node_modules/`、`package-lock.json`、`out/` 为本地产物（见 `.gitignore`）。
+- E2E 结果 → `../../docs/frontend-baseline/screenshots/generated/e2e-baseline.json`
+- 本地忽略产物：`node_modules/`、`generated/`（见 `.gitignore`）；`package.json`/`package-lock.json` **入库**以便复现。
 
 ## clone 后复现
 
