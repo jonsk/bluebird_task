@@ -33,6 +33,8 @@ docs/frontend-baseline/
 
 > **采集脚本（harness）位置（修订 0302/P1）**：Playwright 采集脚本在**仓库根** `scripts/golden-capture/`（**非**本目录下；已入 git：`capture.mjs` / `capture-components.mjs` / `capture-states.mjs` / `verify.mjs` / `lib.mjs` / `probe.mjs`）。复现：`cd scripts/golden-capture && npm i && node capture.mjs`。详见 `../../scripts/golden-capture/README.md`。
 
+> **新前端 E2E / 视觉回归 harness（2026-09-29）**：在 `frontend/e2e/`（`frontend/playwright.config.ts`），对**新前端**（`vite` dev + MSW 直连 `fixtures/api/**`）跑通 E-01..E-17 与 8 张视觉回归基线。运行：`pnpm -C frontend test:e2e`（更新基线 `... test:e2e:update`；基线入库于 `frontend/e2e/__screenshots__/`）。
+
 > 关联设计文档（相对 `docs/frontend-baseline/`）：`../../Task/01..04*.md`（仓库内权威副本，见 `../../Task/README.md`）、API 契约 `../../docs/api/openapi.yaml`。
 
 ## 2. 冻结原则（对照 03 §2.3）
@@ -58,9 +60,9 @@ docs/frontend-baseline/
 |---|---|---|
 | 业务行为契约 | 16 | ✅ 16（`contracts/Bb*.md`） |
 | 原子设计契约 | 14 | ✅ 14（`contracts/Bb*.md`，风格契约） |
-| E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`）；**旧基线已跑 9 项通过**（`scripts/golden-capture/e2e-baseline.mjs`） |
-| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口：读态 + **写态 21** + **错误态 19**（`02 §1.4` 全覆盖）+ auth 4 + 分类/栏详情态与空态）+ `fixtures/legacy-api/**`（旧接口）；详见 `fixtures/README §6` |
-| 黄金截图/录屏证据 | 采集 | ✅ **38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**（`screenshots/`，fixtures 注入，确定性；由仓根 `scripts/golden-capture/` 复现）；**图片/录屏按策略不入库**（`.gitignore`，0304/D3） |
+| E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`）；**旧基线已跑 9 项通过**（`scripts/golden-capture/e2e-baseline.mjs`）；**新前端已跑 16/18 通过**（`frontend/e2e/`，24 项含 8 项视觉回归，2026-09-29） |
+| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口：读态 + **写态 21** + **错误态 19**（`02 §1.4` 全覆盖）+ auth 4 + 分类/栏详情态与空态）+ `fixtures/legacy-api/**`（旧接口）；**新前端 MSW 已直连 `fixtures/api/**`**（`frontend/src/mocks/fixtures.ts`）；详见 `fixtures/README §5/§6` |
+| 黄金截图/录屏证据 | 采集 | ✅ **38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**（`screenshots/`，fixtures 注入，确定性；由仓根 `scripts/golden-capture/` 复现）；**图片/录屏按策略不入库**（`.gitignore`，0304/D3）；新前端回归基线另存 `frontend/e2e/__screenshots__/`（**入库**） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
 | 引用可解析 | 全绿 | ✅ 设计文档已入仓 `../../Task/`（M1） |
 
@@ -76,6 +78,12 @@ docs/frontend-baseline/
 
 ## 5. 历史与变更记录
 
+- **2026-09-29（新前端验收落地：MSW 直连 fixtures + E2E/视觉回归基线）**：
+  - **fixtures 直连 MSW**：新增 `frontend/src/mocks/fixtures.ts`（`import.meta.glob` 注册 `docs/frontend-baseline/fixtures/api/**`），`frontend/src/mocks/handlers.ts` 改为**消费 fixtures**（读态原样返回、错误分支复用 `_errors/`、写态在内存副本变更），消除内联 mock 漂移；`vite.config.ts` 增 `server.fs.allow` 放行仓根 fixtures。
+  - **E2E（后半链路）**：新增 `frontend/e2e/`（Playwright Test）+ `frontend/playwright.config.ts`（1440×900、Asia/Shanghai、`page.clock` 冻结 `2026-09-28T10:00+08:00`；本地复用系统 Edge，CI 用随包 Chromium）。覆盖 E-01/01b/02/03/04/05/06/07/09/11/12/13/14/15/16/17（E-08/E-10 因目标态 UI 未提供而留空）。
+  - **视觉回归基线**：`frontend/e2e/visual.spec.ts` 8 张（登录/我的一天/全部任务/详情抽屉/编辑器/日历/用户管理/审计），基线落 `frontend/e2e/__screenshots__/` 并**入库**；`pnpm -C frontend test:e2e:update` 更新。
+  - **结果**：`pnpm -C frontend test:e2e` = **24 passed**（16 场景 + 8 视觉）；CI 增 `e2e` 作业。
+  - `e2e/scenarios.md` 状态列已回填「新验收」，`fixtures/README §5` 更新为「已直连」。
 - **2026-09-29（0308 产品决策 · 保留 `BbCategoryTree`）**：产品确认 `BbCategoryTree`（`layoutNew/components/LeftBox/categoryTree.vue` → 分类树）**保留、必做**——分类是系统核心功能（`05` R5 分类与检索），不因旧实现「未 `import`/未挂载」而死代码化。它是分类树的**指定承接组件**，技术底座为原子组件 `BbTree`；契约（增/改名/删/拖拽 + 选中过滤任务、删除二次确认、`/categories` 接口落库）按目标态重写。与 `BbOrgTree`（组织机制树，0307 已废弃）**处置相互独立**，本次不改变契约计数（`BbCategoryTree` 仍在 15 业务契约内）。
 - **2026-09-29（0307 产品决策 · 废弃 BbOrgTree）**：产品决定**放弃** `BbOrgTree`（`layoutNew/components/LeftBox/OrganizationalMechanismTree.vue`，旧实现「组件内静态假数据 + `radio-type` 被注释导致默认不渲染」的死组件，0303/N4 悬置项就此关闭）。动作：删除契约 `contracts/BbOrgTree.md`；业务契约 **16 → 15**、合计 **30 → 29**（冻结期 30/30 为历史事实，见下）；清理左栏/映射/索引及 `departments` fixture 的 `guides` 注释中对 `BbOrgTree` 的引用（`Departments` 仍供人员选择/部门筛选使用）。`BbCategoryTree` 的处置见其上 0308 条。
 - **2026-09-28（M0 启动）**：建立本目录骨架；基于旧源码导出首批 5 份行为契约（TaskCard / addTaskBlock / childTaskList / CalendarCard / dropdownSetDate）；建立 fixtures 规范与 E2E 场景清单框架。

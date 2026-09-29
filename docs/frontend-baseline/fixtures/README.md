@@ -125,12 +125,18 @@ fixtures/
 
 ## 5. MSW / Playwright 契约
 
-- **新前端（MSW）**：`src/mocks/handlers.ts` 的每个 `http.get('/api/v1/tasks', ...)` 返回 `fixtures/api/tasks/GET.list.json`（按 scope 过滤出对应子集以复用同一份数据）。
-- **旧前端（Playwright）**：`page.route('**/api/**', route => route.fulfill({ json: <对应 fixture> }))`，路径与 MSW handler 对齐。
+- **新前端（MSW）—— 已直连（2026-09-29）**：`frontend/src/mocks/fixtures.ts` 以 `import.meta.glob('../../../docs/frontend-baseline/fixtures/api/**/*.json', { eager: true })` 注册全部 fixtures，键为 `<目录>/<METHOD>.<name>`（如 `tasks/GET.list`）；`frontend/src/mocks/handlers.ts` 直接消费：
+  - **读态**原样返回 fixture 信封（`tasks/GET.list` 按 `scope/keyword` 过滤子集、`GET.count` 原样）；
+  - **错误分支**复用 `_errors/<code>.<name>`（如 `20003.bad-credentials`、`10006.version-conflict`、`30001.task-not-found`）；
+  - **写态**在内存副本上变更（重启重置），返回对应写态 fixture 信封。
+  - 覆盖度由 `frontend/vitest` 的 `tests/unit/mocks-fixtures.spec.ts` 断言（键存在 + 身份对齐 + 错误码），fixtures 目录漂移即失败。
+  - 放行：fixtures 在 `frontend/` 之外，`vite.config.ts` 需 `server.fs.allow` 指向仓根（已配置）。
+- **旧前端（Playwright）**：`page.route('**/api-server/**', route => route.fulfill({ json: <对应 fixture> }))`，路径与 MSW handler 对齐。
 - **版本化**：fixtures 变更需随契约（openapi.yaml）同步；回归时始终引用**同一 commit** 的 fixtures，避免新旧前端用不同版本数据比对。
 
 ## 6. 当前状态
 
+- ✅ **MSW 直连 fixtures（2026-09-29）**：`frontend/src/mocks/{fixtures,handlers}.ts` 改为消费本目录（`api/**`），不再内联 mock 数据；新前端 E2E（`frontend/e2e/`）与单测（`tests/unit/mocks-fixtures.spec.ts`）同源，`pnpm -C frontend test:e2e` = 24 passed。详见 §5。
 - ✅ **新接口形态**（`api/`，2026-09-28）：`tasks/GET.list|detail|count|calendar.json`、`users/GET.index|me.json`、`tags/`、`categories/`、`menus/`、`audit/`、`auth/POST.login.json`，字段对齐 `../../api/openapi.yaml`。
 - ✅ **分类 / 自定义栏覆盖率补齐**（2026-09-29）：`categories` 增加**全字段 + 3 级嵌套**树、单节点详情态（`GET.detail.json`）、空态（`GET.tree.empty.json`）；`menus` 增加**条目内嵌任务摘要**的列表、单栏详情态（`GET.detail.json`）、空态（`GET.list.empty.json`）。同步补齐 openapi `Category/Menu/MenuItem/TaskBrief` schema（详见 §1.2）。
 - ✅ **周期任务全字段样例**（E-16 依赖，新形态）：`GET.list.json` 覆盖 DAILY 无限、WEEKLY+`byDay`+`count`、MONTHLY+`until`、`cycleLastCompleted` 已推进/未开始各一；`GET.calendar.json` 演示展开实例。

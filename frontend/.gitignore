@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+
+# Playwright 运行期产物（视觉基线 e2e/__screenshots__/ 需入库，勿加）
+test-results/
+playwright-report/
+blob-report/
+e2e/.report/

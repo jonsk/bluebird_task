@@ -51,6 +51,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // fixtures 直连：docs/frontend-baseline/fixtures 位于 frontend/ 之外的仓根，需显式放行
+    fs: {
+      allow: [fileURLToPath(new URL('..', import.meta.url))],
+    },
     proxy: {
       // 未启用 MSW 时，开发直连本地后端
       '/api': {
