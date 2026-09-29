@@ -39,10 +39,22 @@ export const routes: RouteRecordRaw[] = [
       { path: 'myCollect', name: 'myCollect', component: TaskView, meta: { title: '我的收藏' } },
       { path: 'allTask', name: 'allTask', component: TaskView, meta: { title: '全部任务' } },
       {
+        path: 'calendar',
+        name: 'calendar',
+        component: () => import('@/views/task/CalendarView.vue'),
+        meta: { title: '日历' },
+      },
+      {
         path: 'admin/users',
         name: 'adminUsers',
         component: () => import('@/views/admin/UserManage.vue'),
         meta: { title: '用户管理', roles: ['ADMIN', 'USER_MANAGER'] },
+      },
+      {
+        path: 'admin/depts',
+        name: 'adminDepts',
+        component: () => import('@/views/admin/DeptManage.vue'),
+        meta: { title: '部门管理', roles: ['ADMIN', 'USER_MANAGER'] },
       },
       {
         path: 'admin/audit',

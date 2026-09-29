@@ -30,5 +30,14 @@ export const ROLE_CODE = {
 
 export type RoleCode = (typeof ROLE_CODE)[keyof typeof ROLE_CODE]
 
-export const PRIORITY = ['HIGH', 'MEDIUM', 'LOW'] as const
+export const PRIORITY = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const
+export type Priority = (typeof PRIORITY)[number]
+
+export const PRIORITY_LABEL: Record<Priority, string> = {
+  LOW: '低',
+  MEDIUM: '中',
+  HIGH: '高',
+  URGENT: '紧急',
+}
+
 export const PARTICIPANT_ROLE = { ASSIGNEE: 'ASSIGNEE', CC: 'CC' } as const

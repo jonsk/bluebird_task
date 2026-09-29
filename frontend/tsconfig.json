@@ -26,6 +26,8 @@
     "src/**/*.d.ts",
     "src/**/*.vue",
     "tests/**/*.ts",
+    "auto-imports.d.ts",
+    "components.d.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "tailwind.config.ts"

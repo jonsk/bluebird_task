@@ -1,27 +1,40 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useTaskStore } from '@/stores/task'
 
 /**
- * 唯一布局（三栏，03 §5.2）。M0：左栏导航 + 中栏 router-view + 右栏抽屉占位。
+ * 唯一布局（三栏，03 §5.2）：左栏导航（含各视图计数）+ 中栏 router-view + 右栏抽屉由 TaskView 内嵌。
  */
 const auth = useAuthStore()
+const taskStore = useTaskStore()
 const route = useRoute()
 const router = useRouter()
 
 const navItems = [
-  { name: 'index', label: '我的一天' },
-  { name: 'myWeek', label: '未来 7 天' },
-  { name: 'myJoin', label: '我@Ta的' },
-  { name: 'myDo', label: '分配给我的' },
-  { name: 'myCollect', label: '我的收藏' },
-  { name: 'allTask', label: '全部任务' },
+  { name: 'index', label: '我的一天', countKey: 'day' },
+  { name: 'myWeek', label: '未来 7 天', countKey: 'week' },
+  { name: 'myJoin', label: '我@Ta的', countKey: 'joined' },
+  { name: 'myDo', label: '分配给我的', countKey: 'assigned' },
+  { name: 'myCollect', label: '我的收藏', countKey: 'collect' },
+  { name: 'allTask', label: '全部任务', countKey: 'all' },
 ] as const
 
 const canManageUsers = computed(() => auth.hasRole('ADMIN', 'USER_MANAGER'))
 const canViewAudit = computed(() => auth.hasRole('ADMIN', 'AUDITOR'))
 const currentName = computed(() => String(route.name ?? ''))
+const counts = computed(() => taskStore.counts)
+
+function countOf(key: string): number | null {
+  const c = counts.value
+  if (!c) return null
+  return Number((c as unknown as Record<string, number>)[key] ?? 0)
+}
+
+onMounted(() => {
+  void taskStore.fetchCounts()
+})
 
 async function onLogout(): Promise<void> {
   await auth.logout()
@@ -50,14 +63,25 @@ async function onLogout(): Promise<void> {
             class="layout__nav-item"
             :class="{ 'is-active': currentName === item.name }"
           >
-            {{ item.label }}
+            <span>{{ item.label }}</span>
+            <span v-if="countOf(item.countKey) !== null" class="layout__count">{{ countOf(item.countKey) }}</span>
           </router-link>
         </nav>
+
+        <div class="layout__nav-group">
+          <router-link :to="{ name: 'calendar' }" class="layout__nav-item" :class="{ 'is-active': currentName === 'calendar' }">
+            日历
+          </router-link>
+        </div>
+
         <div class="layout__nav-group" v-if="canManageUsers || canViewAudit">
-          <router-link v-if="canManageUsers" :to="{ name: 'adminUsers' }" class="layout__nav-item">
+          <router-link v-if="canManageUsers" :to="{ name: 'adminUsers' }" class="layout__nav-item" :class="{ 'is-active': currentName === 'adminUsers' }">
             用户管理
           </router-link>
-          <router-link v-if="canViewAudit" :to="{ name: 'adminAudit' }" class="layout__nav-item">
+          <router-link v-if="canManageUsers" :to="{ name: 'adminDepts' }" class="layout__nav-item" :class="{ 'is-active': currentName === 'adminDepts' }">
+            部门管理
+          </router-link>
+          <router-link v-if="canViewAudit" :to="{ name: 'adminAudit' }" class="layout__nav-item" :class="{ 'is-active': currentName === 'adminAudit' }">
             操作/登录日志
           </router-link>
         </div>
@@ -66,10 +90,6 @@ async function onLogout(): Promise<void> {
       <main class="layout__main">
         <router-view />
       </main>
-
-      <aside class="layout__right">
-        <div class="layout__right-placeholder">任务详情抽屉（M2）</div>
-      </aside>
     </div>
   </div>
 </template>
@@ -119,7 +139,9 @@ async function onLogout(): Promise<void> {
   overflow: auto;
 }
 .layout__nav-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 9px 12px;
   border-radius: var(--bb-radius);
   color: #1f2430;
@@ -133,6 +155,12 @@ async function onLogout(): Promise<void> {
   background: #eef3ff;
   color: var(--bb-color-primary);
 }
+.layout__count {
+  min-width: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--bb-color-muted);
+}
 .layout__nav-group {
   margin-top: 12px;
   padding-top: 12px;
@@ -142,15 +170,5 @@ async function onLogout(): Promise<void> {
   flex: 1;
   min-width: 0;
   overflow: auto;
-}
-.layout__right {
-  width: var(--bb-sidebar-right-width);
-  background: #fff;
-  border-left: 1px solid #eef0f3;
-}
-.layout__right-placeholder {
-  padding: 16px;
-  color: var(--bb-color-muted);
-  font-size: 13px;
 }
 </style>

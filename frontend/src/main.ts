@@ -1,11 +1,14 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
 import '@/styles/index.css'
 import App from './App.vue'
 import { router, setupGuard } from './router'
 import { setupDirectives } from './directives/permission'
+
+/**
+ * Element Plus 按需引入（unplugin-vue-components/resolvers 自动装配，03 §3.1/R8）——
+ * 不再 `app.use(ElementPlus)` 整包引入；组件与样式由编译器按实际使用注入。
+ */
 
 /**
  * 仅 dev/test 且显式开启时装载 MSW（03 §2.6）。
@@ -22,8 +25,6 @@ async function bootstrap(): Promise<void> {
   await enableMocking()
   const app = createApp(App)
   app.use(createPinia())
-  // TODO(M0→M1): 按需引入 Element Plus（unplugin），现为整包引入；见 03 §3.1/R8
-  app.use(ElementPlus)
   app.use(router)
   setupDirectives(app)
   setupGuard()

@@ -3,6 +3,9 @@ import { existsSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import AutoImport from 'unplugin-auto-import/vite'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url))
 
@@ -25,7 +28,22 @@ function stripMswWorker(): Plugin {
 
 // 单制品部署（ADR-009）：构建产物 frontend/dist 于打包期注入后端 static/。
 export default defineConfig({
-  plugins: [vue(), stripMswWorker()],
+  plugins: [
+    vue(),
+    // Element Plus 按需引入（03 §3.1/R8）：组件与样式仅打包实际使用者
+    AutoImport({
+      imports: ['vue', 'vue-router', 'pinia'],
+      resolvers: [ElementPlusResolver()],
+      dts: 'auto-imports.d.ts',
+      eslintrc: { enabled: false },
+    }),
+    Components({
+      resolvers: [ElementPlusResolver()],
+      dts: 'components.d.ts',
+      dirs: [],
+    }),
+    stripMswWorker(),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
