@@ -63,3 +63,9 @@ Thumbs.db
 
 # ---- gitleaks 报告（只留基线，报告不入库）----
 gitleaks-report.*
+
+# runtime-released config & local data (ADR-010/016)
+/backend/application.yml
+/backend/data/
+data/
+

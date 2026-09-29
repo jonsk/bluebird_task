@@ -1,0 +1,87 @@
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true          # 替代 Nginx gzip（ADR-009）
+
+spring:
+  application:
+    name: bluebird
+  mvc:
+    throw-exception-if-no-handler-found: true     # 未映射 API → NoHandlerFoundException → 全局转 ApiResult（02 §1.5/§1.7.1）
+  web:
+    resources:
+      add-mappings: false                          # 关闭【默认】静态映射；静态资源由 WebConfig 显式注册（02 §1.7.1）
+  datasource:
+    driver-class-name: org.sqlite.JDBC
+    url: ${SQLITE_URL:jdbc:sqlite:./data/bluebird.db}   # SQLite 嵌入式单文件（ADR-016）
+    hikari:
+      maximum-pool-size: 1          # SQLite 单写者：单连接池（ADR-016）
+      connection-timeout: 5000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false   # 统一 ISO8601 + 时区（02 §1.8 B7）
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  global-config:
+    banner: false
+    db-config:
+      id-type: assign_id
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+  type-handlers-package: com.bbtc.bluebird.common.mybatis
+
+jwt:
+  secret: ${JWT_SECRET:}
+  access-ttl: ${JWT_ACCESS_TTL:3600}          # 秒
+  refresh-ttl: ${JWT_REFRESH_TTL:604800}      # 秒（7 天）
+
+app:
+  identity:
+    provider: ${IDENTITY_PROVIDER:LOCAL}      # LOCAL|OIDC|WECHAT（默认 LOCAL，ADR-008）
+    auto-create-user: ${AUTO_CREATE_USER:true}
+  orgsync:
+    mode: ${ORGSYNC_MODE:NONE}                # SCIM|PULL|PUSH|NONE
+    adapter: ${ORGSYNC_ADAPTER:}
+    push-token: ${ORGSYNC_PUSH_TOKEN:}
+  storage:
+    root: ${STORAGE_PATH:./data/files}
+    url-prefix: ${STORAGE_URL_PREFIX:/api/v1/files}
+    max-size: ${STORAGE_MAX_SIZE:50MB}
+    allowed-ext: png,jpg,jpeg,gif,pdf,doc,docx,xls,xlsx,ppt,pptx,zip,rar,7z,txt,md
+  security:
+    login-max-fail: 5
+    login-lock-seconds: 900
+    manager-can-read-subordinate: ${MANAGER_CAN_READ_SUBORDINATE:false}
+  audit:
+    retention-days: 180
+  job:
+    org-sync-cron: ${ORGSYNC_CRON:0 0 1 * * *}
+    cleanup-cron: ${CLEANUP_CRON:0 30 2 * * *}
+  bootstrap:
+    admin-username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+
+springdoc:
+  api-docs:
+    enabled: ${DOC_ENABLED:false}             # 生产关闭防接口泄露（ADR-011）
+  swagger-ui:
+    enabled: ${DOC_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    root: ${LOG_LEVEL:info}
+    com.bbtc.bluebird: ${APP_LOG_LEVEL:info}
