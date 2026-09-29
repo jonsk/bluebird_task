@@ -5,8 +5,9 @@
 
 ## 状态
 
-- ✅ **已采集（2026-09-28）**：旧前端（线上隔离环境）跑通，固定 fixtures + 固定视口导出。共 **19 张截图 + 1 段录屏**（含六大视图、抽屉、及组件级下拉/对话框）。
-- 采集方式：`scripts/golden-capture/`（Playwright + msedge，拦截 `/api-server/**` 注入 `../fixtures/legacy-api/dataset.json`），**确定性可复现**。复采：`cd scripts/golden-capture && npm i && node capture.mjs`。
+- ✅ **已采集（2026-09-28）**：旧前端（线上隔离环境）跑通，固定 fixtures + 固定视口导出。**基线批 19 张截图 + 1 段录屏**（含六大视图、抽屉、及组件级下拉/对话框）。
+- ✅ **空/异常态（2026-09-29）**：`capture-states.mjs` 追加 **19 张**（6 空态 + 6 `body.code=500` + 6 HTTP500 静默 + 1 登录失败）。**当前合计 38 张 PNG + 1 段 webm**（图片/录屏**不入库**，见 `.gitignore`；由 harness 复现）。
+- 采集方式：仓根 `scripts/golden-capture/`（Playwright + msedge，拦截 `/api-server/**` 注入 `../fixtures/legacy-api/dataset.json`），**确定性可复现**。复采：`cd scripts/golden-capture && npm i && node capture.mjs`（另 `capture-components.mjs` / `capture-states.mjs`）。
 
 ## 证据清单
 
@@ -58,7 +59,7 @@
 1. **固定视口**：`1440×900`、`deviceScaleFactor:1`，禁用 CSS 过渡/动画（`addInitScript` 注入）。
 2. **固定数据**：线上库**任务为空**，故用 `fixtures/legacy-api/dataset.json`（旧接口形态、合成数据）经 `page.route` 注入渲染；因此截图**不含真实业务数据、不含密钥/口令**。
 3. **登录**：真实登录流程（`admin`）但登录响应亦被 fixture 覆盖；仅静态资源来自线上服务器。
-4. **验证**：`scripts/golden-capture/verify.mjs` 断言各视图卡片数（day=7 / week=8 / joined=1 / assigned=1 / collect=1 / all=10，含子任务内联）。
+4. **验证**：仓根 `scripts/golden-capture/verify.mjs` 断言各视图卡片数（day=7 / week=8 / joined=1 / assigned=1 / collect=1 / all=10，含子任务内联）。
 
 ## 与对照验收的关系（`03 §2.5.1`）
 

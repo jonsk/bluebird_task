@@ -1,0 +1,6 @@
+{
+  "code": 10004,
+  "message": "资源不存在",
+  "data": null,
+  "traceId": "fix-err-10004-0001"
+}

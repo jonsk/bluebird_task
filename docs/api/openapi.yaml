@@ -234,10 +234,26 @@ paths:
     put: { tags: [category], summary: 改分类, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
     delete: { tags: [category], summary: 删分类, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /menus:
-    get: { tags: [menu], summary: 我的自定义栏, responses: { '200': { description: OK } } }
+    get:
+      tags: [menu]
+      summary: 我的自定义栏
+      parameters:
+        - { name: userId, in: query, schema: { type: integer, format: int64 } }
+      responses: { '200': { description: OK } }
     post: { tags: [menu], summary: 新增栏, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /menus/{id}:
+    put: { tags: [menu], summary: 改栏, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    delete: { tags: [menu], summary: 删栏, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /menus/{id}/items:
     post: { tags: [menu], summary: 添加任务到栏, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /menus/{id}/items/{itemId}:
+    delete:
+      tags: [menu]
+      summary: 从栏移除任务
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: itemId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
 
   /files:
     post:

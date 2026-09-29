@@ -21,14 +21,17 @@ docs/frontend-baseline/
 │   └── scenarios.md    # E2E 场景清单（先对旧前端跑通作基线，再对新建前端验收）
 ├── fixtures/
 │   ├── README.md       # fixtures 规范 + 数据字典 + MSW/Playwright 共用约定
-│   └── api/            # 首批 JSON 样例（tasks/users/tags/categories/menus/audit/auth）
+│   ├── api/            # 新接口形态（MSW）：读态 + 写态 + 错误态样例
+│   └── legacy-api/     # 旧接口形态（Playwright 注入）：dataset.json + README
 ├── screenshots/
 │   ├── README.md       # 黄金截图/录屏采集规程 + 状态
-│   ├── .gitkeep        # 黄金截图（版本化，Playwright 固定视口 1440×900 导出）
+│   ├── .gitkeep        # 黄金截图（图片/录屏不入库，见 .gitignore；由 harness 复现）
 │   └── generated/      # 运行期生成的对比产物（不入库，见 .gitignore）
 └── accessibility/
     └── .gitkeep        # （预留）无障碍/语义检查结果
 ```
+
+> **采集脚本（harness）位置（修订 0302/P1）**：Playwright 采集脚本在**仓库根** `scripts/golden-capture/`（**非**本目录下；已入 git：`capture.mjs` / `capture-components.mjs` / `capture-states.mjs` / `verify.mjs` / `lib.mjs` / `probe.mjs`）。复现：`cd scripts/golden-capture && npm i && node capture.mjs`。详见 `../../scripts/golden-capture/README.md`。
 
 > 关联设计文档（相对 `docs/frontend-baseline/`）：`../../Task/01..04*.md`（仓库内权威副本，见 `../../Task/README.md`）、API 契约 `../../docs/api/openapi.yaml`。
 
@@ -56,8 +59,8 @@ docs/frontend-baseline/
 | 业务行为契约 | 16 | ✅ 16（`contracts/Bb*.md`） |
 | 原子设计契约 | 14 | ✅ 14（`contracts/Bb*.md`，风格契约） |
 | E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`） |
-| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口，含分类/自定义栏**详情态与空态**）+ `fixtures/legacy-api/**`（旧接口） |
-| 黄金截图/录屏证据 | 采集 | ✅ 19 基线 + 12 空态/异常态（`state-*`）+ 1 录屏（`screenshots/`，fixtures 注入，确定性） |
+| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口：读态 + **写态** + **错误态** + 分类/栏详情态与空态）+ `fixtures/legacy-api/**`（旧接口） |
+| 黄金截图/录屏证据 | 采集 | ✅ **38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**（`screenshots/`，fixtures 注入，确定性；由仓根 `scripts/golden-capture/` 复现） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
 | 引用可解析 | 全绿 | ✅ 设计文档已入仓 `../../Task/`（M1） |
 
@@ -92,9 +95,16 @@ docs/frontend-baseline/
   - **契约 30/30 达成（M0 出口硬标准）**：新增 11 份业务行为契约（RemindSelect/RepeatSelect/UserSelect/CategoryTree/OrgTree/TagConfig/TaskList/TaskDetailDrawer/TaskMetaLine/AttachmentList/ParticipantList）；新建 14 份原子设计契约（Button/Input/Select/Modal/Drawer/Tag/Icon/Tree/Table/Pagination/Empty/Tooltip/Loading/Confirm，统一 `--bb-*` 令牌）。
   - **空态/异常态证据**（`scripts/golden-capture/capture-states.mjs`）：六大视图 `state-empty-*`（6）、`state-error-*`（6，`body.code=500` → ElMessage）、`state-httperr-*`（6，HTTP 500 静默）、登录失败（1），共 +19 张。
   - **缺陷留痕**：旧 `utils/request.js` 对 HTTP 非 2xx **静默 reject 无提示**；错误态 ElMessage **累积堆叠**（见 `screenshots/README.md`）。
+- **2026-09-29（0302 审核修订 · 实操验证层）**：真实登录旧系统抓包复核（legacy-api 形态 100% 吻合）。
+  - **P1 澄清**（采集脚本"缺失"）：复核为**误报**——harness 在**仓根** `scripts/golden-capture/`（已入 git，非 `frontend-baseline/` 下）；已在 §1 结构注记 + §6 关联文档显式标注路径，可复现性成立。
+  - **P2 修正**（截图计数）：§3.1 由「19+12」更正为**38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**；`screenshots/README.md` 同步。
+  - **P3 补齐**（写操作 fixtures）：新增 24 份写态（tasks/tags/categories/menus/files/users）+ `tasks/GET.subtasks.json`；对齐 openapi 补 `PUT/DELETE /menus/{id}`、`DELETE /menus/{id}/items/{itemId}`。
+  - **P5 补齐**（错误态 fixtures）：新增 `fixtures/api/_errors/` 9 份（对齐 `02 §1.4` ErrorCode）+ README。
+  - **P4**（`/getInfo`、`/getRouters` 不可用）：信息项，baseline 用 `/admin/user/myself`（已验证），无需动作。
 
 ## 6. 关联文档
 
 - 前端设计：`../../Task/03前端模块详细设计.md`
 - 旧组件清单/映射：`../../Task/03前端模块详细设计.md §1.1`、`§2.9`
 - API 契约源：`../../docs/api/openapi.yaml`
+- 采集脚本（harness）：`../../scripts/golden-capture/README.md`
