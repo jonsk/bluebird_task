@@ -1,20 +1,31 @@
 package com.bbtc.bluebird.config.web;
 
+import com.bbtc.bluebird.common.interceptor.RepeatSubmitInterceptor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.CacheControl;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.concurrent.TimeUnit;
 
 /**
- * 静态资源映射（02 §1.7.1，ADR-009）。
+ * 静态资源映射（02 §1.7.1，ADR-009）+ 防重复提交拦截器（02 §1.4 R8）。
  *
  * <p>{@code spring.web.resources.add-mappings=false} 关闭默认映射后，必须显式注册，
  * 否则 {@code /assets/*.js|css}、{@code /favicon.ico} 因 Accept 不含 text/html 而 404 白屏。
  */
 @Configuration
+@RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
+
+    private final RepeatSubmitInterceptor repeatSubmitInterceptor;
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(repeatSubmitInterceptor).addPathPatterns("/api/v1/**");
+    }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {

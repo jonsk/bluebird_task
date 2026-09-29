@@ -11,12 +11,21 @@ import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.dto.CreateUserCmd;
 import com.bbtc.bluebird.modules.identity.dto.PasswordUpdateReq;
 import com.bbtc.bluebird.modules.identity.dto.UserDTO;
+import com.bbtc.bluebird.modules.identity.dto.UserUpdateReq;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
+import com.bbtc.bluebird.modules.org.domain.Department;
+import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 用户服务（02 §2.6）。
@@ -26,6 +35,7 @@ import org.springframework.util.StringUtils;
 public class UserService {
 
     private final SysUserMapper userMapper;
+    private final DepartmentMapper departmentMapper;
     private final PasswordEncoder passwordEncoder;
 
     public UserDTO me() {
@@ -33,7 +43,7 @@ public class UserService {
         if (u == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        return toDto(u);
+        return toDto(u, deptNames(List.of(u)));
     }
 
     public PageResult<UserDTO> page(Long deptId, String keyword, long page, long size) {
@@ -45,7 +55,8 @@ public class UserService {
                         .and(StringUtils.hasText(keyword), w -> w
                                 .like(SysUser::getUsername, keyword).or().like(SysUser::getName, keyword))
                         .orderByAsc(SysUser::getId));
-        return PageResult.of(p.getRecords().stream().map(this::toDto).toList(),
+        Map<Long, String> names = deptNames(p.getRecords());
+        return PageResult.of(p.getRecords().stream().map(u -> toDto(u, names)).toList(),
                 p.getTotal(), p.getCurrent(), p.getSize());
     }
 
@@ -72,6 +83,35 @@ public class UserService {
     }
 
     @Transactional
+    public void update(Long id, UserUpdateReq req) {
+        SysUser u = userMapper.selectById(id);
+        if (u == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (StringUtils.hasText(req.name())) {
+            u.setName(req.name());
+        }
+        u.setDeptId(req.deptId());
+        if (StringUtils.hasText(req.roleCode())) {
+            u.setRoleCode(req.roleCode());
+        }
+        if (StringUtils.hasText(req.status())) {
+            u.setStatus(req.status());
+        }
+        userMapper.updateById(u);
+    }
+
+    @Transactional
+    public void disable(Long id) {
+        SysUser u = userMapper.selectById(id);
+        if (u == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        u.setStatus("DISABLED");
+        userMapper.updateById(u);
+    }
+
+    @Transactional
     public void resetPassword(Long id, PasswordUpdateReq req) {
         SysUser u = userMapper.selectById(id);
         if (u == null) {
@@ -90,9 +130,27 @@ public class UserService {
         // 改密后失效旧会话
     }
 
-    private UserDTO toDto(SysUser u) {
+    private Map<Long, String> deptNames(List<SysUser> users) {
+        Set<Long> ids = new HashSet<>();
+        for (SysUser u : users) {
+            if (u.getDeptId() != null) {
+                ids.add(u.getDeptId());
+            }
+        }
+        Map<Long, String> names = new HashMap<>();
+        if (!ids.isEmpty()) {
+            departmentMapper.selectList(Wrappers.<Department>lambdaQuery()
+                            .select(Department::getId, Department::getName).in(Department::getId, ids))
+                    .forEach(d -> names.put(d.getId(), d.getName()));
+        }
+        return names;
+    }
+
+    private UserDTO toDto(SysUser u, Map<Long, String> deptNames) {
         return new UserDTO(u.getId(), u.getUsername(), u.getName(), maskMobile(u.getMobile()),
-                u.getEmail(), u.getAvatarUrl(), u.getDeptId(), u.getRoleCode(), u.getStatus());
+                u.getEmail(), u.getAvatarUrl(), u.getDeptId(),
+                u.getDeptId() == null ? null : deptNames.get(u.getDeptId()),
+                u.getRoleCode(), u.getStatus());
     }
 
     private String maskMobile(String mobile) {

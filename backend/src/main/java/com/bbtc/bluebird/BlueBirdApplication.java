@@ -13,10 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 启动约定：CWD = jar 所在目录（配置释放与读取同一目录，ADR-010）。
  */
 @SpringBootApplication
-@MapperScan({
-        "com.bbtc.bluebird.modules.identity.infrastructure",
-        "com.bbtc.bluebird.modules.audit.infrastructure"
-})
+@MapperScan("com.bbtc.bluebird.modules")
 @EnableAsync
 @EnableScheduling
 public class BlueBirdApplication {

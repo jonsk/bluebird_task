@@ -6,11 +6,13 @@ import com.bbtc.bluebird.modules.identity.application.UserService;
 import com.bbtc.bluebird.modules.identity.dto.CreateUserCmd;
 import com.bbtc.bluebird.modules.identity.dto.PasswordUpdateReq;
 import com.bbtc.bluebird.modules.identity.dto.UserDTO;
+import com.bbtc.bluebird.modules.identity.dto.UserUpdateReq;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,6 +59,23 @@ public class UserController {
     @PutMapping("/{id}/password")
     public ApiResult<Void> password(@PathVariable Long id, @Valid @RequestBody PasswordUpdateReq req) {
         userService.resetPassword(id, req);
+        return ApiResult.ok();
+    }
+
+    @Operation(summary = "更新用户（ADMIN）")
+    @PreAuthorize("hasAnyRole('ADMIN','USER_MANAGER')")
+    @PutMapping("/{id}")
+    public ApiResult<Void> update(@PathVariable Long id, @RequestBody UserUpdateReq req) {
+        userService.update(id, req);
+        return ApiResult.ok();
+    }
+
+    @Operation(summary = "禁用用户（ADMIN）")
+    @PreAuthorize("hasAnyRole('ADMIN','USER_MANAGER')")
+    @com.bbtc.bluebird.modules.audit.annotation.OperateLog(module = "identity", action = "disable")
+    @DeleteMapping("/{id}")
+    public ApiResult<Void> disable(@PathVariable Long id) {
+        userService.disable(id);
         return ApiResult.ok();
     }
 }

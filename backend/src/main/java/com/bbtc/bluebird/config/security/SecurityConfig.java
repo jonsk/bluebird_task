@@ -40,6 +40,8 @@ public class SecurityConfig {
             "/api/v1/bootstrap/admin",
             "/api/v1/scim/v2/**",
             "/api/v1/org/push",
+            "/oauth2/**",
+            "/login/**",
             "/actuator/health",
             // 单制品静态资源（ADR-009，不含 /api/v1/**）
             "/", "/index.html", "/favicon.ico", "/assets/**", "/error"

@@ -61,6 +61,7 @@ public class JwtUtils {
         Date now = new Date();
         Date exp = new Date(now.getTime() + ttlSeconds * 1000L);
         return Jwts.builder()
+                .setId(java.util.UUID.randomUUID().toString())
                 .setSubject(String.valueOf(userId))
                 .claim(CLAIM_USERNAME, username)
                 .claim(CLAIM_ROLE, roleCode)
