@@ -243,7 +243,7 @@
   2. **读可见**：`PERSONAL` → `owner_id=我`；`DEPARTMENT` → `dept_id ∈ 我所在部门`；`ORG` → 全部登录用户。`GET /categories` 返回三者合并树，`?scope=` 可过滤。
   3. **写**：`PERSONAL` → 创建者；`DEPARTMENT` → 创建者 / 该部门负责人（`leader_user_id`）/ `ADMIN`；`ORG` → `ADMIN`/`USER_MANAGER`。`CategoryAuthService.assertWritable`。
   4. **约束**：`DEPARTMENT` 必填 `dept_id`；`PERSONAL`/`ORG` 忽略。`task.category_id` 只可引用**可见**分类（建/改任务校验 `assertVisible`）。
-  5. **迁移**：旧 `sys_category` 一律映射 `PERSONAL`。
+  5. **默认范围**：全新部署无数据迁移；如未来导入旧分类数据，一律置 `PERSONAL`。
 - **范围边界（本期不做）**：部门**子树**共享、跨部门共享、分类级 ACL；避免复杂。`ORG` 即两级共享的上限。
 - **关系**：落地于 `01 §3/§8.2/§8.3#10`、`02 §4.2/§4.5/§4.7`、`03 §5.3.4`、`docs/api/openapi.yaml`（`Category.scope/deptId`）、`fixtures/api/categories/*`、`05需求覆盖矩阵.md`。
 
@@ -259,7 +259,7 @@
   3. **类型映射**：`BIGINT→INTEGER`、`VARCHAR(n)→TEXT`、`SMALLINT/BOOLEAN→INTEGER`、`TIMESTAMPTZ→TEXT(ISO-8601)`、`JSONB→TEXT(JSON)`；时间列默认 `(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`。
   4. **连接与并发**：HikariCP **单连接池**（`maximum-pool-size=1`）+ 启动 PRAGMA：`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`、`synchronous=NORMAL`。
   5. **原 Redis 用途落点**：refresh token 白名单 → 表 `sys_refresh_token`（单活跃会话，部分唯一索引）；登录失败计数 / 防重复提交 → 进程内 `ConcurrentHashMap`（带 TTL 清理）；org-sync 幂等锁 → 进程内 `ReentrantLock`。
-  6. **迁移**：Flyway 保留，加 `flyway-database-sqlite` 模块，`V1__init.sql` 直接写 SQLite 方言。
+   6. **Schema 版本管理**（**全新库、无数据迁移**）：Flyway 保留，加 `flyway-database-sqlite` 模块，`V1__init.sql` 直接写 SQLite 方言；每次部署均为全新初始化。
   7. **单实例**：SQLite 单写者特性决定**仅支持单实例**；多实例/集群不支持，调度 leader 选举等列二期（不适用）。
   8. **部署**：Docker Compose 仅 `backend` 单服务（挂载 `data/` 与 `files/`）；无 `postgres`/`redis` 服务。
   9. **备份**：`sqlite3 .backup`（或停写复制 `.db`）/ `VACUUM INTO`；指引见 `06 §4`。
