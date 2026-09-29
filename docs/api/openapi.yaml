@@ -419,3 +419,42 @@ components:
         total: { type: integer }
         page: { type: integer }
         size: { type: integer }
+    TaskBrief:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        completed: { type: boolean }
+        dueAt: { type: string, format: date-time, nullable: true }
+        priority: { $ref: '#/components/schemas/Priority' }
+    Category:
+      type: object
+      description: 分类树节点（GET /categories 返回，嵌套 children）
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        parentId: { type: integer, format: int64, nullable: true }
+        sort: { type: integer, description: 同级排序（升序） }
+        taskCount: { type: integer, description: 该分类下任务数（含子分类） }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        children: { type: array, items: { $ref: '#/components/schemas/Category' } }
+    MenuItem:
+      type: object
+      description: 自定义栏条目（引用任务）
+      properties:
+        id: { type: integer, format: int64 }
+        menuId: { type: integer, format: int64 }
+        taskId: { type: integer, format: int64 }
+        sort: { type: integer }
+        task: { allOf: [{ $ref: '#/components/schemas/TaskBrief' }], description: 冗余任务摘要，供栏内直接渲染 }
+    Menu:
+      type: object
+      description: 自定义栏（GET /menus 返回，含条目）
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64, description: 所属用户（菜单私有） }
+        name: { type: string }
+        sort: { type: integer }
+        createdAt: { type: string, format: date-time }
+        items: { type: array, items: { $ref: '#/components/schemas/MenuItem' } }

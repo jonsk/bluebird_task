@@ -56,7 +56,7 @@ docs/frontend-baseline/
 | 业务行为契约 | 16 | ✅ 16（`contracts/Bb*.md`） |
 | 原子设计契约 | 14 | ✅ 14（`contracts/Bb*.md`，风格契约） |
 | E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`） |
-| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口）+ `fixtures/legacy-api/**`（旧接口） |
+| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口，含分类/自定义栏**详情态与空态**）+ `fixtures/legacy-api/**`（旧接口） |
 | 黄金截图/录屏证据 | 采集 | ✅ 19 基线 + 12 空态/异常态（`state-*`）+ 1 录屏（`screenshots/`，fixtures 注入，确定性） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
 | 引用可解析 | 全绿 | ✅ 设计文档已入仓 `../../Task/`（M1） |

@@ -1,0 +1,40 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-menus-detail-0001",
+  "data": {
+    "id": 900,
+    "userId": 1,
+    "name": "本周重点",
+    "sort": 1,
+    "createdAt": "2026-09-15T09:00:00+08:00",
+    "items": [
+      {
+        "id": 9001,
+        "menuId": 900,
+        "taskId": 1201,
+        "sort": 1,
+        "task": {
+          "id": 1201,
+          "title": "提交季度报告",
+          "completed": false,
+          "dueAt": "2026-09-28T18:00:00+08:00",
+          "priority": "HIGH"
+        }
+      },
+      {
+        "id": 9002,
+        "menuId": 900,
+        "taskId": 1206,
+        "sort": 2,
+        "task": {
+          "id": 1206,
+          "title": "每周一三五复盘（WEEKLY+byDay, count）",
+          "completed": false,
+          "dueAt": "2026-09-28T17:00:00+08:00",
+          "priority": "HIGH"
+        }
+      }
+    ]
+  }
+}

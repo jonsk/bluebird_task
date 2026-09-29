@@ -1,15 +1,80 @@
 {
   "code": 0,
   "message": "ok",
-  "traceId": "fix-categories-0001",
+  "traceId": "fix-categories-0002",
   "data": [
     {
-      "id": 3, "name": "汇报", "parentId": null,
+      "id": 3,
+      "name": "汇报",
+      "parentId": null,
+      "sort": 1,
+      "taskCount": 3,
+      "createdAt": "2026-09-01T09:00:00+08:00",
+      "updatedAt": "2026-09-20T18:30:00+08:00",
       "children": [
-        { "id": 31, "name": "周报", "parentId": 3, "children": [] },
-        { "id": 32, "name": "月报", "parentId": 3, "children": [] }
+        {
+          "id": 31,
+          "name": "周报",
+          "parentId": 3,
+          "sort": 1,
+          "taskCount": 2,
+          "createdAt": "2026-09-01T09:05:00+08:00",
+          "updatedAt": "2026-09-18T10:00:00+08:00",
+          "children": []
+        },
+        {
+          "id": 32,
+          "name": "月报",
+          "parentId": 3,
+          "sort": 2,
+          "taskCount": 1,
+          "createdAt": "2026-09-01T09:06:00+08:00",
+          "updatedAt": "2026-09-18T10:00:00+08:00",
+          "children": []
+        }
       ]
     },
-    { "id": 4, "name": "个人", "parentId": null, "children": [] }
+    {
+      "id": 4,
+      "name": "个人",
+      "parentId": null,
+      "sort": 2,
+      "taskCount": 0,
+      "createdAt": "2026-09-02T09:00:00+08:00",
+      "updatedAt": "2026-09-02T09:00:00+08:00",
+      "children": []
+    },
+    {
+      "id": 6,
+      "name": "会议",
+      "parentId": null,
+      "sort": 3,
+      "taskCount": 4,
+      "createdAt": "2026-09-03T09:00:00+08:00",
+      "updatedAt": "2026-09-25T14:00:00+08:00",
+      "children": [
+        {
+          "id": 61,
+          "name": "项目周会",
+          "parentId": 6,
+          "sort": 1,
+          "taskCount": 2,
+          "createdAt": "2026-09-03T09:05:00+08:00",
+          "updatedAt": "2026-09-25T14:00:00+08:00",
+          "children": [
+            {
+              "id": 611,
+              "name": "架构评审",
+              "parentId": 61,
+              "sort": 1,
+              "taskCount": 1,
+              "createdAt": "2026-09-10T09:00:00+08:00",
+              "updatedAt": "2026-09-10T09:00:00+08:00",
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
   ]
 }

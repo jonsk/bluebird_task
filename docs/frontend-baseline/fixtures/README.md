@@ -22,8 +22,14 @@ fixtures/
 │   │   └── GET.calendar.json       # 日历区间（周期实例展开；E-16）
 │   ├── users/GET.index.json · GET.tree.json
 │   ├── tags/GET.list.json
-│   ├── categories/GET.tree.json
-│   ├── menus/GET.list.json
+│   ├── categories/
+│   │   ├── GET.tree.json           # 分类树（全字段 + 3 级嵌套）
+│   │   ├── GET.detail.json         # 单节点「详情态」对象
+│   │   └── GET.tree.empty.json     # 空态：无分类
+│   ├── menus/
+│   │   ├── GET.list.json           # 自定义栏（全字段 + 条目含任务摘要）
+│   │   ├── GET.detail.json         # 单栏「详情态」对象（含 items）
+│   │   └── GET.list.empty.json     # 空态：无自定义栏
 │   └── audit/GET.logins.json · GET.operates.json
 └── legacy-api/                     # 【旧接口形态】黄金截图用（Playwright route 注入）
     ├── README.md
@@ -41,6 +47,21 @@ fixtures/
 
 > 原因：旧/新接口**报文结构本就不同**（旧 `task/record/*` vs 新 `/tasks`），无法用一份字节级 JSON 同时喂两端。故约定**同一逻辑数据集、两种形态**，字段映射见各 README。黄金截图证据由 `legacy-api/` 驱动（`../screenshots/README.md`）。
 
+## 1.2 详情态 / 空态 fixture 口径（2026-09-29）
+
+对 **`categories` / `menus`** 两类资源，设计文档（`02 §3.x` 接口表）**无独立 `GET /{id}` 详情接口**（分类编辑复用树节点、自定义栏数据来自 `GET /menus`）。因此：
+
+| 文件 | 含义 | 消费方用法 |
+|---|---|---|
+| `categories/GET.tree.json` | 分类树，**每节点为完整详情对象**（`sort/taskCount/createdAt/updatedAt/children`，含 3 级嵌套） | `GET /categories` 直接返回 |
+| `categories/GET.detail.json` | **单个分类节点**的完整对象（取自树内节点形态） | MSW 对「单节点」场景（编辑表单/详情面板）按 id 从树 handler 中**取出该节点**返回；**不新增后端接口** |
+| `categories/GET.tree.empty.json` | 空树 | 空态场景（配合 `BbEmpty`） |
+| `menus/GET.list.json` | 自定义栏列表，**每栏含完整 `items[]`**，条目内嵌 `task` 摘要（`TaskBrief`） | `GET /menus?userId=` 直接返回 |
+| `menus/GET.detail.json` | **单个自定义栏**完整对象（含 `items[]`） | 同 `categories/GET.detail.json` 口径，按 id 从列表 handler 取出；**不新增后端接口** |
+| `menus/GET.list.empty.json` | 无自定义栏 | 空态场景 |
+
+> **契约支撑**：本次同步在 `../../api/openapi.yaml` 补齐了此前缺失的 `Category` / `Menu` / `MenuItem` / `TaskBrief` 四个 schema（原 fixtures 无契约可依）。若后续确需「按 id 取单分类/单栏」的**独立接口**，需先改 `02 §3.x` 接口表与 openapi，再新增对应 `GET /{id}`——当前**刻意保守**，不擅自新增端点。
+
 ## 3. JSON 表达约定
 
 - **统一外层**：非列表接口用 `ApiResult{code:0, message, data, traceId}`；列表用 `ApiResult{data:{list,total,page,size}}`（与 02 §1 一致）。
@@ -56,6 +77,10 @@ fixtures/
 | `UserVO` | `id,username,name,mobile(脱敏),deptId,deptName,roleCode` | `GET /users?deptId=&keyword=` |
 | `CycleRule` | `freq,interval,dtstart,byDay,count,until,tz` | 02 §4.3；`dueAt=dtstart` |
 | `TagVO` | `id,name,color(owner)` | 标签着色 |
+| `Category` | `id,name,parentId,sort,taskCount,createdAt,updatedAt,children[]` | 分类树节点（含子）；`GET /categories` |
+| `Menu` | `id,userId,name,sort,createdAt,items[]` | 自定义栏（用户私有）；`GET /menus?userId=` |
+| `MenuItem` | `id,menuId,taskId,sort,task:TaskBrief` | 栏内条目，内嵌任务摘要供直接渲染 |
+| `TaskBrief` | `id,title,completed,dueAt,priority` | 栏内/轻量引用任务的摘要 |
 | `CountVO` | `{day,week,joined,assigned,collect,all}` | 六大视图计数（recurring 按展开实例） |
 
 ## 5. MSW / Playwright 契约
@@ -67,6 +92,7 @@ fixtures/
 ## 6. 当前状态
 
 - ✅ **新接口形态**（`api/`，2026-09-28）：`tasks/GET.list|detail|count|calendar.json`、`users/GET.index|tree.json`、`tags/`、`categories/`、`menus/`、`audit/`、`auth/POST.login.json`，字段对齐 `../../api/openapi.yaml`。
+- ✅ **分类 / 自定义栏覆盖率补齐**（2026-09-29）：`categories` 增加**全字段 + 3 级嵌套**树、单节点详情态（`GET.detail.json`）、空态（`GET.tree.empty.json`）；`menus` 增加**条目内嵌任务摘要**的列表、单栏详情态（`GET.detail.json`）、空态（`GET.list.empty.json`）。同步补齐 openapi `Category/Menu/MenuItem/TaskBrief` schema（详见 §1.2）。
 - ✅ **周期任务全字段样例**（E-16 依赖，新形态）：`GET.list.json` 覆盖 DAILY 无限、WEEKLY+`byDay`+`count`、MONTHLY+`until`、`cycleLastCompleted` 已推进/未开始各一；`GET.calendar.json` 演示展开实例。
 - ✅ **旧接口形态**（`legacy-api/`，2026-09-28）：线上抓包结构 + 合成数据，驱动 `../screenshots/` 黄金截图；真实密钥/口令已脱敏（见 `legacy-api/README.md`）。
-- ⏳ 待办：随 openapi 演进补齐 `files/`；`users/GET.index.json` 按 `scope` 过滤子集（MSW handler 内过滤）。
+- ⏳ 待办：随 openapi 演进补齐 `files/`；`users/GET.index.json` 按 `scope` 过滤子集（MSW handler 内过滤）；若确认需要「按 id 取单分类/单栏」独立接口，同步改 `02 §3.x` + openapi。
