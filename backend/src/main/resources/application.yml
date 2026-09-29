@@ -6,6 +6,9 @@ server:
 spring:
   application:
     name: bluebird
+  autoconfigure:
+    # 无 UserDetailsService（JWT 自管认证），排除默认内存用户，避免启动时打印随机口令
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   mvc:
     throw-exception-if-no-handler-found: true     # 未映射 API → NoHandlerFoundException → 全局转 ApiResult（02 §1.5/§1.7.1）
   web:
@@ -83,6 +86,11 @@ management:
         include: health,info
 
 logging:
+  charset:
+    # 中文控制台乱码修复：默认跟随 JVM 的标准输出编码（Java 18+ 的 stdout.encoding，
+    # Windows GBK 控制台 = GBK、Linux/chcp 65001 = UTF-8）；可用 BB_LOG_CHARSET 覆盖。
+    console: ${BB_LOG_CHARSET:${stdout.encoding:UTF-8}}
+    file: UTF-8
   level:
     root: ${LOG_LEVEL:info}
     com.bbtc.bluebird: ${APP_LOG_LEVEL:info}

@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理（02 §1.5）。生产不向客户端暴露堆栈与内部细节。
@@ -36,6 +37,17 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ApiResult<Void> notFound(NoHandlerFoundException e) {
+        return ApiResult.fail(ErrorCode.NOT_FOUND);
+    }
+
+    /**
+     * 静态资源缺失（如浏览器自动请求的 {@code /favicon.ico}）→ 404，降级为 debug。
+     *
+     * <p>不归入 {@link #unhandled}：否则每次缺资源都会打印 ERROR 堆栈（启动日志噪声）。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ApiResult<Void> resourceNotFound(NoResourceFoundException e) {
+        log.debug("静态资源不存在: {}", e.getResourcePath());
         return ApiResult.fail(ErrorCode.NOT_FOUND);
     }
 
