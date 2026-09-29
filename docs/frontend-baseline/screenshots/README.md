@@ -29,7 +29,7 @@
 
 | 文件 | 组件（旧 → 新） |
 |---|---|
-| `component-sidebar-leftbox-1440x900.png` | 左栏（视图导航 + 分类树 + 组织机制树）→ `BbCategoryTree/BbOrgTree` |
+| `component-sidebar-leftbox-1440x900.png` | 左栏（视图导航 + 分类树 + 组织机制树）→ `BbCategoryTree`（`BbOrgTree` 已于 0307 废弃，本截图保留为历史证据） |
 | `component-calendar-card-1440x900.png` | 日历卡片 `CalendarCard` → `BbCalendarCard` |
 | `component-composer-1440x900.png` | 新增任务块（收起）`addTaskBlock` → `BbTaskComposer` |
 | `component-composer-expanded-1440x900.png` | 新增任务块（聚焦展开配置区） |

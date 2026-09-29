@@ -28,7 +28,7 @@
   - **默认选中**：无 `setCurrentKey` / 无默认高亮节点。
   - 新增/改名/删除当前仅内存态，接口为注释占位；旧接口语义（`addTree`/`updateTree`/`delTree`，`api/todoList/tree.js`）对应新接口 `POST /categories`、`PUT /categories/{id}`、`DELETE /categories/{id}`（E2E E-10）；删除应二次确认。
 - 边界与已知缺陷：
-  - **组件未被挂载 · as-is 不可用（0304/D5）**：`LeftBox/index.vue` 未 `import` 本组件，仅在 L303 声明了一个从未使用的 `categoryTreeRef`；左栏实际只渲染 `OrganizationalMechanismTree`。本组件为孤立/死代码，**旧实现下不可达**；数据源（`GET /categories`）与交互按目标态重写，去留由 M1 产品确认（与 `BbOrgTree.md` 同）。
+  - **组件未被挂载 · as-is 不可用（0304/D5）**：`LeftBox/index.vue` 未 `import` 本组件，仅在 L303 声明了一个从未使用的 `categoryTreeRef`；左栏实际只渲染 `OrganizationalMechanismTree`。本组件为孤立/死代码，**旧实现下不可达**；数据源（`GET /categories`）与交互按目标态重写，去留由 M1 产品确认（注：同栏的 `BbOrgTree` 已于 0307 产品决策**废弃**，本组件仍待定）。
   - 新增、修改接口调用整段被注释，数据仅存内存，刷新即丢失。
   - 空值失焦删除依赖 `node.parent.data.findIndex` 分支：根节点无 `node.parent` 时走 `else` 仅打印，**根节点无法被空值删除**，且 `findIndex` 结果为 `-1` 时 `splice(-1,1)` 会误删末位节点。
   - `treeInputEditFlag` 是单一全局标志，多节点并发编辑/新增会被互相拦截。

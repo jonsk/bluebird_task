@@ -9,11 +9,11 @@
 ```
 docs/frontend-baseline/
 ├── README.md           # 本文：总览 / 清单状态 / 验收依据 / 流程 / 历史
-├── contracts/          # 契约 30 份 = 16 业务（行为契约）+ 14 原子（设计/风格契约）
+├── contracts/          # 契约 29 份 = 15 业务（行为契约；原 16，BbOrgTree 已废弃）+ 14 原子（设计/风格契约）
 │   ├── README.md       # 索引 + 模板 + 计数口径(L3) + 旧→新接口映射(L4) + 完成度
-│   ├── Bb*.md          # 16 业务：TaskCard / Composer / SubtaskList / CalendarCard /
+│   ├── Bb*.md          # 15 业务：TaskCard / Composer / SubtaskList / CalendarCard /
 │   │                   #   DatePicker / RemindSelect / RepeatSelect / UserSelect /
-│   │                   #   CategoryTree / OrgTree / TagConfig / TaskList /
+│   │                   #   CategoryTree / TagConfig / TaskList /
 │   │                   #   TaskDetailDrawer / TaskMetaLine / AttachmentList / ParticipantList
 │   └── Bb*.md          # 14 原子：Button / Input / Select / Modal / Drawer / Tag / Icon /
 │                       #   Tree / Table / Pagination / Empty / Tooltip / Loading / Confirm
@@ -46,9 +46,9 @@ docs/frontend-baseline/
 
 | 类别 | 数量 | 契约文档 | 状态 |
 |---|---|---|---|
-| 业务组件（**行为契约**，基于旧源码） | 16 | `contracts/Bb*.md` | ✅ 全部导出 |
+| 业务组件（**行为契约**，基于旧源码） | 15 | `contracts/Bb*.md` | ✅ 全部导出 |
 | 原子组件（**设计/风格契约**，EP 薄封装） | 14 | `contracts/Bb*.md` | ✅ 全部导出 |
-| **合计** | **30** | 索引见 `contracts/README.md` | ✅ **30/30** |
+| **合计** | **29** | 索引见 `contracts/README.md` | ✅ **29/29**（`BbOrgTree` 0307 废弃后） |
 
 > 完整清单、计数口径与交付形态见 `contracts/README.md`「契约范围与计数口径(L3)」与「组件契约清单」。**契约完成度是 M0 出口硬标准**（03 §8 / 修订 R15）。
 
@@ -76,6 +76,7 @@ docs/frontend-baseline/
 
 ## 5. 历史与变更记录
 
+- **2026-09-29（0307 产品决策 · 废弃 BbOrgTree）**：产品决定**放弃** `BbOrgTree`（`layoutNew/components/LeftBox/OrganizationalMechanismTree.vue`，旧实现「组件内静态假数据 + `radio-type` 被注释导致默认不渲染」的死组件，0303/N4 悬置项就此关闭）。动作：删除契约 `contracts/BbOrgTree.md`；业务契约 **16 → 15**、合计 **30 → 29**（冻结期 30/30 为历史事实，见下）；清理左栏/映射/索引及 `departments` fixture 的 `guides` 注释中对 `BbOrgTree` 的引用（`Departments` 仍供人员选择/部门筛选使用）。`BbCategoryTree` 去留**仍待 M1 产品确认**。
 - **2026-09-28（M0 启动）**：建立本目录骨架；基于旧源码导出首批 5 份行为契约（TaskCard / addTaskBlock / childTaskList / CalendarCard / dropdownSetDate）；建立 fixtures 规范与 E2E 场景清单框架。
 - **2026-09-28（0301 审核修订）**：
   - **M1**（引用断裂/布局漂移）✅：设计文档入仓 `Task/01..04`（`Task/README.md`）；建 `docs/api/openapi.yaml` 初版；修正 `e2e/`、`fixtures/` 的 `../../Task/` 深度错误。
@@ -105,7 +106,7 @@ docs/frontend-baseline/
   - **N1 闭环**（E2E 基线未跑）：新增 `scripts/golden-capture/e2e-baseline.mjs`，对旧前端跑通 **9 项**（E-01/03/04/06/09/11/12/16/17），`e2e/scenarios.md` 状态列已回填；其余 8 项标注 SKIP 原因（旧系统不可测/选择器不稳定/组件不可达）。
   - **N2 闭环**（覆盖率缺口）：补 `fixtures/api/departments/GET.tree.json`、`users/GET.me.json`；`BbOrgTree` 数据源改为 `GET /departments`，不再复用 users 树。
   - **N3**（合成数据）：`legacy-api/README.md` 增「合成 vs 真实」说明（结构真、数值合成，非缺陷）。
-  - **N4**（BbOrgTree 不可达）：契约标注**去留待确认**（不阻断冻结）；重写须提供可用视图切换入口。
+  - **N4**（BbOrgTree 不可达）：契约标注**去留待确认**（不阻断冻结）；重写须提供可用视图切换入口。**→ 已于 0307 产品决策废弃（见 §5 首条），本项关闭。**
   - **N5**（写态计数）：`fixtures/README` 由「24」更正为 **21**（实测）。
 - **2026-09-29（0304 审核修订 · 四审层级）**：真实登录抓包复核（legacy 形态 100% 吻合）。
   - **D1 闭环**（映射表方法动词错误）：`contracts/README` 8 处 `POST→GET` 校正（`record.js` 实为 `method:'get'`：del/updateStatus/complete/completewithdraw/doCollect/delCollect/subrecord del|complete）；并补全 `/sys/category/*`、`/sysTag/*`、`/admin/user/*`、`/sys/file/*` 映射（D6）。

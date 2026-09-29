@@ -19,14 +19,14 @@
 
 ## 契约范围与计数口径（修订 L3）
 
-`03 §8` M0 出口要求「**14 原子 + 16 业务 = 30 契约**」全部导出。两类契约的**交付形态不同**，计数口径明确如下：
+`03 §8` M0 出口要求「**14 原子 + 16 业务 = 30 契约**」全部导出（该 30/30 已于冻结期达成）。**2026-09-29 产品决策（0307）：废弃 `BbOrgTree`**（`OrganizationalMechanismTree.vue`，旧实现「静态假数据 + 默认不渲染」的死组件）→ 业务契约 **16 → 15**，合计 **30 → 29**；其契约文件已删除。两类契约**交付形态不同**，计数口径明确如下：
 
 | 类别 | 组件 | 契约形态 | 依据 |
 |---|---|---|---|
-| **业务组件（16）** | `BbTaskCard / BbTaskComposer / BbSubtaskList / BbCalendarCard / BbDatePicker / BbRemindSelect / BbRepeatSelect / BbUserSelect / BbCategoryTree / BbOrgTree / BbTagConfig / BbTaskList / BbTaskDetailDrawer / BbTaskMetaLine / BbAttachmentList / BbParticipantList` | **行为契约**（本文模板 7 字段，基于**旧源码**导出） | 03 §2.3.1 |
+| **业务组件（15）** | `BbTaskCard / BbTaskComposer / BbSubtaskList / BbCalendarCard / BbDatePicker / BbRemindSelect / BbRepeatSelect / BbUserSelect / BbCategoryTree / BbTagConfig / BbTaskList / BbTaskDetailDrawer / BbTaskMetaLine / BbAttachmentList / BbParticipantList` | **行为契约**（本文模板 7 字段，基于**旧源码**导出） | 03 §2.3.1 |
 | **原子组件（14）** | `BbButton / BbInput / BbSelect / BbModal / BbDrawer / BbTag / BbIcon / BbTree / BbTable / BbPagination / BbEmpty / BbTooltip / BbLoading / BbConfirm`（03 §3.4.1 列表） | **设计/样式契约**（Element Plus 薄封装，**无旧源可派生行为**）：props/emits 透传约定、Design Token 映射、间距/色/态（hover/disabled）、无障碍基准 | 03 §3.4.1（设计系统），非 §2.3.1 |
 
-> 即：**16 份行为契约**走 §2.3 三步法（旧源导出 + 截图证据）；**14 份原子契约**走设计系统规格（Design Token/主题），同样入库 `contracts/` 但以「风格契约」形态，天然无旧源与截图比对需求。M0 验收按此两口径分别核验。
+> 即：**15 份行为契约**走 §2.3 三步法（旧源导出 + 截图证据）；**14 份原子契约**走设计系统规格（Design Token/主题），同样入库 `contracts/` 但以「风格契约」形态，天然无旧源与截图比对需求。M0 验收按此两口径分别核验。
 
 ### 原子契约统一结构（0304/D6 归一）
 
@@ -46,7 +46,7 @@
 
 ## 组件契约清单
 
-### 业务组件（16 · 行为契约）
+### 业务组件（15 · 行为契约）
 
 | 旧组件（源码） | 新组件 | 契约 | 状态 |
 |---|---|---|---|
@@ -59,7 +59,6 @@
 | `todolistModule/components/dropdownSetEach.vue` | `BbRepeatSelect` | `BbRepeatSelect.md` | ✅ |
 | `todolistModule/components/selectUser.vue` | `BbUserSelect` | `BbUserSelect.md` | ✅ |
 | `layoutNew/components/LeftBox/categoryTree.vue` | `BbCategoryTree` | `BbCategoryTree.md` | ✅ |
-| `layoutNew/components/LeftBox/OrganizationalMechanismTree.vue` | `BbOrgTree` | `BbOrgTree.md` | ✅ |
 | `layoutNew/components/TagConfig/index.vue` | `BbTagConfig` | `BbTagConfig.md` | ✅ |
 | `todolistModule/components/taskListOne.vue` / `taskListTwo.vue` | `BbTaskList` | `BbTaskList.md` | ✅ |
 | `todolistModule/components/RightBoxDialog` / 详情 | `BbTaskDetailDrawer` | `BbTaskDetailDrawer.md` | ✅ |
@@ -88,7 +87,7 @@
 
 > 原子契约统一引用令牌命名 `--bb-color-* / --bb-space-* / --bb-radius-* / --bb-font-size-* / --bb-shadow-*`（03 §4.4），与实现期 `styles/tokens.css` 对齐。
 
-> **完成度即 M0 出口硬标准（03 §8 / 修订 R15）**：全部 30 组件契约导出后才放行 M1。**现状：16 业务 ✅ + 14 原子 ✅ = 30/30，已达 M0 出口条件。** 视觉证据（**38 PNG + 1 录屏**，含 `state-empty-*`/`state-error-*`/`state-httperr-*`）已采集于 `../screenshots/`，**按策略不入库**（`.gitignore`，0304/D3），由仓根 `../../scripts/golden-capture/` 复现。
+> **完成度即 M0 出口硬标准（03 §8 / 修订 R15）**：**冻结期**全部 **30** 组件契约已导出、**30/30 达成**（历史）。**2026-09-29（0307）产品废弃 `BbOrgTree` 后，现行交付集合为 15 业务 + 14 原子 = 29。** 视觉证据（**38 PNG + 1 录屏**，含 `state-empty-*`/`state-error-*`/`state-httperr-*`）已采集于 `../screenshots/`，**按策略不入库**（`.gitignore`，0304/D3），由仓根 `../../scripts/golden-capture/` 复现。
 
 ## 旧接口 → 新接口 废弃映射（修订 L4；方法/路径校正见 0304/D1、补全见 0304/D6）
 
