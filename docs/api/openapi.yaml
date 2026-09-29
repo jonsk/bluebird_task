@@ -20,6 +20,7 @@ tags:
   - name: menu
   - name: file
   - name: audit
+  - name: job
 
 security:
   - bearerAuth: []
@@ -75,6 +76,21 @@ paths:
                           provider: { type: string, enum: [LOCAL, OIDC, WECHAT] }
                           corpId: { type: string, nullable: true }
                           agentId: { type: string, nullable: true }
+  /auth/external/callback:
+    get:
+      tags: [auth]
+      summary: OIDC 回调（Spring Security 接管，浏览器整页跳转，非 XHR）
+      security: []
+      responses:
+        '302': { description: 重定向回前端（成功/失败） }
+  /auth/wechat/callback:
+    get:
+      tags: [auth]
+      summary: 企微回调（Controller + WechatIdentityAdapter；前端 XHR 直达）
+      security: []
+      parameters:
+        - { name: code, in: query, required: true, schema: { type: string } }
+      responses: { '200': { $ref: '#/components/responses/Token' } }
   /users:
     get:
       tags: [user]
@@ -107,6 +123,9 @@ paths:
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses:
         '200': { $ref: '#/components/responses/Ok' }
+  /users/{id}:
+    put: { tags: [user], summary: 更新用户（ADMIN）, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    delete: { tags: [user], summary: 禁用/删除用户（ADMIN）, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /departments:
     get:
       tags: [org]
@@ -118,6 +137,36 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/Department' } } } }]
+    post: { tags: [org], summary: 新增部门（ADMIN）, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /departments/{id}:
+    put: { tags: [org], summary: 修改部门（含 `leaderId`，ADMIN）, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    delete: { tags: [org], summary: 删除部门（有子级/有成员则拒绝，ADMIN）, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /org/sync:
+    post: { tags: [org], summary: 手动同步（PULL 模式，ADMIN）, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /org/sync/status:
+    get:
+      tags: [org]
+      summary: 同步状态（ADMIN）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/SyncStatus' } } }]
+  /org/push:
+    post:
+      tags: [org]
+      summary: 私有 IDM 推送（独立 SecurityFilterChain 校验 Bearer ORGSYNC_PUSH_TOKEN）
+      security: []
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+
+  /jobs/{name}/run:
+    post:
+      tags: [job]
+      summary: 手动重跑调度任务（ADMIN；`sys_job_log` 记录，0306/Q6）
+      parameters: [{ name: name, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
 
   /tasks:
     get:
@@ -286,6 +335,17 @@ paths:
     post:
       tags: [file]
       summary: 上传附件
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /files/{id}:
+    get:
+      tags: [file]
+      summary: 下载附件（登录 + 任务访问权校验；按 id 访问，不暴露物理路径）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: 文件流 } }
+    delete:
+      tags: [file]
+      summary: 删除附件
+      parameters: [{ $ref: '#/components/parameters/Id' }]
       responses: { '200': { $ref: '#/components/responses/Ok' } }
   /files/{id}/preview:
     get:
@@ -576,3 +636,11 @@ components:
         total: { type: integer }
         page: { type: integer }
         size: { type: integer }
+    SyncStatus:
+      type: object
+      description: 组织同步状态（orgsync）
+      properties:
+        running: { type: boolean }
+        lastSyncAt: { type: string, format: date-time, nullable: true }
+        lastResult: { type: string, nullable: true }
+        mode: { type: string, enum: [NONE, SCIM, PULL, PUSH] }
