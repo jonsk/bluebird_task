@@ -58,7 +58,7 @@ docs/frontend-baseline/
 | 原子设计契约 | 14 | 0（待建，见 L3 口径） |
 | E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`） |
 | fixtures JSON | 有样例 | ✅ 首批（`fixtures/api/**`，含周期任务） |
-| 黄金截图/录屏证据 | 采集 | ⛔ 待采集（`screenshots/README.md`，M2 依赖隔离环境） |
+| 黄金截图/录屏证据 | 采集 | ✅ 8 张 + 1 录屏（`screenshots/`，fixtures 注入，确定性） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
 | 引用可解析 | 全绿 | ✅ 设计文档已入仓 `../../Task/`（M1） |
 
@@ -83,6 +83,12 @@ docs/frontend-baseline/
   - **L4**（旧接口废弃映射）✅：`contracts/README` 增「旧→新接口映射表」（据旧 `record.js` 实源）。
   - **M2**（证据缺口）⏳：新增 `screenshots/README.md` 采集规程；黄金截图/录屏仍待隔离环境采集（M0 内完成）。
   - 审核原文：`Task/0301审核_前端基线冻结.md`（评审工作区）。
+- **2026-09-28（M2 证据采集完成）**：
+  - 旧前端隔离环境跑通（`http://10.14.37.187:8081/`，登录 `admin`）。
+  - 新增 `fixtures/legacy-api/`（旧接口形态数据集，脱敏）与 `scripts/golden-capture/`（Playwright harness）。
+  - 采集 **8 张黄金截图 + 1 段录屏** → `screenshots/`（我的一天/未来7天/我@Ta/分配给我/我的收藏/全部任务/登录/完成交互）。
+  - 线上库任务为空，故用固定 fixtures 注入渲染（确定性、无真实数据）；`verify.mjs` 断言卡片数通过。
+  - **组件级补充采集**（`capture-components.mjs`）：左栏、日历卡、新增任务块（收起/展开）、四个下拉（日期/提醒/重复/标签）、标签配置、人员选择对话框，共 +10 张；截图合计 19 张 + 1 录屏。
 
 ## 6. 关联文档
 

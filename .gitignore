@@ -36,7 +36,13 @@ frontend/dist/
 *.tsbuildinfo
 coverage/
 
-# 前端基线截图产物（运行期生成，重导出时重新纳入，见 docs/frontend-baseline/README.md）
+# 前端基线：黄金截图 / 录屏证据不入库（二进制体量大；仅 README 说明入库，见 docs/frontend-baseline/screenshots/README.md）
+# 复现方式：scripts/golden-capture/（Playwright harness）
+docs/frontend-baseline/screenshots/**/*.png
+docs/frontend-baseline/screenshots/**/*.jpg
+docs/frontend-baseline/screenshots/**/*.jpeg
+docs/frontend-baseline/screenshots/**/*.webm
+docs/frontend-baseline/screenshots/**/*.mp4
 docs/frontend-baseline/screenshots/generated/
 
 # ---- 后端内嵌前端产物目录（ADR-009，构建期注入）----

@@ -13,23 +13,33 @@
 ```
 fixtures/
 ├── README.md                       # 本文
-└── api/                            # 按接口路径镜像，便于 MSW/Playwright 直读
-    ├── auth/POST.login.json
-    ├── tasks/
-    │   ├── GET.list.json           # 六大视图列表（含周期任务；E-03/E-16）
-    │   ├── GET.detail.json         # 含子任务
-    │   ├── GET.count.json          # 各视图计数
-    │   └── GET.calendar.json       # 日历区间（周期实例展开；E-16）
-    ├── users/
-    │   ├── GET.index.json          # 人员选择器（手机号脱敏）
-    │   └── GET.tree.json           # 组织树
-    ├── tags/GET.list.json
-    ├── categories/GET.tree.json
-    ├── menus/GET.list.json
-    └── audit/
-        ├── GET.logins.json
-        └── GET.operates.json
+├── api/                            # 【新接口形态】MSW 用，按接口路径镜像
+│   ├── auth/POST.login.json
+│   ├── tasks/
+│   │   ├── GET.list.json           # 六大视图列表（含周期任务；E-03/E-16）
+│   │   ├── GET.detail.json         # 含子任务
+│   │   ├── GET.count.json          # 各视图计数
+│   │   └── GET.calendar.json       # 日历区间（周期实例展开；E-16）
+│   ├── users/GET.index.json · GET.tree.json
+│   ├── tags/GET.list.json
+│   ├── categories/GET.tree.json
+│   ├── menus/GET.list.json
+│   └── audit/GET.logins.json · GET.operates.json
+└── legacy-api/                     # 【旧接口形态】黄金截图用（Playwright route 注入）
+    ├── README.md
+    └── dataset.json                # 旧系统真实响应结构 + 合成数据（含 @task 引用）
 ```
+
+## 1.1 双形态（修订 0301/M2 落地）
+
+基线 fixtures 存在**两种序列化形态**，表达**同一组逻辑数据**：
+
+| 形态 | 目录 | 消费方 | 外层/字段 |
+|---|---|---|---|
+| **新接口形态** | `api/` | 新前端 MSW | `ApiResult{code,message,data}`，字段以 `openapi.yaml` 为准 |
+| **旧接口形态** | `legacy-api/` | 旧前端 Playwright route（黄金截图） | 旧系统真实结构（`{records,...}` / 裸数组 / `taskContent` 等） |
+
+> 原因：旧/新接口**报文结构本就不同**（旧 `task/record/*` vs 新 `/tasks`），无法用一份字节级 JSON 同时喂两端。故约定**同一逻辑数据集、两种形态**，字段映射见各 README。黄金截图证据由 `legacy-api/` 驱动（`../screenshots/README.md`）。
 
 ## 3. JSON 表达约定
 
@@ -56,6 +66,7 @@ fixtures/
 
 ## 6. 当前状态
 
-- ✅ **规范 + 首批 JSON 样例已产出**（2026-09-28）：`tasks/GET.list|detail|count|calendar.json`、`users/GET.index|tree.json`、`tags/`、`categories/`、`menus/`、`audit/`、`auth/POST.login.json`，字段均对齐 `../../api/openapi.yaml`。
-- ✅ **周期任务全字段样例已含**（E2E E-16 依赖）：`GET.list.json` 覆盖 DAILY 无限、WEEKLY+`byDay`+`count`、MONTHLY+`until`、`cycleLastCompleted` 已推进/未开始各一；`GET.calendar.json` 演示展开实例（同 id 多渠道多实例）。
-- ⏳ 待办：随 openapi 演进补齐 `files/`；`users/GET.index.json` 按 `scope` 过滤子集（MSW handler 内过滤）；黄金截图证据（见 `../screenshots/README.md`、M2）。
+- ✅ **新接口形态**（`api/`，2026-09-28）：`tasks/GET.list|detail|count|calendar.json`、`users/GET.index|tree.json`、`tags/`、`categories/`、`menus/`、`audit/`、`auth/POST.login.json`，字段对齐 `../../api/openapi.yaml`。
+- ✅ **周期任务全字段样例**（E-16 依赖，新形态）：`GET.list.json` 覆盖 DAILY 无限、WEEKLY+`byDay`+`count`、MONTHLY+`until`、`cycleLastCompleted` 已推进/未开始各一；`GET.calendar.json` 演示展开实例。
+- ✅ **旧接口形态**（`legacy-api/`，2026-09-28）：线上抓包结构 + 合成数据，驱动 `../screenshots/` 黄金截图；真实密钥/口令已脱敏（见 `legacy-api/README.md`）。
+- ⏳ 待办：随 openapi 演进补齐 `files/`；`users/GET.index.json` 按 `scope` 过滤子集（MSW handler 内过滤）。

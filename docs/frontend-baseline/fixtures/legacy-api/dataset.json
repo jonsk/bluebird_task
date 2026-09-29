@@ -1,0 +1,205 @@
+{
+  "meta": {
+    "purpose": "Legacy-shape API responses used to render the OLD BlueBird frontend deterministically (golden screenshots / recordings). See README.md.",
+    "source": "Shape captured from live legacy system (10.14.37.187:8081) via Playwright; task bodies are SYNTHETIC (live DB has no task rows). No real secrets/password hashes included.",
+    "capturedAt": "2026-09-28",
+    "basePath": "/api-server",
+    "notes": [
+      "List endpoints day/week/join/collect return a MyBatis-Plus page {records,total,size,current,pages}, called twice (completeStatus=0 and =1).",
+      "do and link return a bare array in the live system.",
+      "Current user id is 1; TaskCard uses userStore.id === task.belongUserId to gate owner-only actions."
+    ],
+    "currentUser": { "id": "1", "name": "管理员" }
+  },
+  "endpoints": [
+    {
+      "name": "login",
+      "method": "POST",
+      "path": "/api-server/api/user/login",
+      "body": { "token": "eyJhbGciOiJIUzI1NiJ9.FIXTURE-LEGACY-TOKEN.signature" }
+    },
+    {
+      "name": "myself",
+      "method": "GET",
+      "path": "/api-server/admin/user/myself",
+      "body": {
+        "id": "1", "username": "admin", "name": "管理员", "password": "",
+        "disabled": false, "deleted": false, "roles": [1],
+        "auths": [],
+        "createTime": "2025-01-22 11:19:37", "updateTime": "2026-09-28 09:00:00",
+        "department": null
+      }
+    },
+    {
+      "name": "user-list",
+      "method": "GET",
+      "path": "/api-server/admin/user/list",
+      "body": {
+        "list": [
+          { "id": 1, "username": "admin", "name": "管理员", "dept": { "deptName": "研发部" } },
+          { "id": 2, "username": "zhangsan", "name": "张三", "dept": { "deptName": "研发部" } },
+          { "id": 3, "username": "lisi", "name": "李四", "dept": { "deptName": "研发部" } },
+          { "id": 4, "username": "wangwu", "name": "王五", "dept": { "deptName": "市场部" } }
+        ],
+        "total": 4
+      }
+    },
+    {
+      "name": "wechat-config",
+      "method": "GET",
+      "path": "/api-server/wechat/getWeChat",
+      "body": { "corpId": "ww-fixture-corp", "corpSecret": "", "agentId": "1000000" }
+    },
+    {
+      "name": "count",
+      "method": "GET",
+      "path": "/api-server/task/record/count",
+      "body": { "all": 8, "week": 6, "join": 1, "do": 1, "day": 5, "collect": 1 }
+    },
+    {
+      "name": "day-pending", "method": "GET", "path": "/api-server/task/record/day", "matchQuery": "completeStatus=0",
+      "body": { "records": ["@task:101", "@task:102", "@task:103", "@task:104"], "total": 4, "size": 9999, "current": 1, "pages": 1 }
+    },
+    {
+      "name": "day-done", "method": "GET", "path": "/api-server/task/record/day", "matchQuery": "completeStatus=1",
+      "body": { "records": ["@task:105"], "total": 1, "size": 9999, "current": 1, "pages": 1 }
+    },
+    {
+      "name": "week-pending", "method": "GET", "path": "/api-server/task/record/week", "matchQuery": "completeStatus=0",
+      "body": { "records": ["@task:101", "@task:102", "@task:103", "@task:104", "@task:106"], "total": 5, "size": 9999, "current": 1, "pages": 1 }
+    },
+    {
+      "name": "week-done", "method": "GET", "path": "/api-server/task/record/week", "matchQuery": "completeStatus=1",
+      "body": { "records": ["@task:105"], "total": 1, "size": 9999, "current": 1, "pages": 1 }
+    },
+    {
+      "name": "join-pending", "method": "GET", "path": "/api-server/task/record/join", "matchQuery": "completeStatus=0",
+      "body": { "records": ["@task:106"], "total": 1, "size": 9999, "current": 1, "pages": 1 }
+    },
+    {
+      "name": "join-done", "method": "GET", "path": "/api-server/task/record/join", "matchQuery": "completeStatus=1",
+      "body": { "records": [], "total": 0, "size": 9999, "current": 1, "pages": 0 }
+    },
+    {
+      "name": "do-pending", "method": "GET", "path": "/api-server/task/record/do", "matchQuery": "completeStatus=0",
+      "body": ["@task:107"]
+    },
+    {
+      "name": "do-done", "method": "GET", "path": "/api-server/task/record/do", "matchQuery": "completeStatus=1",
+      "body": []
+    },
+    {
+      "name": "collect-pending", "method": "GET", "path": "/api-server/task/record/collect", "matchQuery": "completeStatus=0",
+      "body": { "records": ["@task:108"], "total": 1, "size": 9999, "current": 1, "pages": 1 }
+    },
+    {
+      "name": "collect-done", "method": "GET", "path": "/api-server/task/record/collect", "matchQuery": "completeStatus=1",
+      "body": { "records": [], "total": 0, "size": 9999, "current": 1, "pages": 0 }
+    },
+    {
+      "name": "link", "method": "GET", "path": "/api-server/task/record/link",
+      "body": ["@task:101", "@task:102", "@task:103", "@task:104", "@task:105", "@task:106", "@task:107", "@task:108"]
+    },
+    {
+      "name": "custom-menu", "method": "GET", "path": "/api-server/task/menu/getmenulist",
+      "body": [ { "id": "900", "name": "本周重点" }, { "id": "901", "name": "跟进事项" } ]
+    },
+    {
+      "name": "tag-page", "method": "GET", "path": "/api-server/sysTag/page",
+      "body": [
+        { "id": "1914498742485872642", "tagName": "重要", "belongUserId": "1" },
+        { "id": "1914524440701181953", "tagName": "紧急", "belongUserId": "1" },
+        { "id": "1914524440701181954", "tagName": "日常", "belongUserId": "1" }
+      ]
+    },
+    {
+      "name": "category-tree", "method": "GET", "path": "/api-server/sys/category/tree",
+      "body": [
+        { "id": "3", "name": "汇报", "parentId": null, "children": [
+          { "id": "31", "name": "周报", "parentId": "3", "children": [] },
+          { "id": "32", "name": "月报", "parentId": "3", "children": [] }
+        ] },
+        { "id": "4", "name": "个人", "parentId": null, "children": [] }
+      ]
+    },
+    {
+      "name": "calendar", "method": "GET", "path": "/api-server/task/record/getproxycalendar",
+      "body": [
+        { "date": "2026-09-20", "hasTask": true },
+        { "date": "2026-09-28", "hasTask": true },
+        { "date": "2026-09-30", "hasTask": true }
+      ]
+    }
+  ],
+  "tasks": {
+    "101": {
+      "id": 101, "taskContent": "整理季度汇报材料", "completeStatus": "0",
+      "taskAlarmTime": "2026-09-20 18:00:00", "taskReminderTime": "2026-09-20 09:00:00",
+      "taskCycle": "", "taskNotes": "汇总三个小组数据", "taskSetupTime": "2026-09-15 10:00:00",
+      "isCollected": "0", "belongUserId": "1", "belongUserName": "管理员",
+      "total": 2, "completedtotal": 1,
+      "tagList": [{ "id": "1914524440701181953", "tagName": "紧急" }],
+      "executeUserList": [{ "id": 2, "name": "张三" }],
+      "taskFileList": [{ "id": 5001, "fileName": "季度数据.xlsx", "fileSize": 20480 }],
+      "remarkJson": "{}",
+      "children": [
+        { "id": 1011, "taskContent": "收集各组数据", "completeStatus": "1", "taskSetupTime": "2026-09-15 10:05:00", "belongUserId": "1", "belongUserName": "管理员", "remarkJson": "{}" },
+        { "id": 1012, "taskContent": "汇总成 PPT", "completeStatus": "0", "taskSetupTime": "2026-09-15 10:06:00", "belongUserId": "1", "belongUserName": "管理员", "remarkJson": "{}" }
+      ]
+    },
+    "102": {
+      "id": 102, "taskContent": "准备产品评审会", "completeStatus": "0",
+      "taskAlarmTime": "2026-09-30 14:00:00", "taskReminderTime": "2026-09-30 08:30:00",
+      "taskCycle": "", "taskNotes": "", "taskSetupTime": "2026-09-26 09:00:00",
+      "isCollected": "0", "belongUserId": "1", "belongUserName": "管理员",
+      "tagList": [{ "id": "1914498742485872642", "tagName": "重要" }],
+      "executeUserList": [{ "id": 3, "name": "李四" }, { "id": 4, "name": "王五" }],
+      "taskFileList": [], "remarkJson": "{}", "children": []
+    },
+    "103": {
+      "id": 103, "taskContent": "阅读行业报告并输出摘要", "completeStatus": "0",
+      "taskAlarmTime": "2026-10-15 10:00:00", "taskReminderTime": null,
+      "taskCycle": "", "taskNotes": "", "taskSetupTime": "2026-09-27 14:00:00",
+      "isCollected": "0", "belongUserId": "1", "belongUserName": "管理员",
+      "tagList": [], "executeUserList": [], "taskFileList": [], "remarkJson": "{}", "children": []
+    },
+    "104": {
+      "id": 104, "taskContent": "每日站会", "completeStatus": "0",
+      "taskAlarmTime": "2026-09-28 09:30:00", "taskReminderTime": null,
+      "taskCycle": "0", "taskNotes": "", "taskSetupTime": "2026-09-01 09:00:00",
+      "isCollected": "0", "belongUserId": "1", "belongUserName": "管理员",
+      "tagList": [{ "id": "1914524440701181954", "tagName": "日常" }],
+      "executeUserList": [], "taskFileList": [], "remarkJson": "{}", "children": []
+    },
+    "105": {
+      "id": 105, "taskContent": "完成前端行为契约首批导出", "completeStatus": "1",
+      "taskAlarmTime": "2026-09-27 18:00:00", "taskReminderTime": null,
+      "taskCycle": "", "taskNotes": "", "taskSetupTime": "2026-09-20 09:00:00",
+      "isCollected": "0", "belongUserId": "1", "belongUserName": "管理员",
+      "tagList": [], "executeUserList": [], "taskFileList": [], "remarkJson": "{}", "children": []
+    },
+    "106": {
+      "id": 106, "taskContent": "跟进客户反馈（被 @ 的任务）", "completeStatus": "0",
+      "taskAlarmTime": "2026-09-29 17:00:00", "taskReminderTime": null,
+      "taskCycle": "", "taskNotes": "", "taskSetupTime": "2026-09-25 11:00:00",
+      "isCollected": "0", "belongUserId": "3", "belongUserName": "李四",
+      "tagList": [], "executeUserList": [{ "id": 1, "name": "管理员" }],
+      "taskFileList": [], "remarkJson": "{}", "children": []
+    },
+    "107": {
+      "id": 107, "taskContent": "分配给我：补充接口文档", "completeStatus": "0",
+      "taskAlarmTime": "2026-09-29 12:00:00", "taskReminderTime": null,
+      "taskCycle": "", "taskNotes": "", "taskSetupTime": "2026-09-26 16:00:00",
+      "isCollected": "0", "belongUserId": "2", "belongUserName": "张三",
+      "tagList": [], "executeUserList": [{ "id": 1, "name": "管理员" }],
+      "taskFileList": [], "remarkJson": "{}", "children": []
+    },
+    "108": {
+      "id": 108, "taskContent": "已收藏：重构方案评审要点", "completeStatus": "0",
+      "taskAlarmTime": "2026-10-02 18:00:00", "taskReminderTime": null,
+      "taskCycle": "", "taskNotes": "", "taskSetupTime": "2026-09-22 09:00:00",
+      "isCollected": "1", "belongUserId": "1", "belongUserName": "管理员",
+      "tagList": [], "executeUserList": [], "taskFileList": [], "remarkJson": "{}", "children": []
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "bluebird-golden-capture",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Playwright harness to capture golden screenshots/recordings and API fixtures from the legacy BlueBird frontend (frontend baseline freeze, 03 §2.3.2).",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "probe": "node probe.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
