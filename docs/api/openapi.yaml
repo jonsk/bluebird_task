@@ -54,6 +54,9 @@ paths:
       tags: [auth]
       summary: 刷新 token（匿名，凭 refresh token）
       security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RefreshReq' } } }
       responses:
         '200': { $ref: '#/components/responses/Token' }
   /auth/external/config:
@@ -103,6 +106,9 @@ paths:
     post:
       tags: [user]
       summary: 新增用户（ADMIN）
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UserCreateReq' } } }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
   /users/me:
@@ -121,10 +127,20 @@ paths:
       tags: [user]
       summary: 修改密码（首登 must_change_password 引导）
       parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PasswordUpdateReq' } } }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
   /users/{id}:
-    put: { tags: [user], summary: 更新用户（ADMIN）, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    put:
+      tags: [user]
+      summary: 更新用户（ADMIN）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UserUpdateReq' } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
     delete: { tags: [user], summary: 禁用/删除用户（ADMIN）, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /departments:
     get:
@@ -137,9 +153,22 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/Department' } } } }]
-    post: { tags: [org], summary: 新增部门（ADMIN）, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post:
+      tags: [org]
+      summary: 新增部门（ADMIN）
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DeptCreateReq' } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
   /departments/{id}:
-    put: { tags: [org], summary: 修改部门（含 `leaderId`，ADMIN）, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    put:
+      tags: [org]
+      summary: 修改部门（含 `leaderId`，ADMIN）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DeptUpdateReq' } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
     delete: { tags: [org], summary: 删除部门（有子级/有成员则拒绝，ADMIN）, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /org/sync:
     post: { tags: [org], summary: 手动同步（PULL 模式，ADMIN）, responses: { '200': { $ref: '#/components/responses/Ok' } } }
@@ -233,8 +262,11 @@ paths:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/TaskDetailVO' } } }]
     put:
       tags: [task]
-      summary: 更新任务
+      summary: 更新任务（须携带 `version`）
       parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TaskUpdateReq' } } }
       responses: { '200': { $ref: '#/components/responses/Ok' } }
     delete:
       tags: [task]
@@ -260,6 +292,14 @@ paths:
       tags: [task]
       summary: 取消完成（周期任务可传 dueAt）
       parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dueAt: { type: string, format: date-time, nullable: true }
       responses: { '200': { $ref: '#/components/responses/Ok' } }
   /tasks/{id}/collect:
     post:
@@ -284,9 +324,18 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/TagVO' } } } }]
-    post: { tags: [tag], summary: 新增标签, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post:
+      tags: [tag]
+      summary: 新增标签
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TagReq' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
   /tags/{id}:
-    put: { tags: [tag], summary: 改标签, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    put:
+      tags: [tag]
+      summary: 改标签
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TagReq' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
     delete: { tags: [tag], summary: 删标签, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /categories:
     get:
@@ -301,9 +350,18 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/Category' } } } }]
-    post: { tags: [category], summary: 新增分类, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post:
+      tags: [category]
+      summary: 新增分类（body 含 `scope`/`deptId`，ADR-015）
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CategoryReq' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
   /categories/{id}:
-    put: { tags: [category], summary: 改分类, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    put:
+      tags: [category]
+      summary: 改分类
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CategoryReq' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
     delete: { tags: [category], summary: 删分类, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /menus:
     get:
@@ -318,12 +376,12 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/Menu' } } } }]
-    post: { tags: [menu], summary: 新增栏, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post: { tags: [menu], summary: 新增栏, requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MenuReq' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /menus/{id}:
-    put: { tags: [menu], summary: 改栏, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    put: { tags: [menu], summary: 改栏, parameters: [{ $ref: '#/components/parameters/Id' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MenuReq' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' } } }
     delete: { tags: [menu], summary: 删栏, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /menus/{id}/items:
-    post: { tags: [menu], summary: 添加任务到栏, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post: { tags: [menu], summary: 添加任务到栏, parameters: [{ $ref: '#/components/parameters/Id' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MenuItemReq' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /menus/{id}/items/{itemId}:
     delete:
       tags: [menu]
@@ -336,7 +394,16 @@ paths:
   /files:
     post:
       tags: [file]
-      summary: 上传附件
+      summary: 上传附件（multipart，`taskId` 可选）
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                taskId: { type: integer, format: int64, nullable: true }
       responses: { '200': { $ref: '#/components/responses/Ok' } }
   /files/{id}:
     get:
@@ -649,3 +716,75 @@ components:
         lastSyncAt: { type: string, format: date-time, nullable: true }
         lastResult: { type: string, nullable: true }
         mode: { type: string, enum: [NONE, SCIM, PULL, PUSH] }
+    RefreshReq:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    UserCreateReq:
+      type: object
+      required: [username, name]
+      properties:
+        username: { type: string }
+        name: { type: string }
+        password: { type: string, format: password, nullable: true, description: 可选；首登 must_change_password 强制改密 }
+        deptId: { type: integer, format: int64, nullable: true }
+        roleCode: { type: string, enum: [ADMIN, AUDITOR, USER_MANAGER, COMMON] }
+    UserUpdateReq:
+      type: object
+      properties:
+        name: { type: string }
+        deptId: { type: integer, format: int64, nullable: true }
+        roleCode: { type: string, enum: [ADMIN, AUDITOR, USER_MANAGER, COMMON] }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
+    PasswordUpdateReq:
+      type: object
+      required: [newPassword]
+      properties:
+        oldPassword: { type: string, format: password, nullable: true, description: 非首登须提供 }
+        newPassword: { type: string, format: password }
+    DeptCreateReq:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        parentId: { type: integer, format: int64, nullable: true }
+        leaderId: { type: integer, format: int64, nullable: true }
+    DeptUpdateReq:
+      type: object
+      properties:
+        name: { type: string }
+        parentId: { type: integer, format: int64, nullable: true }
+        leaderId: { type: integer, format: int64, nullable: true }
+    CategoryReq:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        parentId: { type: integer, format: int64, nullable: true }
+        scope: { type: string, enum: [PERSONAL, DEPARTMENT, ORG], default: PERSONAL }
+        deptId: { type: integer, format: int64, nullable: true, description: scope=DEPARTMENT 时必填 }
+    TagReq:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    MenuReq:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        sort: { type: integer }
+    MenuItemReq:
+      type: object
+      required: [taskId]
+      properties:
+        taskId: { type: integer, format: int64 }
+    TaskUpdateReq:
+      description: 更新任务（在 TaskCreateReq 基础上 `version` 必填，ADR-013）
+      allOf:
+        - $ref: '#/components/schemas/TaskCreateReq'
+        - type: object
+          required: [version]
+          properties:
+            version: { type: integer, format: int64 }

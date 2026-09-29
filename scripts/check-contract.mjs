@@ -27,6 +27,15 @@ const ENDPOINT_IGNORE = new Set([
   // 示例：'GET /internal/health',
 ]);
 
+// 写操作（POST/PUT/PATCH）可无请求体的合理豁免（无 body 语义）
+const BODY_EXEMPT = new Set([
+  'POST /auth/logout',
+  'POST /org/sync',
+  'POST /org/push',
+  'POST /jobs/{name}/run',
+  'POST /tasks/{id}/collect',
+]);
+
 const C = { red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m', dim: '\x1b[2m', reset: '\x1b[0m' };
 const fail = [];
 const note = [];
@@ -112,7 +121,18 @@ if (missingInApi.length)
 if (missingInDoc.length)
   fail.push(`openapi 已定义、但设计文档接口表未列的端点（${missingInDoc.length}）：\n    - ${missingInDoc.join('\n    - ')}`);
 
-// ---------- 2. 错误码一致 ----------
+// ---------- 2. 写操作请求体 ----------
+const noBody = [];
+for (const [p, ops] of Object.entries(api.paths || {})) {
+  for (const [m, op] of Object.entries(ops)) {
+    const key = opKey(m, p);
+    if (['POST', 'PUT', 'PATCH'].includes(m.toUpperCase()) && !op.requestBody && !BODY_EXEMPT.has(key)) noBody.push(key);
+  }
+}
+if (noBody.length)
+  fail.push(`写操作缺请求体 schema（${noBody.length}）：\n    - ${noBody.sort().join('\n    - ')}`);
+
+// ---------- 3. 错误码一致 ----------
 const errDocPath = join(ROOT, 'Task/02后端模块详细设计.md');
 const errDoc = new Map(); // code -> name
 {
