@@ -6,6 +6,8 @@ import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
+import com.bbtc.bluebird.modules.org.domain.Department;
+import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import com.bbtc.bluebird.modules.task.domain.Category;
 import com.bbtc.bluebird.modules.task.domain.Task;
 import com.bbtc.bluebird.modules.task.dto.CategoryCmd;
@@ -37,6 +39,7 @@ public class CategoryService {
     private final CategoryMapper categoryMapper;
     private final TaskMapper taskMapper;
     private final SysUserMapper userMapper;
+    private final DepartmentMapper departmentMapper;
 
     public List<CategoryNodeDTO> tree(String scopeFilter) {
         Long me = UserContext.currentUserId();
@@ -74,7 +77,7 @@ public class CategoryService {
         Long me = UserContext.currentUserId();
         String scope = StringUtils.hasText(cmd.scope()) ? cmd.scope() : Category.PERSONAL;
         Long deptId = normalizeDept(scope, cmd.deptId(), me);
-        assertWritableScope(scope, deptId, me, true);
+        assertWritable(null, scope, deptId, me);
         Category c = new Category();
         c.setName(cmd.name());
         c.setParentId(cmd.parentId());
@@ -93,8 +96,9 @@ public class CategoryService {
         Long me = UserContext.currentUserId();
         Category c = require(id);
         String scope = StringUtils.hasText(cmd.scope()) ? cmd.scope() : c.getScope();
-        Long deptId = normalizeDept(scope, cmd.deptId(), me);
-        assertWritableScope(scope, deptId, me, false);
+        // 仅改名/移动时不重算部门：保留既有 dept_id（否则 ADMIN 改他人部门分类会被改挂或报错）
+        Long deptId = normalizeDeptForUpdate(scope, cmd.deptId(), c.getDeptId(), me);
+        assertWritable(c.getOwnerId(), scope, deptId, me);
         if (StringUtils.hasText(cmd.name())) {
             c.setName(cmd.name());
         }
@@ -108,7 +112,7 @@ public class CategoryService {
     public void delete(Long id) {
         Long me = UserContext.currentUserId();
         Category c = require(id);
-        assertWritableScope(c.getScope(), c.getDeptId(), me, false);
+        assertWritable(c.getOwnerId(), c.getScope(), c.getDeptId(), me);
         Long children = categoryMapper.selectCount(Wrappers.<Category>lambdaQuery().eq(Category::getParentId, id));
         if (children != null && children > 0) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "存在子分类，无法删除");
@@ -116,21 +120,48 @@ public class CategoryService {
         categoryMapper.deleteById(id);
     }
 
-    private void assertWritableScope(String scope, Long deptId, Long me, boolean creating) {
-        if (UserContext.isAdmin()) {
+    /**
+     * 写权限（ADR-015 §3）：
+     * <ul>
+     *   <li>{@code PERSONAL}：仅创建者本人；</li>
+     *   <li>{@code DEPARTMENT}：创建者 / 该部门负责人（{@code leader_user_id}） / {@code ADMIN}；</li>
+     *   <li>{@code ORG}：{@code ADMIN} / {@code USER_MANAGER}。</li>
+     * </ul>
+     *
+     * @param ownerId 既有分类的创建者；创建时为 {@code null}
+     */
+    private void assertWritable(Long ownerId, String scope, Long deptId, Long me) {
+        String role = UserContext.currentRoleCode();
+        if ("ADMIN".equals(role)) {
             return;
         }
         switch (scope) {
-            case Category.ORG -> throw new BusinessException(ErrorCode.FORBIDDEN, "组织分类仅 ADMIN/USER_MANAGER 可写");
+            case Category.ORG -> {
+                if (!"USER_MANAGER".equals(role)) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN, "组织分类仅 ADMIN/USER_MANAGER 可写");
+                }
+            }
             case Category.DEPARTMENT -> {
-                if (deptId == null || !deptId.equals(currentDeptId(me))) {
-                    throw new BusinessException(ErrorCode.FORBIDDEN, "仅本部门可写部门分类");
+                boolean creator = ownerId != null && ownerId.equals(me);
+                if (!creator && !isDeptLeader(deptId, me)) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN, "仅创建者或本部门负责人可写部门分类");
                 }
             }
             default -> {
-                // PERSONAL：创建者本人
+                // PERSONAL：仅创建者本人（防止越权改/删他人个人分类）
+                if (ownerId != null && !ownerId.equals(me)) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN, "仅创建者可写个人分类");
+                }
             }
         }
+    }
+
+    private boolean isDeptLeader(Long deptId, Long me) {
+        if (deptId == null || me == null) {
+            return false;
+        }
+        Department d = departmentMapper.selectById(deptId);
+        return d != null && me.equals(d.getLeaderUserId());
     }
 
     private Long normalizeDept(String scope, Long deptId, Long me) {
@@ -142,6 +173,20 @@ public class CategoryService {
             return d;
         }
         return null;
+    }
+
+    /** 更新时：未显式指定 deptId 则沿用既有部门，避免误改挂载。 */
+    private Long normalizeDeptForUpdate(String scope, Long cmdDeptId, Long existingDeptId, Long me) {
+        if (!Category.DEPARTMENT.equals(scope)) {
+            return null;
+        }
+        if (cmdDeptId != null) {
+            return cmdDeptId;
+        }
+        if (existingDeptId != null) {
+            return existingDeptId;
+        }
+        return normalizeDept(scope, null, me);
     }
 
     private boolean isVisible(Category c, Long me, Long myDept) {

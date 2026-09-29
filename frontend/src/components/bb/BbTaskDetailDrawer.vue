@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { detail as fetchDetail, completeTask, uncompleteTask, collectTask, uncollectTask, deleteTask, type TaskDetailVO, type TaskVO } from '@/api/task'
 import BbPriorityTag from './BbPriorityTag.vue'
 import BbAttachmentList from './BbAttachmentList.vue'
+import { useMenuStore } from '@/stores/menu'
 import { formatDateTime } from '@/utils/date'
 import type { RoleCode } from '@/utils/constants'
 
@@ -29,6 +30,27 @@ const emit = defineEmits<{
 
 const detail = ref<TaskDetailVO | null>(null)
 const loading = ref(false)
+const menuStore = useMenuStore()
+
+onMounted(() => {
+  void menuStore.load()
+})
+
+/** 当前任务已归属的自定义栏 id。 */
+const taskMenuIds = computed(() => (detail.value ? menuStore.menuIdsOf(Number(detail.value.id)) : []))
+
+/** 移动到自定义栏（03 §5.3.2：POST /menus/{id}/items）。 */
+async function onMoveTo(menuId: number): Promise<void> {
+  const t = detail.value
+  if (!t) return
+  try {
+    await menuStore.addTask(menuId, Number(t.id))
+    ElMessage.success('已移动到自定义栏')
+    emit('changed')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '移动失败')
+  }
+}
 
 const visible = computed({
   get: () => props.modelValue,
@@ -164,6 +186,16 @@ async function toggleSubtask(sub: TaskVO): Promise<void> {
             {{ detail.completed ? '取消完成' : '完成' }}
           </el-button>
           <el-button @click="onCollect">{{ props.collected ? '取消收藏' : '收藏' }}</el-button>
+          <el-dropdown v-if="menuStore.menus.length" trigger="click" @command="onMoveTo">
+            <el-button data-test="move-menu">移动到自定义栏</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-for="m in menuStore.menus" :key="m.id" :command="Number(m.id)">
+                  {{ taskMenuIds.includes(Number(m.id)) ? '✓ ' : '' }}{{ m.name }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button v-if="writable" @click="emit('edit', detail)">编辑</el-button>
           <el-button v-if="writable" type="danger" plain @click="onDelete">删除</el-button>
         </div>

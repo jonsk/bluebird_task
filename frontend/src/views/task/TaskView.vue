@@ -7,16 +7,20 @@ import BbTaskComposer from '@/components/bb/BbTaskComposer.vue'
 import BbTaskDetailDrawer from '@/components/bb/BbTaskDetailDrawer.vue'
 import { useTaskStore } from '@/stores/task'
 import { useMetaStore } from '@/stores/meta'
+import { useMenuStore } from '@/stores/menu'
 import { useAuthStore } from '@/stores/auth'
 import { ROUTE_SCOPE_MAP, type TaskScope } from '@/utils/constants'
 import type { TaskDetailVO, TaskVO } from '@/api/task'
+import type { CategoryNode } from '@/api/category'
 
 /**
  * 统一任务视图（03 §5.3.1）：六大视图按 route.name → scope（R9-契约）。
+ * 左栏筛选（分类子树 / 自定义栏）经 task store 叠加，变更后重查。
  */
 const route = useRoute()
 const taskStore = useTaskStore()
 const metaStore = useMetaStore()
+const menuStore = useMenuStore()
 const auth = useAuthStore()
 
 const scope = computed<TaskScope>(() => ROUTE_SCOPE_MAP[String(route.name)] ?? 'all')
@@ -52,8 +56,42 @@ watch(scope, () => {
   void reload()
 })
 
+// 左栏筛选（分类 / 自定义栏）变化 → 重查
+watch(
+  () => [taskStore.categoryId, taskStore.menuId],
+  () => {
+    void reload()
+  },
+)
+
+/** 当前分类名（分类树为树形，需递归查找）。 */
+const activeCategoryName = computed(() => {
+  const id = taskStore.categoryId
+  if (id == null) return ''
+  const find = (nodes: CategoryNode[]): string => {
+    for (const n of nodes) {
+      if (Number(n.id) === id) return n.name ?? ''
+      const hit = find(n.children ?? [])
+      if (hit) return hit
+    }
+    return ''
+  }
+  return find(metaStore.categories)
+})
+
+const activeMenuName = computed(
+  () => menuStore.menus.find((m) => Number(m.id) === taskStore.menuId)?.name ?? '',
+)
+
+const hasFilter = computed(() => taskStore.categoryId != null || taskStore.menuId != null)
+
+function clearAllFilters(): void {
+  taskStore.clearFilters()
+  keyword.value = ''
+}
+
 onMounted(async () => {
-  await Promise.all([reload(), metaStore.loadTags(), metaStore.loadCategories()])
+  await Promise.all([reload(), metaStore.loadTags(), metaStore.loadCategories(), menuStore.load()])
   await metaStore.searchUsers('')
 })
 
@@ -126,6 +164,27 @@ async function onRemove(task: TaskVO): Promise<void> {
       </div>
     </header>
 
+    <div v-if="hasFilter" class="task-view__filters">
+      <el-tag
+        v-if="taskStore.categoryId != null"
+        closable
+        data-test="filter-category"
+        @close="taskStore.setCategoryFilter(null)"
+      >
+        分类：{{ activeCategoryName || taskStore.categoryId }}
+      </el-tag>
+      <el-tag
+        v-if="taskStore.menuId != null"
+        type="warning"
+        closable
+        data-test="filter-menu"
+        @close="taskStore.setMenuFilter(null)"
+      >
+        自定义栏：{{ activeMenuName || taskStore.menuId }}
+      </el-tag>
+      <el-button text size="small" @click="clearAllFilters">清除筛选</el-button>
+    </div>
+
     <BbTaskList
       :tasks="taskStore.list"
       :loading="taskStore.loading"
@@ -184,5 +243,11 @@ async function onRemove(task: TaskVO): Promise<void> {
 .task-view__actions {
   display: flex;
   gap: 8px;
+}
+.task-view__filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 </style>

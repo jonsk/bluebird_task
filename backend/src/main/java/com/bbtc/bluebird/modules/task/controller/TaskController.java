@@ -44,9 +44,12 @@ public class TaskController {
                                               @RequestParam(required = false) String keyword,
                                               @RequestParam(defaultValue = "false") boolean subordinate,
                                               @RequestParam(required = false) String date,
+                                              @RequestParam(required = false) Long categoryId,
+                                              @RequestParam(required = false) Long menuId,
                                               @RequestParam(defaultValue = "1") long page,
                                               @RequestParam(defaultValue = "20") long size) {
-        return ApiResult.ok(taskQuery.page(new TaskQuery(scope, keyword, subordinate, date, page, size)));
+        return ApiResult.ok(taskQuery.page(
+                new TaskQuery(scope, keyword, subordinate, date, categoryId, menuId, page, size)));
     }
 
     @Operation(summary = "各视图计数")

@@ -69,6 +69,21 @@ interface CategoryLike extends Named {
 interface TagLike extends Named {
   color?: string | null
 }
+interface MenuItemLike {
+  id: number
+  menuId: number
+  taskId: number
+  sort?: number
+  task?: { id: number; title: string; completed?: boolean; dueAt?: string | null; priority?: string }
+}
+interface MenuLike {
+  id: number
+  userId: number
+  name: string
+  sort?: number
+  createdAt?: string
+  items: MenuItemLike[]
+}
 
 /** 成功态：就地组装（用于过滤/分页/内存变更后的返回）。 */
 function ok<T>(data: T): Response {
@@ -95,11 +110,64 @@ const tasks: TaskLike[] = structuredClone(taskPage.list)
 const defaultSize = taskPage.size
 
 const departments = dataOf<unknown[]>('departments/GET.tree')
-const categories = dataOf<CategoryLike[]>('categories/GET.tree')
+const categoryTree: CategoryLike[] = structuredClone(dataOf<CategoryLike[]>('categories/GET.tree'))
 const tags: TagLike[] = structuredClone(dataOf<TagLike[]>('tags/GET.list'))
-const menus = dataOf<unknown[]>('menus/GET.list')
+const menus: MenuLike[] = structuredClone(dataOf<MenuLike[]>('menus/GET.list'))
 const detail = dataOf<TaskLike & { subtasks?: TaskLike[] }>('tasks/GET.detail')
 const subtaskList = dataOf<PageLike<TaskLike>>('tasks/GET.subtasks').list
+
+/* ---------- 分类树：内存 CRUD + 子树/范围 ---------- */
+
+function findCategory(id: number): CategoryLike | null {
+  let hit: CategoryLike | null = null
+  const walk = (nodes: CategoryLike[]): void => {
+    for (const n of nodes) {
+      if (hit) return
+      if (n.id === id) {
+        hit = n
+        return
+      }
+      walk(n.children ?? [])
+    }
+  }
+  walk(categoryTree)
+  return hit
+}
+
+/** 分类 id 及其后代（与后端 CategoryService.descendants 对齐）。 */
+function categorySubtreeIds(id: number): Set<number> {
+  const ids = new Set<number>()
+  const root = findCategory(id)
+  if (!root) return ids
+  const walk = (n: CategoryLike): void => {
+    ids.add(n.id)
+    ;(n.children ?? []).forEach(walk)
+  }
+  walk(root)
+  return ids
+}
+
+function removeCategory(id: number): boolean {
+  const walk = (nodes: CategoryLike[]): boolean => {
+    const i = nodes.findIndex((c) => c.id === id)
+    if (i >= 0) {
+      nodes.splice(i, 1)
+      return true
+    }
+    return nodes.some((n) => walk(n.children ?? []))
+  }
+  return walk(categoryTree)
+}
+
+/** 按范围过滤：保留命中节点及其祖先（维持层级）。 */
+function filterCategoriesByScope(nodes: CategoryLike[], scope: string): CategoryLike[] {
+  const out: CategoryLike[] = []
+  for (const n of nodes) {
+    const children = filterCategoriesByScope(n.children ?? [], scope)
+    if (n.scope === scope || children.length) out.push({ ...n, children })
+  }
+  return out
+}
 
 /** 收藏集：与计数 fixture（collect=1）一致，预置首个任务。 */
 const collected = new Set<number>(tasks.length ? [tasks[0].id] : [])
@@ -180,11 +248,50 @@ export const handlers = [
   // ---- categories ----
   http.get(`${AUTH}/categories`, ({ request }) => {
     const scope = new URL(request.url).searchParams.get('scope')
-    return ok(scope ? categories.filter((c) => c.scope === scope) : categories)
+    return ok(scope ? filterCategoriesByScope(categoryTree, scope) : categoryTree)
   }),
-  http.post(`${AUTH}/categories`, () => raw('categories/POST.create')),
-  http.put(`${AUTH}/categories/:id`, () => raw('categories/PUT.update')),
-  http.delete(`${AUTH}/categories/:id`, () => raw('categories/DELETE.remove')),
+  http.post(`${AUTH}/categories`, async ({ request }) => {
+    const body = (await request.json()) as { name?: string; parentId?: number | null; scope?: string; deptId?: number | null }
+    const created = dataOf<{ id: number }>('categories/POST.create')
+    if (!findCategory(created.id)) {
+      const node: CategoryLike = {
+        id: created.id,
+        name: body.name ?? '新分类',
+        parentId: body.parentId ?? null,
+        scope: body.scope ?? 'PERSONAL',
+        deptId: body.deptId ?? null,
+        ownerId: ME_ID,
+        sort: 0,
+        taskCount: 0,
+        createdAt: new Date().toISOString(),
+        children: [],
+      }
+      const parent = body.parentId != null ? findCategory(body.parentId) : null
+      const siblings = parent ? (parent.children ??= []) : categoryTree
+      siblings.push(node)
+    }
+    return raw('categories/POST.create')
+  }),
+  http.put(`${AUTH}/categories/:id`, async ({ request, params }) => {
+    const node = findCategory(Number(params.id))
+    const body = (await request.json()) as { name?: string; parentId?: number | null }
+    if (node) {
+      if (body.name) node.name = body.name
+      const nextParent = body.parentId ?? null
+      if (nextParent !== (node.parentId ?? null)) {
+        removeCategory(node.id)
+        node.parentId = nextParent
+        const parent = nextParent != null ? findCategory(nextParent) : null
+        const siblings = parent ? (parent.children ??= []) : categoryTree
+        siblings.push(node)
+      }
+    }
+    return raw('categories/PUT.update')
+  }),
+  http.delete(`${AUTH}/categories/:id`, ({ params }) => {
+    removeCategory(Number(params.id))
+    return raw('categories/DELETE.remove')
+  }),
 
   // ---- tags ----
   http.get(`${AUTH}/tags`, () => ok(tags)),
@@ -203,11 +310,60 @@ export const handlers = [
 
   // ---- menus（自定义栏） ----
   http.get(`${AUTH}/menus`, () => ok(menus)),
-  http.post(`${AUTH}/menus`, () => raw('menus/POST.create')),
-  http.put(`${AUTH}/menus/:id`, () => raw('menus/PUT.update')),
-  http.delete(`${AUTH}/menus/:id`, () => raw('menus/DELETE.remove')),
-  http.post(`${AUTH}/menus/:id/items`, () => raw('menus/POST.items')),
-  http.delete(`${AUTH}/menus/:id/items/:itemId`, () => raw('menus/DELETE.items')),
+  http.post(`${AUTH}/menus`, async ({ request }) => {
+    const body = (await request.json()) as { name?: string; sort?: number }
+    const created = dataOf<{ id: number }>('menus/POST.create')
+    if (!menus.some((m) => m.id === created.id)) {
+      menus.push({
+        id: created.id,
+        userId: ME_ID,
+        name: body.name ?? '新栏',
+        sort: body.sort ?? 0,
+        createdAt: new Date().toISOString(),
+        items: [],
+      })
+    }
+    return raw('menus/POST.create')
+  }),
+  http.put(`${AUTH}/menus/:id`, async ({ request, params }) => {
+    const menu = menus.find((m) => String(m.id) === params.id)
+    const body = (await request.json()) as { name?: string; sort?: number }
+    if (menu) {
+      if (body.name) menu.name = body.name
+      if (typeof body.sort === 'number') menu.sort = body.sort
+    }
+    return raw('menus/PUT.update')
+  }),
+  http.delete(`${AUTH}/menus/:id`, ({ params }) => {
+    const i = menus.findIndex((m) => String(m.id) === params.id)
+    if (i >= 0) menus.splice(i, 1)
+    return raw('menus/DELETE.remove')
+  }),
+  http.post(`${AUTH}/menus/:id/items`, async ({ request, params }) => {
+    const menu = menus.find((m) => String(m.id) === params.id)
+    const body = (await request.json()) as { taskId?: number }
+    if (menu && body.taskId != null && !menu.items.some((it) => it.taskId === body.taskId)) {
+      const t = tasks.find((x) => x.id === body.taskId)
+      menu.items.push({
+        id: seq++,
+        menuId: menu.id,
+        taskId: body.taskId,
+        sort: menu.items.length + 1,
+        task: t
+          ? { id: t.id, title: t.title, completed: t.completed, dueAt: t.dueAt, priority: t.priority }
+          : undefined,
+      })
+    }
+    return raw('menus/POST.items')
+  }),
+  http.delete(`${AUTH}/menus/:id/items/:itemId`, ({ params }) => {
+    const menu = menus.find((m) => String(m.id) === params.id)
+    if (menu) {
+      const i = menu.items.findIndex((it) => String(it.id) === params.itemId)
+      if (i >= 0) menu.items.splice(i, 1)
+    }
+    return raw('menus/DELETE.items')
+  }),
 
   // ---- tasks（注意：count/calendar/subtasks 必须先于 :id 注册） ----
   http.get(`${AUTH}/tasks/count`, () => raw('tasks/GET.count')),
@@ -222,6 +378,19 @@ export const handlers = [
       list = list.filter(
         (t) => t.title.toLowerCase().includes(kw) || (t.content ?? '').toLowerCase().includes(kw),
       )
+    }
+    // 分类子树过滤（与后端 GET /tasks?categoryId= 对齐）
+    const categoryId = url.searchParams.get('categoryId')
+    if (categoryId) {
+      const ids = categorySubtreeIds(Number(categoryId))
+      list = list.filter((t) => t.category?.id != null && ids.has(Number(t.category.id)))
+    }
+    // 自定义栏过滤
+    const menuId = url.searchParams.get('menuId')
+    if (menuId) {
+      const menu = menus.find((m) => String(m.id) === menuId)
+      const taskIds = new Set((menu?.items ?? []).map((it) => it.taskId))
+      list = list.filter((t) => taskIds.has(t.id))
     }
     return pageOf(list, url)
   }),

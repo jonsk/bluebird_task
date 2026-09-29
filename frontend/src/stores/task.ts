@@ -25,10 +25,16 @@ export const useTaskStore = defineStore('task', () => {
   const keyword = ref('')
   const subordinate = ref(false)
   const collectedIds = ref<Set<number>>(new Set())
+  /** 左栏筛选：分类子树 / 自定义栏（与 scope、keyword 叠加）。 */
+  const categoryId = ref<number | null>(null)
+  const menuId = ref<number | null>(null)
 
   const isEmpty = computed(() => !loading.value && list.value.length === 0)
 
-  async function fetchList(scope: Scope, opts: { keyword?: string; subordinate?: boolean; page?: number; size?: number } = {}): Promise<void> {
+  async function fetchList(
+    scope: Scope,
+    opts: { keyword?: string; subordinate?: boolean; categoryId?: number | null; menuId?: number | null; page?: number; size?: number } = {},
+  ): Promise<void> {
     currentScope.value = scope
     loading.value = true
     try {
@@ -36,6 +42,8 @@ export const useTaskStore = defineStore('task', () => {
         scope,
         keyword: opts.keyword ?? keyword.value,
         subordinate: opts.subordinate ?? subordinate.value,
+        categoryId: opts.categoryId === undefined ? (categoryId.value ?? undefined) : (opts.categoryId ?? undefined),
+        menuId: opts.menuId === undefined ? (menuId.value ?? undefined) : (opts.menuId ?? undefined),
         page: opts.page ?? 1,
         size: opts.size ?? 100,
       })
@@ -47,6 +55,22 @@ export const useTaskStore = defineStore('task', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  /** 选中分类（null = 清除）。仅改状态，由任务视图监听后重查。 */
+  function setCategoryFilter(id: number | null): void {
+    categoryId.value = id
+  }
+
+  /** 选中自定义栏（null = 清除）。仅改状态，由任务视图监听后重查。 */
+  function setMenuFilter(id: number | null): void {
+    menuId.value = id
+  }
+
+  /** 清除分类 + 自定义栏筛选。 */
+  function clearFilters(): void {
+    categoryId.value = null
+    menuId.value = null
   }
 
   async function fetchCounts(): Promise<void> {
@@ -96,9 +120,14 @@ export const useTaskStore = defineStore('task', () => {
     keyword,
     subordinate,
     collectedIds,
+    categoryId,
+    menuId,
     isEmpty,
     fetchList,
     fetchCounts,
+    setCategoryFilter,
+    setMenuFilter,
+    clearFilters,
     isCollected,
     toggleComplete,
     toggleCollect,

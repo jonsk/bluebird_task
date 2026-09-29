@@ -273,6 +273,8 @@ paths:
         - { name: keyword, in: query, schema: { type: string }, description: 匹配 title/content（大小写不敏感子串） }
         - { name: subordinate, in: query, schema: { type: boolean, default: false }, description: 仅 scope=all 生效；主管筛选其（含递归子部门）下属相关任务，只读（ADR-012） }
         - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: categoryId, in: query, schema: { type: integer, format: int64 }, description: 按分类过滤（含子树，ADR-015 共享分类） }
+        - { name: menuId, in: query, schema: { type: integer, format: int64 }, description: 按自定义栏条目过滤（仅本人栏） }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
       responses:

@@ -60,7 +60,7 @@ docs/frontend-baseline/
 |---|---|---|
 | 业务行为契约 | 16 | ✅ 16（`contracts/Bb*.md`） |
 | 原子设计契约 | 14 | ✅ 14（`contracts/Bb*.md`，风格契约） |
-| E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`）；**旧基线已跑 9 项通过**（`scripts/golden-capture/e2e-baseline.mjs`）；**新前端已跑 16/18 通过**（`frontend/e2e/`，24 项含 8 项视觉回归，2026-09-29） |
+| E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`）；**旧基线已跑 9 项通过**（`scripts/golden-capture/e2e-baseline.mjs`）；**新前端 18/18 场景通过**（`frontend/e2e/`，27 项含 8 项视觉回归，2026-09-29） |
 | fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口：读态 + **写态 21** + **错误态 19**（`02 §1.4` 全覆盖）+ auth 4 + 分类/栏详情态与空态）+ `fixtures/legacy-api/**`（旧接口）；**新前端 MSW 已直连 `fixtures/api/**`**（`frontend/src/mocks/fixtures.ts`）；详见 `fixtures/README §5/§6` |
 | 黄金截图/录屏证据 | 采集 | ✅ **38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**（`screenshots/`，fixtures 注入，确定性；由仓根 `scripts/golden-capture/` 复现）；**图片/录屏按策略不入库**（`.gitignore`，0304/D3）；新前端回归基线另存 `frontend/e2e/__screenshots__/`（**入库**） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
@@ -78,6 +78,17 @@ docs/frontend-baseline/
 
 ## 5. 历史与变更记录
 
+- **2026-09-29（E-08/E-10 补 UI + 后端契约/缺陷修复）**：
+  - **左栏 UI 补齐**：新增 `frontend/src/components/bb/BbFilterRail.vue`（左栏承载：六视图计数 + 分类树 + 自定义栏，替代 `DefaultLayout` 内联 nav）、`BbCategoryTree.vue`（`GET/POST/PUT/DELETE /categories`；范围过滤 全部/个人/部门/组织、范围徽标、只读锁定、悬停增/改/删、拖拽改父级、点选联动）、`BbCustomMenu.vue`（`/menus` CRUD + 条目）；`BbTaskDetailDrawer` 增「移动到自定义栏」（`POST /menus/{id}/items`）；`TaskView` 增筛选条（分类/自定义栏 chip + 清除）。新增 `stores/menu.ts`；`task` store 增 `categoryId/menuId` 筛选态。
+  - **契约扩展**：`GET /tasks` 增 `categoryId`（**子树**，ADR-015 共享分类）/`menuId`（仅本人栏）查询参数（`docs/api/openapi.yaml` + 后端 `TaskQuery`/`TaskQueryService`/`TaskController` + MSW 同步实现）。
+  - **后端缺陷修复（本轮由新增测试与 DDL 对照暴露）**：
+    1. `category` 表缺 `updated_at`，`GET /categories` 直接报 `no such column`（`CategoryNodeDTO`/openapi 已暴露该字段）→ 新增迁移 `V2__schema_drift_fix.sql` 补列（不改 `V1`，保护既有库 Flyway 校验和）。
+    2. `JobLog` 实体字段 `jobName`/`msg` 与建表列 `job`/`error` 漂移（调度日志写入必失败）→ 实体加 `@TableField` 显式映射。
+    3. `CategoryService` 写权限与 ADR-015 §3 漂移：`PERSONAL` 未校验创建者（**越权改/删他人个人分类**）、`DEPARTMENT` 误放宽为「本部门任意成员」（应为 创建者/部门负责人/ADMIN）、`ORG` 漏 `USER_MANAGER`；并修 `update` 未传 `deptId` 时误改挂载（ADMIN 改他人部门分类会报错/挪部门）。
+  - **测试**：后端 `TaskFlowTest.filterByCategorySubtreeAndCustomMenu`（子树过滤 + 栏过滤 + 非本人栏 10004）；前端新增 `e2e/filter-rail.spec.ts`（E-10/E-10b/E-08）并重生 8 张视觉基线。
+  - **布局缺陷修复**：左栏为 flex 项时 `min-width:auto` 被树内容撑宽（240 → 265px，主栏右移 25px）→ 固定 `flex: 0 0 var(--bb-sidebar-left-width)` + 内部 `min-width:0`；分类节点的范围徽标/计数/锁图标加 `pointer-events: none`（原先点徽标不触发 `node-click`，整行点选失效）。
+  - **结果**：`pnpm -C frontend test:e2e` = **27 passed**（`filter-rail` 3 + `task-flow` 16 + 视觉回归 8）；后端 `mvn test` = **14 passed**；`e2e/scenarios.md` E-08/E-10 转 🟢。
+  - **视觉基线重生（8/8 全部重写）**：左栏新增内容必须重生基线；本轮发现两处「门禁假绿」并修正——① `settle()` 未等左栏**异步**数据（`/categories`、`/menus`）落地，截图与 MSW 响应竞态，导致 8 张基线中 7 张**不含**分类树却仍通过对比；② Playwright 默认逐像素 `threshold=0.2` 会吸收浅色文本差异。修正：`settle()` 增等 `.cat-node` × 7 / `.bb-menu__item` × 3；删除旧 PNG 后 `--update-snapshots` 强制重写 8 张（`git status` 8/8 变更）。`playwright.config.ts` 与 `frontend/README.md` 已注记该门禁灵敏度与重生要求。
 - **2026-09-29（新前端验收落地：MSW 直连 fixtures + E2E/视觉回归基线）**：
   - **fixtures 直连 MSW**：新增 `frontend/src/mocks/fixtures.ts`（`import.meta.glob` 注册 `docs/frontend-baseline/fixtures/api/**`），`frontend/src/mocks/handlers.ts` 改为**消费 fixtures**（读态原样返回、错误分支复用 `_errors/`、写态在内存副本变更），消除内联 mock 漂移；`vite.config.ts` 增 `server.fs.allow` 放行仓根 fixtures。
   - **E2E（后半链路）**：新增 `frontend/e2e/`（Playwright Test）+ `frontend/playwright.config.ts`（1440×900、Asia/Shanghai、`page.clock` 冻结 `2026-09-28T10:00+08:00`；本地复用系统 Edge，CI 用随包 Chromium）。覆盖 E-01/01b/02/03/04/05/06/07/09/11/12/13/14/15/16/17（E-08/E-10 因目标态 UI 未提供而留空）。

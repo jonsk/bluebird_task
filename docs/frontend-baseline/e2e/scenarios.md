@@ -21,7 +21,8 @@
 - 脚本：`frontend/e2e/`（Playwright Test，`frontend/playwright.config.ts`）。
 - 数据：**MSW 直连** `docs/frontend-baseline/fixtures/api/**`（`frontend/src/mocks/fixtures.ts` 经 `import.meta.glob` 注册，单一事实源）；`page.clock` 冻结时间 `2026-09-28T10:00+08:00` 保证逾期/临期与日历月份确定。
 - 运行：`pnpm -C frontend test:e2e`（本地复用系统 Edge，`channel: msedge`，无需下载 Chromium；CI 用随包 Chromium）。
-- **结果：PASS 24 / FAIL 0**（`task-flow.spec.ts` 16 项 + `visual.spec.ts` 8 项视觉回归；`pnpm test:e2e:update` 更新基线 → `frontend/e2e/__screenshots__/`，**入库**）。
+- **结果：PASS 27 / FAIL 0**（`filter-rail.spec.ts` 3 项 + `task-flow.spec.ts` 16 项 + `visual.spec.ts` 8 项视觉回归；`pnpm test:e2e:update` 更新基线 → `frontend/e2e/__screenshots__/`，**入库**）。
+- **E-08/E-10 补齐（2026-09-29 追加）**：左栏新增 `BbCategoryTree` 与 `BbCustomMenu`（`BbFilterRail` 承载），补齐分类树 CRUD + 选中过滤、自定义栏 CRUD + 移入/过滤；Mock 侧同步为内存 CRUD，`GET /tasks` 增 `categoryId`（**子树**）/`menuId` 过滤（与后端同步实现）。
 
 ## 场景清单
 
@@ -34,9 +35,9 @@
 | E-05 | 新建子任务 | 详情内子模式添加 | `parent_id` 正确；`:key=id` 不串位 | 🟢 新验收（**只读列举**：抽屉展示 3 条子任务；契约 `TaskCreateReq` 无 `parentId`，创建子任务暂不经 API） |
 | E-06 | 完成任务与失败回滚 | 勾选完成→接口失败→勾选回滚 | `/tasks/{id}/complete`；失败回滚 checkbox；recurring 失败不置 completed | 🟢 旧基线 → 🟢 新验收（全部任务视图勾选后卡片 `is-completed`） |
 | E-07 | 收藏/取消 | 星标切换 | `/tasks/{id}/collect` + DELETE；收藏视图读取 | 🟢 新验收（星标后「我的收藏」计数与列表更新，2 条） |
-| E-08 | 移动任务到自定义栏 | 选栏→确认 | `POST /menus/{id}/items`；跨视图刷新 | ◻ 新前端暂无该 UI（`menus` API/Mock 已就绪，UI 待补） |
+| E-08 | 移动任务到自定义栏 | 选栏→确认 | `POST /menus/{id}/items`；跨视图刷新 | 🟢 新验收（左栏「自定义栏」新建/改名/删除；详情抽屉「移动到自定义栏」→ `POST /menus/{id}/items`；点栏 → `GET /tasks?menuId=` 过滤并切到「全部任务」） |
 | E-09 | 删除任务（二次确认） | 删除→确认 | DELETE；二次确认文案「清空关联数据、不可恢复」（R5） | 🟢 旧基线 → 🟢 新验收（确认框含「不可恢复」，确认后卡片消失） |
-| E-10 | 分类树增删改 | 左栏分类树操作 | `/categories` CRUD；树刷新 | ◻ 新前端暂无分类树 UI（分类在编辑器中作为选择项；API/Mock 已就绪） |
+| E-10 | 分类树增删改 | 左栏分类树操作 | `/categories` CRUD；树刷新 | 🟢 新验收（左栏 `BbCategoryTree`：范围过滤全部/个人/部门/组织、范围徽标与只读锁定、悬停新增/改名/删除（二次确认）、拖拽改父级、点节点 → `GET /tasks?categoryId=` **子树**过滤） |
 | E-11 | 标签增删改 | 标签配置 | `/tags` CRUD | 🟢 新验收（标签 fixture 直连着色：重要/紧急/日常；标签 CRUD UI 未提供） |
 | E-12 | 人员选择按部门筛选 | 选人弹窗→部门→搜索 | `/users?deptId=&keyword=`；手机号脱敏；优先本部门 | 🟢 旧基线 → 🟢 新验收（编辑器负责人下拉 = users fixture 4 人） |
 | E-13 | 附件上传/预览/删除 | 上传→出现→预览 | `/files` 上传 / `GET /files/{id}/preview`（登录取）；磁盘级联删 | 🟢 新验收（抽屉附件列表 + `setInputFiles` 上传成功追加） |
@@ -45,7 +46,7 @@
 | E-16 | 周期任务 | fixtures 含周期任务：列表/日历按展开实例显示；完成推进下一实例 | recurring 豁免 `completed=0`；complete/dueAt 推进 `cycle_last_completed`（R2）；counts 按展开实例 | 🟢 旧基线 → 🟢 新验收（列表 3 张「周期」标记；日历展开 3 实例） |
 | E-17 | 刷新 token / 未登录 | token 失效→refresh；未登录→登录页 | 20005→refresh；10002→登录；`/auth/refresh` 匿名白名单 | 🟢 旧基线 → 🟢 新验收（未登录访问 `/index` → `/login?redirect=/index`） |
 
-> 旧基线脚本（`e2e-baseline.mjs`）已在与黄金截图同套 fixtures 下跑通前半链路；新前端（后半链路）由 `frontend/e2e/` 覆盖 **16/18** 场景（E-08/E-10 因目标态 UI 未提供而留空，非 Mock/接口缺失）。
+> 旧基线脚本（`e2e-baseline.mjs`）已在与黄金截图同套 fixtures 下跑通前半链路；新前端（后半链路）由 `frontend/e2e/` 覆盖 **18/18** 场景（E-08/E-10 已于 2026-09-29 补 UI 并转绿）。
 
 
 ## 周期任务 fixtures（M3）

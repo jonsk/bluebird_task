@@ -14,6 +14,8 @@ import com.bbtc.bluebird.modules.task.domain.CycleRule;
 import com.bbtc.bluebird.modules.task.domain.Tag;
 import com.bbtc.bluebird.modules.task.domain.Task;
 import com.bbtc.bluebird.modules.task.domain.TaskCollect;
+import com.bbtc.bluebird.modules.task.domain.TaskMenu;
+import com.bbtc.bluebird.modules.task.domain.TaskMenuItem;
 import com.bbtc.bluebird.modules.task.domain.TaskParticipant;
 import com.bbtc.bluebird.modules.task.domain.TaskTag;
 import com.bbtc.bluebird.modules.task.dto.CategoryBrief;
@@ -28,6 +30,8 @@ import com.bbtc.bluebird.modules.task.infrastructure.CategoryMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TagMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TaskCollectMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TaskMapper;
+import com.bbtc.bluebird.modules.task.infrastructure.TaskMenuItemMapper;
+import com.bbtc.bluebird.modules.task.infrastructure.TaskMenuMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TaskParticipantMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TaskTagMapper;
 import com.bbtc.bluebird.modules.task.util.CycleExpander;
@@ -62,6 +66,9 @@ public class TaskQueryService {
     private final TaskCollectMapper collectMapper;
     private final TagMapper tagMapper;
     private final CategoryMapper categoryMapper;
+    private final TaskMenuMapper menuMapper;
+    private final TaskMenuItemMapper menuItemMapper;
+    private final CategoryService categoryService;
     private final AttachmentMapper attachmentMapper;
     private final DepartmentService departmentService;
     private final UserLookupService userLookup;
@@ -73,7 +80,7 @@ public class TaskQueryService {
     /* ==================== 列表 / 计数 ==================== */
 
     public PageResult<TaskVO> page(TaskQuery q) {
-        List<TaskVO> list = collect(q.scope(), q.keyword(), q.subordinate(), q.date());
+        List<TaskVO> list = collect(q.scope(), q.keyword(), q.subordinate(), q.date(), q.categoryId(), q.menuId());
         list.sort(TaskSorter.comparator(Instant.now()));
         long total = list.size();
         long page = Math.max(1, q.page());
@@ -85,12 +92,12 @@ public class TaskQueryService {
 
     public CountVO counts() {
         return new CountVO(
-                collect("day", null, false, null).size(),
-                collect("week", null, false, null).size(),
-                collect("joined", null, false, null).size(),
-                collect("assigned", null, false, null).size(),
-                collect("collect", null, false, null).size(),
-                collect("all", null, false, null).size());
+                collect("day", null, false, null, null, null).size(),
+                collect("week", null, false, null, null, null).size(),
+                collect("joined", null, false, null, null, null).size(),
+                collect("assigned", null, false, null, null, null).size(),
+                collect("collect", null, false, null, null, null).size(),
+                collect("all", null, false, null, null, null).size());
     }
 
     public List<TaskVO> calendar(Instant start, Instant end) {
@@ -143,9 +150,16 @@ public class TaskQueryService {
 
     /* ==================== scope 解析 ==================== */
 
-    private List<TaskVO> collect(String scope, String keyword, boolean subordinate, String date) {
+    private List<TaskVO> collect(String scope, String keyword, boolean subordinate, String date,
+                                 Long categoryId, Long menuId) {
         Long me = UserContext.currentUserId();
         Set<Long> candidate = candidateTaskIds(me, scope, subordinate);
+        if (categoryId != null) {
+            candidate.retainAll(categoryTaskIds(categoryId));
+        }
+        if (menuId != null) {
+            candidate.retainAll(menuTaskIds(menuId, me));
+        }
         if (candidate.isEmpty()) {
             return new ArrayList<>();
         }
@@ -253,6 +267,33 @@ public class TaskQueryService {
                         .forEach(p -> ids.add(p.getTaskId()));
             }
         }
+        return ids;
+    }
+
+    /* ==================== 分类 / 自定义栏过滤 ==================== */
+
+    /** 分类**子树**下的任务 id（含自身；共享分类 ADR-015）。 */
+    private Set<Long> categoryTaskIds(Long rootId) {
+        Set<Long> catIds = categoryService.descendants(rootId);
+        if (catIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> ids = new HashSet<>();
+        taskMapper.selectList(Wrappers.<Task>lambdaQuery()
+                        .select(Task::getId).in(Task::getCategoryId, catIds))
+                .forEach(t -> ids.add(t.getId()));
+        return ids;
+    }
+
+    /** 自定义栏条目对应的任务 id（仅本人自定义栏，否则 404）。 */
+    private Set<Long> menuTaskIds(Long menuId, Long me) {
+        TaskMenu menu = menuMapper.selectById(menuId);
+        if (menu == null || !me.equals(menu.getUserId())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "自定义栏不存在");
+        }
+        Set<Long> ids = new HashSet<>();
+        menuItemMapper.selectList(Wrappers.<TaskMenuItem>lambdaQuery().eq(TaskMenuItem::getMenuId, menuId))
+                .forEach(it -> ids.add(it.getTaskId()));
         return ids;
     }
 

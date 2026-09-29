@@ -88,3 +88,16 @@
   4. 修改节点名 → `PUT /categories/{id}`；删除节点 → 先二次确认再 `DELETE /categories/{id}`（新契约补齐确认）。
   5. 点击节点 → 写入 `taskStore.select_task_tree_node` 并触发按分类过滤的任务列表查询（补齐 E-10 选中联动）。
   6. 拖拽节点改变父级后重载数据仍保持（接口待确认：预计以 `PUT /categories/{id}` 更新 `parentId`）。
+
+## 实现状态（2026-09-29）
+
+**已实现**：`frontend/src/components/bb/BbCategoryTree.vue`（原子底座 `BbTree` 未单独抽取，直接使用 `el-tree`），挂载于左栏 `BbFilterRail.vue`；E2E 见 `frontend/e2e/filter-rail.spec.ts`（E-10/E-10b）。
+
+落地要点与契约的对应：
+
+- **选中联动**：点击节点 → `emit('select', id)` → `taskStore.setCategoryFilter(id)` → `GET /tasks?scope=..&categoryId=..`（**子树**过滤，新增查询参数；见 openapi `/tasks` GET）。
+- **`PUT` 语义**：后端 `CategoryCmd` 的 `parentId` 为**整体覆盖**（缺省即置空 = 移到根），因此改名与拖拽都必须回传 `parentId`；实现已按此处理。
+- **写权限（以 ADR-015 §3 为准，已同步修正后端 `CategoryService`）**：`PERSONAL` 仅创建者；`DEPARTMENT` 创建者/该部门负责人(`leader_user_id`)/`ADMIN`；`ORG` `ADMIN`/`USER_MANAGER`。前端据此显隐写入口与只读锁（`:hasRole` + `ownerId`/`leaderId` 判定）。**注**：本文档早前「组织仅 ADMIN」与「部门非负责人只读」的措辞已按 ADR-015 收敛为上述三条。
+- **拖拽**：`allow-drop` 拒绝跨 `scope`（含 `DEPARTMENT` 跨部门）；`node-drop` 落库 `PUT /categories/{id}` 更新 `parentId`，失败回滚（重载树）。
+- **范围过滤**：`全部/个人/部门/组织` → `GET /categories?scope=`；按范围过滤时**保留命中节点的祖先层级**（后端 `CategoryService.tree` 与 MSW 一致）。
+- **未实现**：节点排序拖拽仅改 `parentId`，`sort` 不落库（`sort` 恒 0，与后端一致）。

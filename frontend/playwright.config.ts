@@ -19,6 +19,10 @@ export default defineConfig({
   timeout: 30_000,
   expect: {
     timeout: 8_000,
+    // 视觉回归容差：保留 Playwright 默认逐像素 threshold(0.2，吸收字体/抗锯齿差异，
+    // 保证 Edge(本地)/Chromium(CI) 一致) + 2% 差异像素比。
+    // ⚠️ 代价：浅色文本类改动可落在 threshold 之下而不触发失败（曾出现「基线未含分类树但对比通过」）。
+    // 因此**左栏/布局类改动必须显式重生基线**：`pnpm test:e2e:update`（必要时先删除旧 PNG 强制重写）。
     toHaveScreenshot: { maxDiffPixelRatio: 0.02, animations: 'disabled' },
   },
   fullyParallel: false,
