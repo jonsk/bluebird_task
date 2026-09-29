@@ -36,6 +36,51 @@
   - 删除无二次确认。
   - 新增节点使用字符串临时 id `add${id++}`，与后端数值型 id 混用，`node-key="id"` 存在冲突风险。
   - `allowDrag`/`allowDrop` 恒 `true`，无任何拖拽约束。
+## 共享范围 UI 细则（ADR-015，修订 0309）
+
+> 分类支持 `scope ∈ {PERSONAL, DEPARTMENT, ORG}`（个人/部门/组织）。数据源 `GET /categories`（返回三者合并树，可选 `?scope=` 过滤）；写接口 `POST/PUT/DELETE /categories`。权限见 `02 §4.7`。
+
+### 节点呈现
+- 节点右侧/前置**范围徽标**：`PERSONAL` 无徽标（默认）；`DEPARTMENT` 显示部门名小标签（`el-tag`，`tooltip=部门`）；`ORG` 显示「组织」标签（内置图标）。
+- 非本人可写的共享节点（部门非负责人 / 组织非 ADMIN）加**只读锁定图标**，悬停显示「只读」。
+
+### 范围过滤（顶部）
+- 树上方分段控件（`el-radio-group`）：**全部 / 个人 / 部门 / 组织** → 映射 `GET /categories?scope=`（「全部」不带参数）。
+- 默认「全部」。
+
+### 新增（悬停 `Plus`）
+- 点击后选择**范围**（`el-dropdown` 或对话框单选框）：
+  - `个人`（默认，所有用户可选）；
+  - `部门`（需选 `deptId`：默认取当前用户主部门；部门选择器数据源 `GET /departments`）——**仅** 部门负责人/ADMIN 可见该选项；
+  - `组织`——**仅** `ADMIN`/`USER_MANAGER` 可见。
+- 提交 `POST /categories {name,parentId,scope,deptId}`；成功后刷新树并按 `id` 定位新节点。
+
+### 编辑（悬停 `Edit`）
+- 仅改名（`PUT /categories/{id} {name,...}`）；**范围不可在编辑中随意变更**：`PERSONAL→部门/组织`、跨部门迁移等仅创建者/ADMIN 操作，且 `DEPARTMENT` 必须带 `deptId`。
+- 非创建者且非部门负责人：无编辑/删除入口（只读）。
+
+### 删除（悬停 `Close`）
+- 二次确认（`BbConfirm`）；共享分类（部门/组织）确认文案提示**影响范围**（如「该部门共享分类，删除将影响部门内成员」）。
+- `DELETE /categories/{id}`。
+
+### 拖拽
+- 仅允许在**本人可写**范围内拖拽调整 `parentId`；**禁止跨 `scope` 拖拽**（跨范围父级非法），越界时拒绝并提示。
+- 落库 `PUT /categories/{id}` 更新 `parentId`；失败回滚树。
+
+### 只读 / 空态 / 加载
+- 无写权限的共享节点：仅可展开/选中，无编辑/删除/拖拽。
+- 空态 `BbEmpty`；加载中 `v-loading`。
+
+### 与任务的联动
+- 点击节点 → 写选中态并触发按分类过滤任务列表（保持原契约 5 条）。
+
+- 验收用例（新增）：
+  7. `GET /categories` 含 `scope` 节点时，分别渲染个人/部门/组织徽标；`?scope=DEPARTMENT` 仅显示部门分类。
+  8. 普通用户新增仅见「个人」选项；部门负责人可见「部门」并可选定 `deptId`；ADMIN/USER_MANAGER 可见「组织」。
+  9. 对非本人可写的部门/组织分类，无编辑/删除/拖拽入口（只读锁定）。
+  10. 拖拽跨 `scope` 被拒并提示；同范围内拖拽成功后 `PUT /categories/{id}` 更新 `parentId` 且刷新保持。
+  11. 删除部门/组织分类前二次确认且提示影响范围。
+
 - 验收用例：
   1. 加载分类树：截获 `GET /categories` 返回 `fixtures/api/categories/GET.tree.json`，树渲染且默认全部展开。
   2. 悬停节点显示「新增/修改/删除」图标；点击新增后子级出现输入框并自动聚焦。
