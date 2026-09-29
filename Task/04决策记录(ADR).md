@@ -234,4 +234,19 @@
 
 ---
 
+## ADR-015 · 分类共享范围（个人 / 部门 / 组织）
+
+- **状态**：已确认（0308 产品决策；回应 0306/P1 缺口）
+- **背景**：企业级审核（`0306`）指出 `category.owner_id` 仅个人，无组织/部门级共享分类体系，限制协同与统计。
+- **决策**（一期做，保持最小）：
+  1. `category` 增 `scope VARCHAR(16) NOT NULL DEFAULT 'PERSONAL'`（`PERSONAL`/`DEPARTMENT`/`ORG`）与 `dept_id BIGINT NULL`（仅 `DEPARTMENT` 使用）；`owner_id` = 创建者。
+  2. **读可见**：`PERSONAL` → `owner_id=我`；`DEPARTMENT` → `dept_id ∈ 我所在部门`；`ORG` → 全部登录用户。`GET /categories` 返回三者合并树，`?scope=` 可过滤。
+  3. **写**：`PERSONAL` → 创建者；`DEPARTMENT` → 创建者 / 该部门负责人（`leader_user_id`）/ `ADMIN`；`ORG` → `ADMIN`/`USER_MANAGER`。`CategoryAuthService.assertWritable`。
+  4. **约束**：`DEPARTMENT` 必填 `dept_id`；`PERSONAL`/`ORG` 忽略。`task.category_id` 只可引用**可见**分类（建/改任务校验 `assertVisible`）。
+  5. **迁移**：旧 `sys_category` 一律映射 `PERSONAL`。
+- **范围边界（本期不做）**：部门**子树**共享、跨部门共享、分类级 ACL；避免复杂。`ORG` 即两级共享的上限。
+- **关系**：落地于 `01 §3/§8.2/§8.3#10`、`02 §4.2/§4.5/§4.7`、`03 §5.3.4`、`docs/api/openapi.yaml`（`Category.scope/deptId`）、`fixtures/api/categories/*`、`05需求覆盖矩阵.md`。
+
+---
+
 > 关联文档：`01蓝鸟重构方案.md`（§1.3/§3/§4.2/§5/§7.5/§7.6/§7.7/§7.9/§8.0/§8.2/§8.2.1/§8.3/§9/§11/§12/§13/§14/§15）、`02后端模块详细设计.md`（§1.7/§1.7.1/§1.8/§1.8.1/§2/§3/§4.2/§5/§6）、`03前端模块详细设计.md`（§2 重写质量保障/§3.2/§5 模块设计）、`05需求覆盖矩阵.md`（企业级 TODO 需求 R1–R10 覆盖对照）、`06合规对照表.md`（等保 2.0 三级 + PIPL 对照）、`.gitignore`（`backend/src/main/resources/static/`）。

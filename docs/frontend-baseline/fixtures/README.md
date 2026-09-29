@@ -113,7 +113,7 @@ fixtures/
 | `UserVO` | `id,username,name,mobile(脱敏),deptId,deptName,roleCode` | `GET /users?deptId=&keyword=` |
 | `CycleRule` | `freq,interval,dtstart,byDay,count,until,tz` | 02 §4.3；`dueAt=dtstart` |
 | `TagVO` | `id,name,color(owner)` | 标签着色 |
-| `Category` | `id,name,parentId,sort,taskCount,createdAt,updatedAt,children[]` | 分类树节点（含子）；`GET /categories` |
+| `Category` | `id,name,parentId,scope(PERSONAL/DEPARTMENT/ORG),deptId,ownerId,sort,taskCount,createdAt,updatedAt,children[]` | 分类树节点（含子）；`GET /categories`（`scope` 共享范围，ADR-015） |
 | `Menu` | `id,userId,name,sort,createdAt,items[]` | 自定义栏（用户私有）；`GET /menus?userId=` |
 | `MenuItem` | `id,menuId,taskId,sort,task:TaskBrief` | 栏内条目，内嵌任务摘要供直接渲染 |
 | `TaskBrief` | `id,title,completed,dueAt,priority` | 栏内/轻量引用任务的摘要 |

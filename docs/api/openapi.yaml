@@ -291,7 +291,9 @@ paths:
   /categories:
     get:
       tags: [category]
-      summary: 分类树
+      summary: 可见分类树（个人 + 部门 + 组织）
+      parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [PERSONAL, DEPARTMENT, ORG] }, description: 可选过滤共享范围 }
       responses:
         '200':
           description: OK
@@ -564,6 +566,9 @@ components:
         id: { type: integer, format: int64 }
         name: { type: string }
         parentId: { type: integer, format: int64, nullable: true }
+        scope: { type: string, enum: [PERSONAL, DEPARTMENT, ORG], description: 共享范围（ADR-015） }
+        deptId: { type: integer, format: int64, nullable: true, description: DEPARTMENT 范围所属部门 }
+        ownerId: { type: integer, format: int64, description: 创建者 }
         sort: { type: integer, description: 同级排序（升序） }
         taskCount: { type: integer, description: 该分类下任务数（含子分类） }
         createdAt: { type: string, format: date-time }

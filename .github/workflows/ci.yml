@@ -1,0 +1,54 @@
+name: ci
+
+# 契约一致性 + 密钥扫描 门禁（0306/Q6）
+# 注：后端(mvn)/前端(pnpm) 构建步骤在后端与前端工程落地后自动生效（见 if 守卫）。
+on:
+  push:
+  pull_request:
+
+jobs:
+  contract:
+    name: contract & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: install tooling deps
+        run: npm -C scripts install --no-audit --no-fund
+      - name: contract consistency (openapi ↔ docs ↔ ErrorCode/fixtures)
+        run: node scripts/check-contract.mjs
+
+  security:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: build (backend + frontend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: frontend build
+        if: ${{ hashFiles('frontend/package.json') != '' }}
+        run: |
+          corepack enable
+          pnpm -C frontend install --frozen-lockfile
+          pnpm -C frontend build
+      - name: backend verify (single artifact jar)
+        if: ${{ hashFiles('backend/pom.xml') != '' }}
+        run: mvn -B -f backend/pom.xml verify

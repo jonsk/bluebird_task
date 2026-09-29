@@ -1,0 +1,14 @@
+{
+  "name": "bluebird-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BlueBird 仓内工具脚本（契约门禁 / API 文档生成）",
+  "scripts": {
+    "check-contract": "node check-contract.mjs",
+    "gen-api-doc": "node gen-api-doc.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
