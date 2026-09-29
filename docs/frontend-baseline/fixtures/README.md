@@ -95,6 +95,7 @@ fixtures/
 
 > 参与人 / 附件绑定：走 `PUT /tasks/{id}`（`participantIds[]` / `fileIds[]`），无独立端点；上传走 `POST /files`。
 > 同步对齐 `openapi.yaml`：补 `PUT/DELETE /menus/{id}`、`DELETE /menus/{id}/items/{itemId}` 三个此前遗漏的端点（与 `02 §3.x` 一致）。
+> **已知覆盖缺口**：`PUT /users/{id}`（更新用户）与 `DELETE /users/{id}`（禁用/删除）虽在 openapi 中定义，但**本期未产出对应写态 fixture**（用户管理非前端基线样例重点）；如需覆盖，后续按 `02 §2.5` 补 `users/PUT.update.json` / `users/DELETE.remove.json`。
 
 **错误态（P5；**0304/P2 扩至全覆盖**；**0306 增 3 码**）** —— `_errors/` 提供 `ApiResult{code!=0}` 错误体，**覆盖 `02 §1.4` 全部 22 个非 0 错误码**（10000/10001/10002/10003/10004/10005/10006/10007/20001/20002/20003/20004/20005/20006/30001/30002/30003/30004/40001/40002/40003/60001），供 MSW 错误分支使用；**HTTP 状态码不入 JSON**，由 handler 决定（业务错误=HTTP200+JSON；传输层错误=空 body/5xx），详见 `_errors/README.md`。
 

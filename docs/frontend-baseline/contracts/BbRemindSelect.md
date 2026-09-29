@@ -26,6 +26,7 @@
   - 「删除提醒」→ `update:dataText("")` → 关闭。注意：**不触发 `confirm`**（与其他项不一致）。
   - 下拉 `visible-change=false` → `changeDropdown` → `closeDropdown`；`closeDropdown` 会重置 `selectDataValue = new Date()`、重算 `selectDataTimeValue`、`selectValueShow=false`、`handleClose`。
 - 业务规则：
+  - **提醒未启用提示（0306/#5，`03 §5.3.3`）**：一期 `remind_at` 仅**持久化 + 前端展示**，**不触发任何投递**（`TaskRemindService` 列二期，`01 §3/§7.7`）。UI **必须显式提示「提醒暂不启用（仅保存时间，不发送通知）」**：可在 `BbRemindSelect` 触发器旁加 info 文案或 `BbTooltip`，避免用户误以为会收到通知。重写时该提示随本组件一起实现。
   - 快捷时段阈值（setup 时一次性计算，`hours` 为当前小时）：`hours+1 < 12` → `activeDateText="12:00"`；`hours>=12 && hours+1<=16` → `"16:00"`；`hours>=16 && hours+1<=20` → `"20:00"`；其余为空。`activeDateText` 为空时「今日晚些时候」回退 `23:59:59`。
   - 自定义时间默认值：`selectDataTimeValue = ${hours+1>=24?'01':hours+1}:${minutes<30?'00':'30'}`。
   - 固定常量 `sfStr = "9:00"`（缺前导 0，最终拼接为 `9:00:00`）。
@@ -46,3 +47,4 @@
   4. 「选择日期和时间」→ 面板切换为日历+时间；改日期时间后点「保存」→ `dataText === "<所选日期> <HH:mm>:59"` 且触发 `confirm`。
   5. 已有提醒（`dataText` 非空）且 `dataType="1"` 时显示红字「删除提醒」，点击后 `dataText === ""`（记录是否触发 `confirm` 的当前差异）。
   6. 打开后再关闭下拉，面板状态与默认时间被复位（再次打开为快捷菜单）。
+  7. 选中任一提醒时间后，UI 旁出现「提醒暂不启用（仅保存时间，不发送通知）」提示（info 文案 / `BbTooltip`）；所选时间仍随表单保存到 `remindAt`（`0306/#5` / `03 §5.3.3`）。
