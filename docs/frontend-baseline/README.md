@@ -76,7 +76,8 @@ docs/frontend-baseline/
 
 ## 5. 历史与变更记录
 
-- **2026-09-29（0307 产品决策 · 废弃 BbOrgTree）**：产品决定**放弃** `BbOrgTree`（`layoutNew/components/LeftBox/OrganizationalMechanismTree.vue`，旧实现「组件内静态假数据 + `radio-type` 被注释导致默认不渲染」的死组件，0303/N4 悬置项就此关闭）。动作：删除契约 `contracts/BbOrgTree.md`；业务契约 **16 → 15**、合计 **30 → 29**（冻结期 30/30 为历史事实，见下）；清理左栏/映射/索引及 `departments` fixture 的 `guides` 注释中对 `BbOrgTree` 的引用（`Departments` 仍供人员选择/部门筛选使用）。`BbCategoryTree` 去留**仍待 M1 产品确认**。
+- **2026-09-29（0308 产品决策 · 保留 `BbCategoryTree`）**：产品确认 `BbCategoryTree`（`layoutNew/components/LeftBox/categoryTree.vue` → 分类树）**保留、必做**——分类是系统核心功能（`05` R5 分类与检索），不因旧实现「未 `import`/未挂载」而死代码化。它是分类树的**指定承接组件**，技术底座为原子组件 `BbTree`；契约（增/改名/删/拖拽 + 选中过滤任务、删除二次确认、`/categories` 接口落库）按目标态重写。与 `BbOrgTree`（组织机制树，0307 已废弃）**处置相互独立**，本次不改变契约计数（`BbCategoryTree` 仍在 15 业务契约内）。
+- **2026-09-29（0307 产品决策 · 废弃 BbOrgTree）**：产品决定**放弃** `BbOrgTree`（`layoutNew/components/LeftBox/OrganizationalMechanismTree.vue`，旧实现「组件内静态假数据 + `radio-type` 被注释导致默认不渲染」的死组件，0303/N4 悬置项就此关闭）。动作：删除契约 `contracts/BbOrgTree.md`；业务契约 **16 → 15**、合计 **30 → 29**（冻结期 30/30 为历史事实，见下）；清理左栏/映射/索引及 `departments` fixture 的 `guides` 注释中对 `BbOrgTree` 的引用（`Departments` 仍供人员选择/部门筛选使用）。`BbCategoryTree` 的处置见其上 0308 条。
 - **2026-09-28（M0 启动）**：建立本目录骨架；基于旧源码导出首批 5 份行为契约（TaskCard / addTaskBlock / childTaskList / CalendarCard / dropdownSetDate）；建立 fixtures 规范与 E2E 场景清单框架。
 - **2026-09-28（0301 审核修订）**：
   - **M1**（引用断裂/布局漂移）✅：设计文档入仓 `Task/01..04`（`Task/README.md`）；建 `docs/api/openapi.yaml` 初版；修正 `e2e/`、`fixtures/` 的 `../../Task/` 深度错误。
@@ -113,7 +114,7 @@ docs/frontend-baseline/
   - **D2 闭环**（日历路径）：`BbCalendarCard.md` 旧接口 `/calendar` → `/task/record/getproxycalendar`。
   - **D3 澄清**（视觉证据）：非「缺口」——证据已采集，**按用户指令不入库**（`.gitignore`），由 harness 复现；各契约尾注已由「待补充」改为「已采集（不入库）」。
   - **D4 闭环**（权限口径）：`BbTaskCard`/`BbTaskDetailDrawer`/`BbParticipantList` 三份增「权限口径收敛」注（基线=仅 owner；目标=RF3 参与者可写）。
-  - **D5 闭环**（死组件）：`BbCategoryTree`/`BbOrgTree` 显式标注 **as-is 不可用**（`CategoryTree` 未 import、`OrgTree` `radio-group` 被注释）。
+  - **D5 闭环**（死组件）：`BbCategoryTree`/`BbOrgTree` 显式标注 **as-is 不可用**（`CategoryTree` 未 import、`OrgTree` `radio-group` 被注释）。**后续处置：`BbOrgTree` 0307 废弃；`BbCategoryTree` 0308 确认保留（必做）。**
   - **G1 闭环**（身份错位，P0）：`users/GET.me.json` 当前用户 `id=1`（admin）；`users/GET.index.json` 重排（admin=1、李四=12）；`tasks/*` 的 `owner/ccUsers` 名称对齐；两形态当前用户/归属人统一为 `1`。
   - **G2 澄清**（信封）：`api/` 为目标态（`code==0`，`02 §1.3` 设计决策）、`legacy-api/` 为现状态，**刻意不兼容**，非缺陷；已在 openapi `info.description` 与 `fixtures/README §1.1` 显式标注。
   - **G3 闭环**：补 `auth/POST.logout.json`、`POST.refresh.json`、`GET.external-config.json`。
