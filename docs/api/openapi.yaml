@@ -591,7 +591,7 @@ components:
         all: { type: integer }
     CycleRule:
       type: object
-      description: 周期规则（JSONB，计算式展开；02 §4.3）
+      description: 周期规则（TEXT 存 JSON，计算式展开；02 §4.3）
       required: [freq, interval, dtstart, tz]
       properties:
         freq: { type: string, enum: [DAILY, WEEKLY, MONTHLY] }

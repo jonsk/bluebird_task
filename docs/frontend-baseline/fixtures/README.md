@@ -102,7 +102,7 @@ fixtures/
 
 - **统一外层**：非列表接口用 `ApiResult{code:0, message, data, traceId}`；列表用 `ApiResult{data:{list,total,page,size}}`（与 02 §1 一致）。
 - **时间**：ISO8601 + `+08:00`（如 `"2026-10-01T18:00:00+08:00"`），不用时间戳（02 §1.8 jackson）。
-- **周期任务**：`cycle_rule` JSONB 全字段 `{freq,interval,dtstart,byDay,count,until,tz}`；`cycle_last_completed` 按推进/未开始给出（E2E E-16 依赖）。
+- **周期任务**：`cycle_rule` TEXT(JSON) 全字段 `{freq,interval,dtstart,byDay,count,until,tz}`；`cycle_last_completed` 按推进/未开始给出（E2E E-16 依赖）。
 - **脱敏**：人员 `mobile/phone` 一律 `138****0000` 形式（02 手机号脱敏）。
 
 ## 4. 数据字典（节选，全量以 openapi.yaml 为准）

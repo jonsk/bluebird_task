@@ -12,7 +12,7 @@
 - **背景**：旧系统为前后端分仓（Spring Boot 3.2 + 若依 Vue3），需整体重写。
 - **决策**：
   - 新建 Git 仓库，**Monorepo 单仓库**（`backend/` + `frontend/` + `deploy/` + `docs/`）。
-  - 后端 Java 21 + Spring Boot 3.3 + MyBatis-Plus + Flyway + PostgreSQL 13+（基线按 16 开发）+ Redis 7。
+  - 后端 Java 21 + Spring Boot 3.3 + MyBatis-Plus + Flyway（+ `flyway-database-sqlite`）+ **SQLite 3（嵌入式，无外部 DB / 无缓存）**（见 ADR-016，取代本 ADR 原 PG/Redis 选型）。
   - 前端 Vue 3 + Vite 5 + TypeScript + Pinia + Element Plus + Tailwind。
   - 私有化部署（Linux、无 K8s），支持 Docker Compose 与手动 jar 两种方式。
   - **开源协议**：Apache-2.0（`LICENSE` 为必交付件）。
@@ -146,14 +146,14 @@
   2. **首次释放**：启动时（`ConfigFileReleaser`，`ApplicationRunner`）检测运行目录（= jar 所在目录 / CWD）的 `application.yml`，不存在则复制内置默认过去；**已存在则不覆盖**。
   3. **后续读取**：Spring 默认优先级 `file:./application.yml` > `classpath:/application.yml`，用户改外部文件**重启即生效**（无需重打包）。
   4. **升级不覆盖**：新 jar 替换旧 jar 后，运行目录已有配置**保留**。
-  5. **敏感值不入内置**：内置默认配置**不含真实密钥**，仅保护 `${...}` 占位。可自生成的密钥由首次运行**自动生成**（见本 ADR §6：`JWT_SECRET`、`BOOTSTRAP_ADMIN_*`）；必须与外部系统一致的（`DB_URL/USER/PASSWORD`、`REDIS_PASSWORD`、`OIDC_CLIENT_ID/SECRET`、`WECHAT_CORP_SECRET`、`ORGSYNC_PUSH_TOKEN`）用 `${...}` 占位，由环境变量 / systemd `EnvironmentFile` 注入，用户如需明文自行写运行目录文件并控权限。**自生成项亦允许环境变量覆盖**（部署方显式指定则用之）。
+  5. **敏感值不入内置**：内置默认配置**不含真实密钥**，仅保护 `${...}` 占位。可自生成的密钥由首次运行**自动生成**（见本 ADR §6：`JWT_SECRET`、`BOOTSTRAP_ADMIN_*`）；必须与外部系统一致的（`SQLITE_URL`（可选）、`OIDC_CLIENT_ID/SECRET`、`WECHAT_CORP_SECRET`、`ORGSYNC_PUSH_TOKEN`）用 `${...}` 占位，由环境变量 / systemd `EnvironmentFile` 注入，用户如需明文自行写运行目录文件并控权限。**自生成项亦允许环境变量覆盖**（部署方显式指定则用之）。**去 PG/Redis（ADR-016）后，无 DB/缓存连接串需注入**。
      > **空值覆盖保护**：自动生成的密钥写入**释放出的 `./application.yml`**（`chmod 600`），**不在 `.env` 留空占位**。Spring 属性优先级为「OS 环境变量 > `file:./application.yml`」——若经 `EnvironmentFile`/Compose `env_file` 注入 `.env` 中留空的 `JWT_SECRET=`/`BOOTSTRAP_ADMIN_PASSWORD=`，空串会**覆盖自动生成值**，使首次 ADMIN 回落人工引导。`.env` 仅承载外部注入类；需自定义自生成密钥时才填**非空**值（见 `01 §15.1`）。
   6. **密钥分类生成**（能自生成的才首次生成；必须与外部系统一致的只留占位）：
      - **自生成**（首次跑随机生成，写入释放出的配置文件，`chmod 600`，不入仓库/内置默认）：
        - `JWT_SECRET`：首次生成随机 32B（HS256，≥256bit），预填，每套部署唯一；
        - `BOOTSTRAP_ADMIN_PASSWORD`：首次生成强口令，控制台/受保护日志打印一次，`must_change_password=1` 强制首登改密。
-     - **外部注入**（首次跑只留 `${...}` 占位，本地不生成）：`DB_URL/USER/PASSWORD`、`REDIS_PASSWORD`、`OIDC_CLIENT_ID/SECRET`、`WECHAT_CORP_SECRET`、`ORGSYNC_PUSH_TOKEN`——必须与外部系统/部署一致，由用户配置或 `EnvironmentFile`/Compose 注入。
-     - **DB/Redis 口令**：纯 jar + 外部已有 PG/Redis 时，用户直接在配置中填写；若走一键 Compose，由**编排层**首次生成随机口令并同时注入 `postgres`/`redis` 与 backend（Compose 行事，非 jar 自行生成）。
+     - **外部注入**（首次跑只留 `${...}` 占位，本地不生成）：`SQLITE_URL`（可选）、`OIDC_CLIENT_ID/SECRET`、`WECHAT_CORP_SECRET`、`ORGSYNC_PUSH_TOKEN`——必须与外部系统/部署一致，由用户配置或 `EnvironmentFile`/Compose 注入。
+     - **数据库**：SQLite 嵌入式（ADR-016），**无口令、无外部连接串**；`.db` 文件随 jar 目录自建（默认 `./data/bluebird.db`）。
   7. **配置同时承载日志/存储目录**：释放出的 `application.yml` 含 `logging.file.name`（日志目录）与 `app.storage.root`（文件存储目录），首次默认值即可用，允许用户按需修改。
   8. **配置丢失的自愈**：若运行目录配置文件被删，下次启动重新释放并重生成 `JWT_SECRET` → 已签发的 refresh token 失效、用户需重新登录（可控，重启即可自愈）。
 - **后果**：
@@ -169,14 +169,14 @@
 - **状态**：已确认
 - **背景**：在「不做大、保证功能与安全」前提下收口技术栈，并防止接口信息在生产暴露。
 - **决策**：
-  1. **PG 最低支持 13**：技术选型由「固定 16」放宽为「13+（按 16 开发，最小部署门槛 13）」，适配私有化客户常见环境。
+  1. ~~**PG 最低支持 13**~~：**已由 ADR-016 取代**——数据库改 SQLite，不再涉及 PG 版本兼容。
   2. **接口文档生产关闭**：springdoc 由 `springdoc.api-docs.enabled`/`swagger-ui.enabled` 统一受 `DOC_ENABLED`（默认 `false`）控制；**生产关闭** `/v3/api-docs` 与 `/swagger-ui`，二者同时从免鉴权白名单移除；仅 dev 联调 `DOC_ENABLED=true`。契约以 `docs/api/openapi.yaml` 静态文件为准（前后端生成/联调用它，不依赖运行时 doc），故关闭运行时不损失契约能力。
   3. **去掉 IP 属地定位（ip2region）**：登录日志/操作日志不再采集 `address` 属地，`audit_operate_log`、`audit_login_log` 移除 `address` 列；`IpUtils` 仅取 IP。精简离线库依赖。
   4. **OIDC / 企微依赖**：`spring-security-oauth2-client`、`wx-java-cp` 为**可选依赖**（Maven profile / 条件装配），默认 `provider=LOCAL` 打包时不引入，进一步瘦身；选用时再启用。
   5. **前端 Mock 二选一**：保留 **MSW**，去 Prism（功能等价，避免双方案）。
 - **后果**：
   - 生产不泄露接口文档；契约能力不损失（静态 `openapi.yaml`）。
-  - PG 部署兼容面扩大；依赖与镜像体积减小。
+  - 依赖与镜像体积减小（**DB/缓存外部依赖已随 ADR-016 全部移除**）。
   - 登录/操作日志不含 IP 属地信息（仅保留 IP 与 UA）。
 - **关系**：落地于 `01 §5/§7.5/§7.6/§7.9/§15.1`、`02 §1.7/§1.8/§1.10/§6.2-§6.4`、`03 §3.1`；与 ADR-001（选型）、ADR-009（单制品）、ADR-010（配置释放）一致。
 
@@ -191,14 +191,14 @@
   2. 「下属集合」= 该用户为负责人的**全部部门及其递归子部门**内的所有用户（经 `sys_user.dept_id` / `sys_user_department` 解析，**排除本人**）。
   3. **只读可见性**：当前用户对任务 T 可见 ⟺ `T.owner=me` ∨ `me∈participants(T)` ∨ `ADMIN` ∨ `T.owner/参与人 ∈ subordinates(me)`。**可见 ≠ 可写**：写权限仍按 RF3（`owner/assignee/cc/ADMIN`）；主管对下属任务**只读**。
   4. 列表显式筛选：`GET /tasks?scope=all&subordinate=true`（默认 `false`，不改动六大视图）；`/tasks/count` **不**计入下属任务。
-  5. 读鉴权 `TaskAuthService.assertVisible`；部门负责人/组织变更后下属集合缓存失效。
+  5. 读鉴权 `TaskAuthService.assertVisible`；部门负责人/组织变更后下属集合（如启用进程内缓存）失效。默认直算（去缓存，ADR-016）。
 - **修订（0306/Q3）**：
   - 组织级可见性受 **`app.security.manager-can-read-subordinate` 开关控制，默认 `false`（关闭）**；开启须在部署侧**明示告知**并记录 PIPL 依据（见 `06合规对照表.md`）。
   - **敏感读审计**：主管读取「非本人参与」的下属任务记 `audit_operate_log(action=read_subordinate)`。
-  - **缓存失效事件驱动**：部门树变更 / `leader_user_id` 变更发布领域事件，显式清下属集合缓存（非定时）。
+  - **（可选）缓存失效事件驱动**：若启用进程内缓存，部门树变更 / `leader_user_id` 变更发布领域事件显式清除；默认直算（去缓存，ADR-016）。
 - **后果**：
   - 主管获得**只读**的下属任务视图；不引入部门级写权限，避免越权面扩大。
-  - 需维护部门负责人数据；「下属」递归计算需缓存（部门树变更时失效）。
+  - 需维护部门负责人数据；「下属」递归计算默认直算（去缓存，ADR-016；如启用进程内缓存则部门树变更时失效）。
   - 隐私提示：下属的个人任务对主管**只读可见**，属产品明示决策；若后续需收紧（如仅 owner 任务、或加开关），另行 ADR。
 - **关系**：落地于 `01 §3/§8.2/§8.3#7/§9.2/§12.1`、`02 §3.2/§3.4/§4.4/§4.5/§4.7`、`03 §5.3.1/§5.4`、`05需求覆盖矩阵.md`；与 ADR-003（RBAC 简化）、ADR-008（组织同步）互补，不冲突。
 
@@ -209,7 +209,7 @@
 - **状态**：已确认（0306/Q4）
 - **背景**：企业级评审（`0306审核_蓝鸟重构方案-企业级审核`）指出任务无并发控制，两人同时编辑会**后写覆盖前写**（Lost Update）且无冲突提示——协同场景数据正确性硬伤。
 - **决策**：
-  1. 主实体 `task` / `category` / `task_menu` 等增 `version BIGINT NOT NULL DEFAULT 0`（MyBatis-Plus `@Version`）。
+  1. 主实体 `task` / `category` / `task_menu` 等增 `version INTEGER NOT NULL DEFAULT 0`（MyBatis-Plus `@Version`）。
   2. `PUT /tasks/{id}`、`complete` / `uncomplete` 等更新须携带 `version`；版本失配返回 `code=10006 VERSION_CONFLICT`（**HTTP 仍 200**，遵循 ADR-005 统一响应约定；不引入 409 以保持前端拦截器单一约定）。
   3. 前端收到 `10006` → 提示「内容已被他人修改，请刷新」并重拉最新版本。
 - **后果**：消除协同编辑覆盖；客户端须回传版本号（`openapi` 同步 `TaskVO.version`）。**实时协同（WebSocket/SSE）列二期**。
@@ -239,13 +239,35 @@
 - **状态**：已确认（0308 产品决策；回应 0306/P1 缺口）
 - **背景**：企业级审核（`0306`）指出 `category.owner_id` 仅个人，无组织/部门级共享分类体系，限制协同与统计。
 - **决策**（一期做，保持最小）：
-  1. `category` 增 `scope VARCHAR(16) NOT NULL DEFAULT 'PERSONAL'`（`PERSONAL`/`DEPARTMENT`/`ORG`）与 `dept_id BIGINT NULL`（仅 `DEPARTMENT` 使用）；`owner_id` = 创建者。
+  1. `category` 增 `scope TEXT NOT NULL DEFAULT 'PERSONAL'`（`PERSONAL`/`DEPARTMENT`/`ORG`）与 `dept_id INTEGER NULL`（仅 `DEPARTMENT` 使用）；`owner_id` = 创建者。
   2. **读可见**：`PERSONAL` → `owner_id=我`；`DEPARTMENT` → `dept_id ∈ 我所在部门`；`ORG` → 全部登录用户。`GET /categories` 返回三者合并树，`?scope=` 可过滤。
   3. **写**：`PERSONAL` → 创建者；`DEPARTMENT` → 创建者 / 该部门负责人（`leader_user_id`）/ `ADMIN`；`ORG` → `ADMIN`/`USER_MANAGER`。`CategoryAuthService.assertWritable`。
   4. **约束**：`DEPARTMENT` 必填 `dept_id`；`PERSONAL`/`ORG` 忽略。`task.category_id` 只可引用**可见**分类（建/改任务校验 `assertVisible`）。
   5. **迁移**：旧 `sys_category` 一律映射 `PERSONAL`。
 - **范围边界（本期不做）**：部门**子树**共享、跨部门共享、分类级 ACL；避免复杂。`ORG` 即两级共享的上限。
 - **关系**：落地于 `01 §3/§8.2/§8.3#10`、`02 §4.2/§4.5/§4.7`、`03 §5.3.4`、`docs/api/openapi.yaml`（`Category.scope/deptId`）、`fixtures/api/categories/*`、`05需求覆盖矩阵.md`。
+
+---
+
+## ADR-016 · 去 PostgreSQL/Redis，改 SQLite + 无缓存层（单机轻量交付）
+
+- **状态**：已确认（2026-09-29 产品决策；**取代 ADR-001 中原 PG/Redis 选型、ADR-011 决策#1（PG 最低 13）**）
+- **背景**：系统规模小（约 **100 人/日**、每人 ≤20 条/日，即 ≈**2000 写/日**、库体积几十 MB/年），且明确**不考虑多实例/集群**；目标是「拿到 jar 即跑」的零外部依赖交付。PG + Redis 属功能过剩，徒增交付与运维成本。
+- **决策**：
+  1. **数据库改 SQLite 3**（嵌入式，`org.xerial:sqlite-jdbc`；文件默认 `./data/bluebird.db`）；**移除 PostgreSQL**。
+  2. **移除 Redis 与全部缓存层**（不引入 Caffeine）：量级极小，DB 直读足够。
+  3. **类型映射**：`BIGINT→INTEGER`、`VARCHAR(n)→TEXT`、`SMALLINT/BOOLEAN→INTEGER`、`TIMESTAMPTZ→TEXT(ISO-8601)`、`JSONB→TEXT(JSON)`；时间列默认 `(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`。
+  4. **连接与并发**：HikariCP **单连接池**（`maximum-pool-size=1`）+ 启动 PRAGMA：`journal_mode=WAL`、`busy_timeout=5000`、`foreign_keys=ON`、`synchronous=NORMAL`。
+  5. **原 Redis 用途落点**：refresh token 白名单 → 表 `sys_refresh_token`（单活跃会话，部分唯一索引）；登录失败计数 / 防重复提交 → 进程内 `ConcurrentHashMap`（带 TTL 清理）；org-sync 幂等锁 → 进程内 `ReentrantLock`。
+  6. **迁移**：Flyway 保留，加 `flyway-database-sqlite` 模块，`V1__init.sql` 直接写 SQLite 方言。
+  7. **单实例**：SQLite 单写者特性决定**仅支持单实例**；多实例/集群不支持，调度 leader 选举等列二期（不适用）。
+  8. **部署**：Docker Compose 仅 `backend` 单服务（挂载 `data/` 与 `files/`）；无 `postgres`/`redis` 服务。
+  9. **备份**：`sqlite3 .backup`（或停写复制 `.db`）/ `VACUUM INTO`；指引见 `06 §4`。
+- **后果**：
+  - 交付极简：单 jar + 单 `.db` 文件，无外部服务；`docker compose up` 仅起一个容器。
+  - **放弃多实例/水平扩展**（与「不考虑集群」一致）；**放弃强类型 / JSONB 查询能力**（JSON 存 TEXT，应用侧解析）。
+  - 需自行保证 `.db` 文件备份与单实例访问（禁止网络文件系统多挂载）。
+- **关系**：落地于 `01 §4.1/§5/§7.5/§7.7/§10/§11.1/§12/§15`、`02 §1.7/§1.8/§1.9/§2.2/§2.3/§2.7/§3.2/§4.2/§5.3/§6.2`、`06 §1/§4`、`deploy/docker-compose.yml`、`backend/README.md`。
 
 ---
 

@@ -9,10 +9,10 @@
 
 ## 技术要点（摘要，详见 `Task/04决策记录(ADR).md` / `01蓝鸟重构方案.md`）
 
-- **Monorepo**：`backend/`（Spring Boot 3 + Java 21 + MyBatis-Plus 3.5.x + PostgreSQL 16）+ `frontend/`（Vue 3 + TS + Vite + Element Plus + Tailwind）。
-- **单制品（ADR-009）**：前端 `dist` 打包期注入 `backend/src/main/resources/static/`，产出**唯一 `bluebird-task.jar`**，不使用 Nginx，SPA 回退由后端 `SpaForwardController` 兜底。
+- **Monorepo**：`backend/`（Spring Boot 3 + Java 21 + MyBatis-Plus 3.5.x + **SQLite**）+ `frontend/`（Vue 3 + TS + Vite + Element Plus + Tailwind）。**无 Redis、无缓存层**（ADR-016）。
+- **单制品（ADR-009）**：前端 `dist` 打包期注入 `backend/src/main/resources/static/`，产出**唯一 `bluebird-task.jar`**，不使用 Nginx，SPA 回退由后端 `SpaForwardController` 兜底。**无外部 DB/缓存服务**（SQLite 嵌入式单文件）。
 - **认证（ADR-006/008）**：默认 `provider=LOCAL`（仅账号密码）；OIDC / 企微为可选（条件装配，默认关闭）。
-- **周期任务**：计算式展开（`cycle_rule` JSONB + `cycle_last_completed`），不物化多行。
+- **周期任务**：计算式展开（`cycle_rule` TEXT(JSON) + `cycle_last_completed`），不物化多行。
 - **前端质量（ADR-007/011）**：基线冻结（行为契约/黄金截图/E2E/fixtures）+ 设计系统（BB 组件）+ 契约 Mock（MSW）。
 
 ## 目录结构（单一权威：`Task/01蓝鸟重构方案.md §6`）
@@ -22,7 +22,7 @@ bluebird-task/
 ├── docs/                        # 仓根共享文档（架构/数据模型/openapi/部署/基线）
 │   ├── api/openapi.yaml         # API 契约单一事实源（前后端共享，M0 产出）
 │   └── frontend-baseline/       # 前端基线冻结产物（行为契约/黄金截图/E2E/fixtures）
-├── deploy/                      # docker-compose（全量 / 仅依赖）
+├── deploy/                      # docker-compose（单服务：backend 单制品；无 pg/redis）
 ├── backend/                     # 后端工程（Spring Boot）
 ├── frontend/                    # 前端工程（Vue 3）
 └── scripts/                     # 开发/备份脚本
@@ -30,7 +30,7 @@ bluebird-task/
 
 ## 快速开始（占位，M0 阶段补充）
 
-- 本地依赖：见 `deploy/docker-compose.dev.yml`（pg + redis 起依赖）。
+- 本地依赖：**无**（SQLite 嵌入式、无缓存，ADR-016）；后端直接 `cd backend && mvn spring-boot:run`（自建 `./data/bluebird.db`）。
 - 构建单制品：`frontend pnpm build` → 拷贝 `dist` 至 `backend/src/main/resources/static/` → `mvn verify`（详见 `Task/01 §11`）。
 
 ## 设计文档（当前权威源，评审中）
@@ -39,7 +39,7 @@ bluebird-task/
 - `Task/02后端模块详细设计.md` — 后端详设
 - `Task/03前端模块详细设计.md` — 前端详设
 - `Task/04决策记录(ADR).md` — 架构决策记录
-- 评审留痕：`Task/02xx评审_*.md`
+- 评审留痕：存**外部评审工作区**（`02xx评审_*.md`），本仓 `Task/` 仅 `01`–`06`（不含留痕）。
 
 > 以上 `Task/` 目录在 M0 冻结后复制进本仓 `docs/`（`architecture.md`、`data-model.md` 等即其镜像）。
 

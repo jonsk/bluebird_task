@@ -1,4 +1,4 @@
-# backend/ — 后端工程（Spring Boot 3 + Java 21 + MyBatis-Plus + PostgreSQL）
+# backend/ — 后端工程（Spring Boot 3 + Java 21 + MyBatis-Plus + SQLite）
 
 > **当前阶段：M0 占位。** 分层/模块/配置详见 `../Task/02后端模块详细设计.md`（审核中，冻结后复制进 `../docs/`）。代码随 M0 初始化开始，本目录暂为骨架。
 
@@ -23,5 +23,5 @@ backend/
 
 ## 入口命令（占位，随 M0 补充）
 
-- 依赖：`docker compose -f deploy/docker-compose.dev.yml up -d`（pg + redis）
+- 依赖：**无外部依赖**（SQLite 嵌入式、无缓存，ADR-016）；直接 `cd backend && mvn spring-boot:run` 即可（数据库自建 `./data/bluebird.db`）
 - 构建单制品：见顶层 README / `../Task/01蓝鸟重构方案.md §11`

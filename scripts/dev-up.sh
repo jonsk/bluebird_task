@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# M0 占位：本地起依赖 + （后续）不在容器内起后端则本地跑 jar。
-# 用法：scripts/dev-up.sh
+# M0 占位：去 PG/Redis 后本地**无外部依赖**（SQLite 嵌入式、无缓存，ADR-016）。
+# SQLite 随应用自建（默认 ./data/bluebird.db），无需 docker compose up。
+# 用法：scripts/dev-up.sh（仅提示；实际直接起后端/前端）
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo ">> 起本地依赖（PostgreSQL + Redis）"
-docker compose -f "$ROOT/deploy/docker-compose.dev.yml" up -d
-
-echo ">> 依赖就绪（bluebird-pg:5432 / bluebird-redis:6379）"
-echo ">> 后续：后端 mvn 起跑、前端 pnpm dev 联调（见 01 §11）"
+echo ">> 无外部依赖（SQLite 嵌入式、无缓存，ADR-016）；无需 docker compose up。"
+echo ">> 起后端：cd backend && mvn spring-boot:run"
+echo ">> 起前端：cd frontend && pnpm dev（见 01 §11）"

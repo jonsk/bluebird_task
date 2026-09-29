@@ -1,24 +1,18 @@
-# 全量（单制品，ADR-009）：只发一个 jar，nginx 不参与
+# 单制品（ADR-009/016）：只发一个 jar（内嵌前端，无 Nginx）；无 postgres/redis（SQLite 嵌入式、无缓存层）。
 # M0 阶段占位；随 backend/frontend 成型后补全（构建可参考 01 §11.2 Dockerfile 多阶段）。
 services:
-  # 后端 + 内嵌前端（单 jar）
-  # build:
-  #   context: ..
-  #   dockerfile: backend/Dockerfile
-  # image: bluebird
-  # ports: ["8080:8080"]
-
-  # 依赖（与 dev compose 一致）
-  postgres:
-    image: postgres:16
+  backend:
+    # build:
+    #   context: ..
+    #   dockerfile: backend/Dockerfile
+    # image: bluebird
+    ports: ["8080:8080"]
     environment:
-      POSTGRES_DB: bluebird
-      POSTGRES_USER: bluebird
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-bluebird}
+      SQLITE_URL: jdbc:sqlite:/data/bluebird/bluebird.db
     volumes:
-      - bluebird_pgdata:/var/lib/postgresql/data
-  redis:
-    image: redis:7
+      - bluebird_data:/data/bluebird          # SQLite .db 所在目录（单实例）
+      - bluebird_files:/data/bluebird/files   # 附件
 
 volumes:
-  bluebird_pgdata:
+  bluebird_data:
+  bluebird_files:
