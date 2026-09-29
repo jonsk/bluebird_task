@@ -188,7 +188,13 @@ paths:
     post:
       tags: [org]
       summary: 私有 IDM 推送（独立 SecurityFilterChain 校验 Bearer ORGSYNC_PUSH_TOKEN）
+      description: >
+        被动接收私有 IDM（竹云等）的组织/用户推送并 upsert（幂等，以外部源 id 映射；不删实体，仅将移除者置 DISABLED）。
+        下方为**规范通用报文**；具体厂商私有格式由 `OrgPushAdapter` 解析映射（`02 §3.3`）。
       security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OrgPushPayload' } } }
       responses: { '200': { $ref: '#/components/responses/Ok' } }
 
   /jobs/{name}/run:
@@ -789,3 +795,39 @@ components:
           required: [version]
           properties:
             version: { type: integer, format: int64 }
+    OrgPushPayload:
+      type: object
+      description: 私有 IDM 组织推送报文（规范通用形态；厂商私有格式由 OrgPushAdapter 映射）
+      required: [departments, users]
+      properties:
+        type: { type: string, enum: [FULL, INCREMENTAL], default: INCREMENTAL, description: 全量/增量 }
+        timestamp: { type: string, format: date-time, nullable: true }
+        departments: { type: array, items: { $ref: '#/components/schemas/OrgPushDept' } }
+        users: { type: array, items: { $ref: '#/components/schemas/OrgPushUser' } }
+        deleted:
+          type: object
+          description: 需失效（置 DISABLED）的外部 id 列表
+          properties:
+            userExternalIds: { type: array, items: { type: string } }
+            deptExternalIds: { type: array, items: { type: string } }
+    OrgPushDept:
+      type: object
+      required: [externalId, name]
+      properties:
+        externalId: { type: string, description: 外部源部门 id（幂等映射键） }
+        name: { type: string }
+        parentExternalId: { type: string, nullable: true }
+        leaderExternalId: { type: string, nullable: true, description: 负责人外部用户 id }
+        sort: { type: integer, nullable: true }
+    OrgPushUser:
+      type: object
+      required: [externalId]
+      properties:
+        externalId: { type: string, description: 外部源用户 id（幂等映射键） }
+        username: { type: string, nullable: true }
+        name: { type: string, nullable: true }
+        mobile: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        primaryDeptExternalId: { type: string, nullable: true }
+        deptExternalIds: { type: array, items: { type: string } }
+        status: { type: string, enum: [ACTIVE, DISABLED], default: ACTIVE }

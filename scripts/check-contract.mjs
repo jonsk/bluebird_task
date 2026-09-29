@@ -31,7 +31,6 @@ const ENDPOINT_IGNORE = new Set([
 const BODY_EXEMPT = new Set([
   'POST /auth/logout',
   'POST /org/sync',
-  'POST /org/push',
   'POST /jobs/{name}/run',
   'POST /tasks/{id}/collect',
 ]);
