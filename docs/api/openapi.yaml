@@ -197,6 +197,65 @@ paths:
         content: { application/json: { schema: { $ref: '#/components/schemas/OrgPushPayload' } } }
       responses: { '200': { $ref: '#/components/responses/Ok' } }
 
+  /scim/v2/Users:
+    get:
+      tags: [scim]
+      summary: SCIM 查询用户（`app.orgsync.mode=SCIM`；独立 SecurityFilterChain 校验 Bearer ORGSYNC_PUSH_TOKEN，ADR-008）
+      security: []
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    post:
+      tags: [scim]
+      summary: SCIM 创建用户（SCIM 模式）
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ScimResource' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    put:
+      tags: [scim]
+      summary: SCIM 替换用户（SCIM 模式）
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ScimResource' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    patch:
+      tags: [scim]
+      summary: SCIM 局部更新用户（SCIM 模式）
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ScimPatchOp' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    delete:
+      tags: [scim]
+      summary: SCIM 删除用户（SCIM 模式）
+      security: []
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /scim/v2/Groups:
+    get:
+      tags: [scim]
+      summary: SCIM 查询部门（SCIM 模式；Group 按名称映射为 sys_department，02 §3.3）
+      security: []
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    post:
+      tags: [scim]
+      summary: SCIM 创建部门（SCIM 模式）
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ScimResource' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    put:
+      tags: [scim]
+      summary: SCIM 替换部门（SCIM 模式）
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ScimResource' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    patch:
+      tags: [scim]
+      summary: SCIM 局部更新部门（SCIM 模式）
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ScimPatchOp' } } } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    delete:
+      tags: [scim]
+      summary: SCIM 删除部门（SCIM 模式）
+      security: []
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+
   /jobs/{name}/run:
     post:
       tags: [job]
@@ -515,7 +574,8 @@ components:
       enum: [day, week, assigned, joined, collect, all]
     Priority:
       type: string
-      enum: [LOW, MEDIUM, HIGH]
+      description: 任务优先级（4 值，与 01 §8.1 / 02 DDL 对齐）。
+      enum: [LOW, MEDIUM, HIGH, URGENT]
     TaskStatus:
       type: string
       enum: [ACTIVE, DISABLED, ARCHIVED]
@@ -831,3 +891,21 @@ components:
         primaryDeptExternalId: { type: string, nullable: true }
         deptExternalIds: { type: array, items: { type: string } }
         status: { type: string, enum: [ACTIVE, DISABLED], default: ACTIVE }
+    ScimResource:
+      type: object
+      additionalProperties: true
+      description: SCIM 资源（标准 schema；字段随 IDP 而异，映射见 02 §3.3）
+    ScimPatchOp:
+      type: object
+      required: [Operations]
+      properties:
+        schemas: { type: array, items: { type: string } }
+        Operations:
+          type: array
+          items:
+            type: object
+            required: [op]
+            properties:
+              op: { type: string, enum: [add, remove, replace] }
+              path: { type: string, nullable: true }
+              value: { nullable: true }

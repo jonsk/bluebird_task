@@ -5,7 +5,9 @@
  * 校验 `docs/api/openapi.yaml`（API 单一事实源）与设计文档/基线之间的一致性，不一致即「红」（退出码 1）：
  *   1) openapi 内部自洽：所有 `#/components/**` 的 `$ref` 均可解析；
  *   2) 端点一致：`openapi.paths` ↔ 设计文档接口表（`Task/01 §9`、`Task/02` 各模块）逐条 diff（双向）；
- *   3) 错误码一致：`Task/02 §1.4 ErrorCode` 枚举 ↔ `docs/frontend-baseline/fixtures/api/_errors/*.json`（双向）。
+ *      接口表解析支持**多 Method 行**（如 `| GET/POST/PUT/PATCH/DELETE | /api/v1/scim/v2/Users |`）；
+ *   3) 错误码一致：`Task/02 §1.4 ErrorCode` 枚举 ↔ `docs/frontend-baseline/fixtures/api/_errors/*.json`（双向）；
+ *   4) 枚举一致：设计文档枚举口径（`Task/01 §8.1`）↔ openapi 命名/内联枚举（0306/#7）。
  *
  * 用法（仓根）：
  *   node scripts/check-contract.mjs
@@ -103,13 +105,15 @@ for (const [p, ops] of Object.entries(api.paths || {})) {
 
 const DOC_SOURCES = ['Task/02后端模块详细设计.md', 'Task/01蓝鸟重构方案.md'];
 const docOps = new Map(); // key -> sourceFile
-const rowRe = /^\|\s*(GET|POST|PUT|DELETE|PATCH)\s*\|\s*(\/api\/v1\/[^|\s]*)/;
+const rowRe = /^\|\s*((?:GET|POST|PUT|DELETE|PATCH)(?:\s*\/\s*(?:GET|POST|PUT|DELETE|PATCH))*)\s*\|\s*(\/api\/v1\/[^|\s]*)/;
 for (const rel of DOC_SOURCES) {
   const abs = join(ROOT, rel);
   if (!existsSync(abs)) { note.push(`跳过（不存在）：${rel}`); continue; }
   for (const line of readFileSync(abs, 'utf8').split(/\r?\n/)) {
     const m = line.match(rowRe);
-    if (m) docOps.set(opKey(m[1], m[2]), rel);
+    if (!m) continue;
+    const path = m[2];
+    for (const meth of m[1].split('/').map((s) => s.trim())) docOps.set(opKey(meth, path), rel);
   }
 }
 
@@ -167,11 +171,58 @@ if (errMissingFixture.length)
 if (errExtraFixture.length)
   fail.push(`fixture 含 ErrorCode 未定义之码：${errExtraFixture.map((c) => `${c} (${errFixture.get(c)})`).join(' / ')}`);
 
+// ---------- 4. 枚举对账（0306/#7）----------
+const enumDocPath = join(ROOT, 'Task/01蓝鸟重构方案.md');
+const schemas = (api.components && api.components.schemas) || {};
+const apiEnumSets = [];
+(function collectEnums(node) {
+  if (Array.isArray(node)) return node.forEach(collectEnums);
+  if (node && typeof node === 'object') {
+    if (Array.isArray(node.enum)) apiEnumSets.push(node.enum.map(String));
+    for (const v of Object.values(node)) collectEnums(v);
+  }
+})(api);
+const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+const backtickVals = (lineText) => {
+  const out = new Set();
+  for (const chunk of lineText.match(/`[^`]+`/g) || [])
+    for (const t of chunk.match(/[A-Z][A-Z0-9_]{1,}/g) || []) out.add(t);
+  return [...out];
+};
+// 文档枚举锚点 → openapi 期望（schema=命名 schema；inline=须存在等值内联 enum）
+const ENUM_ANCHORS = [
+  { label: 'task_priority', schema: 'Priority' },
+  { label: 'task_status', schema: 'TaskStatus' },
+  { label: 'role_code', inline: true },
+  { label: 'user_status', inline: true },
+];
+let enumChecked = 0;
+if (existsSync(enumDocPath)) {
+  const lines = readFileSync(enumDocPath, 'utf8').split(/\r?\n/);
+  for (const { label, schema, inline } of ENUM_ANCHORS) {
+    const hit = lines.find((l) => new RegExp('`?' + label + '`?\\s*[：:]').test(l));
+    if (!hit) { note.push(`枚举锚点未找到（跳过）：${label}`); continue; }
+    const docVals = backtickVals(hit);
+    if (docVals.length < 2) { note.push(`枚举锚点期望值不足（跳过）：${label}=${JSON.stringify(docVals)}`); continue; }
+    enumChecked++;
+    if (schema) {
+      const s = schemas[schema];
+      const apiVals = s && Array.isArray(s.enum) ? s.enum.map(String) : null;
+      if (!apiVals) fail.push(`枚举：openapi 命名 schema '${schema}' 无 enum（文档 ${label}=${docVals}）`);
+      else if (!sameSet(apiVals, docVals)) fail.push(`枚举不一致 '${schema}'：openapi=${apiVals} vs 文档(${label})=${docVals}`);
+    } else if (inline && !apiEnumSets.some((s) => sameSet(s, docVals))) {
+      fail.push(`枚举：openapi 无与文档 ${label}=${docVals} 等值的内联 enum`);
+    }
+  }
+} else {
+  note.push(`跳过枚举对账（不存在 ${enumDocPath}）`);
+}
+
 // ---------- 报告 ----------
 const line = '─'.repeat(60);
 console.log(line);
 console.log(`${C.dim}openapi:${C.reset} paths=${Object.keys(api.paths || {}).length} ops=${apiOps.size} schemas=${Object.keys((api.components || {}).schemas || {}).length} $refs=${refs.size}`);
-console.log(`${C.dim}docs:${C.reset} 端点=${docOps.size}  ·  ErrorCode(非0)=${errDocSet.size}  ·  _errors fixtures=${errFixture.size}`);
+console.log(`${C.dim}docs:${C.reset} 端点=${docOps.size}  ·  ErrorCode(非0)=${errDocSet.size}  ·  _errors fixtures=${errFixture.size}  ·  枚举核对=${enumChecked}`);
 if (note.length) console.log(`${C.yellow}note:${C.reset}\n  - ${note.join('\n  - ')}`);
 console.log(line);
 
@@ -182,5 +233,5 @@ if (fail.length) {
   process.exit(1);
 }
 
-console.log(`${C.green}✓ 契约一致：端点 与 openapi 吻合；ErrorCode 与错误态 fixtures 吻合；$ref 全部可解析。${C.reset}`);
+console.log(`${C.green}✓ 契约一致：端点 与 openapi 吻合；ErrorCode 与错误态 fixtures 吻合；枚举与文档一致；$ref 全部可解析。${C.reset}`);
 process.exit(0);

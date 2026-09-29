@@ -1,6 +1,7 @@
-# Task/ — 设计文档（仓库内权威副本）
+# Task/ — 设计文档（唯一权威源）
 
-本目录是 BlueBird Task 的**设计文档**，作为仓库内可追溯的权威副本，供 `docs/frontend-baseline/` 等引用（相对路径 `Task/...`）。
+本目录是 BlueBird Task 的**设计文档唯一权威源**，供 `docs/frontend-baseline/` 等引用（相对路径 `Task/...`）。
+`docs/architecture.md`、`docs/data-model.md`、`docs/adr/` 仅为 M0 阶段由本目录派生/整理的**镜像（当前占位）**；与本目录不一致时**以本目录为准**（见 `01 §6`）。
 
 | 文件 | 内容 |
 |---|---|
