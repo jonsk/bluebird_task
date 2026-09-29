@@ -8,12 +8,13 @@
       "name": "研发部",
       "parentId": null,
       "sort": 1,
+      "leaderId": 1,
       "children": [
-        { "id": 11, "name": "前端组", "parentId": 10, "sort": 1, "children": [] },
-        { "id": 12, "name": "后端组", "parentId": 10, "sort": 2, "children": [] }
+        { "id": 11, "name": "前端组", "parentId": 10, "sort": 1, "leaderId": null, "children": [] },
+        { "id": 12, "name": "后端组", "parentId": 10, "sort": 2, "leaderId": null, "children": [] }
       ]
     },
-    { "id": 20, "name": "市场部", "parentId": null, "sort": 2, "children": [] },
-    { "id": 30, "name": "职能部", "parentId": null, "sort": 3, "children": [] }
+    { "id": 20, "name": "市场部", "parentId": null, "sort": 2, "leaderId": 8, "children": [] },
+    { "id": 30, "name": "职能部", "parentId": null, "sort": 3, "leaderId": null, "children": [] }
   ]
 }

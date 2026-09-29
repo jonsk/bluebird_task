@@ -125,7 +125,8 @@ paths:
       summary: 任务列表（六大视图）
       parameters:
         - { name: scope, in: query, required: true, schema: { $ref: '#/components/schemas/Scope' } }
-        - { name: keyword, in: query, schema: { type: string } }
+        - { name: keyword, in: query, schema: { type: string }, description: 匹配 title/content（大小写不敏感子串） }
+        - { name: subordinate, in: query, schema: { type: boolean, default: false }, description: 仅 scope=all 生效；主管筛选其（含递归子部门）下属相关任务，只读（ADR-012） }
         - { name: date, in: query, schema: { type: string, format: date } }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
@@ -532,6 +533,7 @@ components:
         id: { type: integer, format: int64 }
         name: { type: string }
         parentId: { type: integer, format: int64, nullable: true }
+        leaderId: { type: integer, format: int64, nullable: true, description: 部门负责人用户 id（组织级可见性，ADR-012） }
         sort: { type: integer }
         children: { type: array, items: { $ref: '#/components/schemas/Department' } }
     OperateLogVO:

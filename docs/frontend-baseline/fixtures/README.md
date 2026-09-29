@@ -117,7 +117,7 @@ fixtures/
 | `Menu` | `id,userId,name,sort,createdAt,items[]` | 自定义栏（用户私有）；`GET /menus?userId=` |
 | `MenuItem` | `id,menuId,taskId,sort,task:TaskBrief` | 栏内条目，内嵌任务摘要供直接渲染 |
 | `TaskBrief` | `id,title,completed,dueAt,priority` | 栏内/轻量引用任务的摘要 |
-| `Department` | `id,name,parentId,sort,children[]` | 部门树节点；`GET /departments`（`guides`：`BbOrgTree` 数据源） |
+| `Department` | `id,name,parentId,leaderId,sort,children[]` | 部门树节点；`GET /departments`（`leaderId`=负责人，组织级可见性 ADR-012；guides：`BbOrgTree` 数据源） |
 | `CountVO` | `{day,week,joined,assigned,collect,all}` | 六大视图计数（recurring 按展开实例） |
 
 > **身份 / 命名空间（0304/G1）**：当前用户 = `admin`（新形态 `id=1`；旧形态 `id="1"` 字符串），任务归属人 = `1`。两形态**样例值不逐字节对应**（id 命名空间各自独立），仅字段与语义对齐；比对以「同视图、同过滤结果」为准。
