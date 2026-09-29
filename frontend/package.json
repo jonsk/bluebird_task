@@ -1,0 +1,47 @@
+{
+  "name": "bluebird-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BlueBird Task 前端（Vue 3 + TS + Vite + Element Plus + Tailwind）",
+  "scripts": {
+    "dev": "vite",
+    "gen:types": "openapi-typescript ../docs/api/openapi.yaml -o src/types/api.d.ts",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "pnpm gen:types && vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . --ext .ts,.vue --max-warnings 0",
+    "format": "prettier --write src"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "element-plus": "^2.8.4",
+    "@element-plus/icons-vue": "^2.3.1",
+    "pinia": "^2.2.4",
+    "vue": "^3.4.38",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "@vitejs/plugin-vue": "^5.1.4",
+    "@vue/test-utils": "^2.4.6",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
+    "msw": "^2.4.9",
+    "openapi-typescript": "^7.4.1",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.2",
+    "vue-tsc": "^2.1.6"
+  },
+  "msw": {
+    "workerDirectory": ["public"]
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

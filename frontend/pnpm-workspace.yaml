@@ -1,0 +1,8 @@
+packages:
+  - '.'
+
+# 允许执行安装脚本的原生依赖（pnpm 10+ 默认阻止）
+allowBuilds:
+  esbuild: true
+  msw: true
+  vue-demi: true

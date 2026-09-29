@@ -1,0 +1,31 @@
+:root {
+  /* 主色板 */
+  --bb-color-primary: #2f6fed;
+  --bb-color-success: #2fae62;
+  --bb-color-warning: #e6a23c;
+  --bb-color-danger: #e5484d;
+  /* 任务语义色 */
+  --bb-color-overdue: #e5484d;
+  --bb-color-near: #e6a23c;
+  --bb-color-muted: #8a94a6;
+  /* 布局 */
+  --bb-sidebar-left-width: 240px;
+  --bb-sidebar-right-width: 420px;
+  --bb-header-height: 56px;
+  --bb-radius: 8px;
+}
+
+/* preflight 关闭后的最小 reset（R8：不干扰 Element Plus） */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #1f2430;
+  background: #f5f6f8;
+}
