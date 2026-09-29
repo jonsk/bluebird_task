@@ -7,6 +7,7 @@ info:
     统一前缀 `/api/v1`；统一响应 `ApiResult{code,message,data,traceId}`，`code==0` 为成功、**HTTP 恒 200**（业务码表达结果，见 `02 §1.3`）。
     错误码区间（枚举权威源 `02 §1.4`）：`1xxxx=common`、`2xxxx=identity`、`3xxxx=task`、`4xxxx=file`、`5xxxx=预留`、`6xxxx=org/同步`。
     时间统一 ISO8601 + `+08:00`。详见 `Task/02后端模块详细设计.md`。
+    约定：用户/个人数据响应统一 `Cache-Control: no-store`；秘密一律不入 URL（token 走 `Authorization` 头，密码/密钥走请求体；query 仅非敏感参数）。
 servers:
   - url: /api/v1
     description: 同源（单制品内嵌前端，ADR-009）
