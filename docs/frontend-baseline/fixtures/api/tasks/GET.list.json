@@ -6,7 +6,7 @@
     "list": [
       {
         "id": 1201, "title": "提交季度报告", "content": "整理数据并评审",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-28T18:00:00+08:00", "remindAt": "2026-09-28T09:00:00+08:00",
         "priority": "HIGH", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },
@@ -19,7 +19,7 @@
       },
       {
         "id": 1202, "title": "逾期演示任务", "content": "",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-24T18:00:00+08:00", "remindAt": null,
         "priority": "MEDIUM", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },
@@ -30,7 +30,7 @@
       },
       {
         "id": 1203, "title": "临期任务（展示绿色日期）", "content": "",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-10-01T18:00:00+08:00", "remindAt": null,
         "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 11, "name": "张三" },
@@ -40,7 +40,7 @@
       },
       {
         "id": 1204, "title": "已完成任务（标题删除线）", "content": "",
-        "status": "ACTIVE", "completed": true,
+        "status": "ACTIVE", "completed": true, "version": 0,
         "dueAt": "2026-09-27T18:00:00+08:00", "remindAt": null,
         "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },
@@ -50,7 +50,7 @@
       },
       {
         "id": 1205, "title": "每日站会（无限循环周期）", "content": "DAILY 无限",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-28T09:30:00+08:00", "remindAt": null,
         "priority": "MEDIUM",
         "cycleRule": { "freq": "DAILY", "interval": 1, "dtstart": "2026-09-28T09:30:00+08:00", "byDay": null, "count": null, "until": null, "tz": "Asia/Shanghai" },
@@ -63,7 +63,7 @@
       },
       {
         "id": 1206, "title": "每周一三五复盘（WEEKLY+byDay, count）", "content": "周期性",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-28T17:00:00+08:00", "remindAt": null,
         "priority": "HIGH",
         "cycleRule": { "freq": "WEEKLY", "interval": 1, "dtstart": "2026-09-28T17:00:00+08:00", "byDay": ["MO", "WE", "FR"], "count": 12, "until": null, "tz": "Asia/Shanghai" },
@@ -75,7 +75,7 @@
       },
       {
         "id": 1207, "title": "每月报表（MONTHLY, until）", "content": "周期性",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-30T18:00:00+08:00", "remindAt": null,
         "priority": "MEDIUM",
         "cycleRule": { "freq": "MONTHLY", "interval": 1, "dtstart": "2026-09-30T18:00:00+08:00", "byDay": null, "count": null, "until": "2026-12-31", "tz": "Asia/Shanghai" },

@@ -6,7 +6,7 @@
     "list": [
       {
         "id": 1205, "title": "每日站会（实例 09-28）", "content": "",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-28T09:30:00+08:00", "remindAt": null,
         "priority": "MEDIUM", "cycleRule": { "freq": "DAILY", "interval": 1, "dtstart": "2026-09-28T09:30:00+08:00", "byDay": null, "count": null, "until": null, "tz": "Asia/Shanghai" }, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" }, "assignees": [{ "id": 11, "name": "张三" }], "ccUsers": [], "participantIds": [1, 11],
@@ -14,7 +14,7 @@
       },
       {
         "id": 1205, "title": "每日站会（实例 09-29）", "content": "",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-29T09:30:00+08:00", "remindAt": null,
         "priority": "MEDIUM", "cycleRule": { "freq": "DAILY", "interval": 1, "dtstart": "2026-09-28T09:30:00+08:00", "byDay": null, "count": null, "until": null, "tz": "Asia/Shanghai" }, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" }, "assignees": [{ "id": 11, "name": "张三" }], "ccUsers": [], "participantIds": [1, 11],
@@ -22,7 +22,7 @@
       },
       {
         "id": 1206, "title": "每周一三五复盘（实例 09-28）", "content": "",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-28T17:00:00+08:00", "remindAt": null,
         "priority": "HIGH", "cycleRule": { "freq": "WEEKLY", "interval": 1, "dtstart": "2026-09-28T17:00:00+08:00", "byDay": ["MO", "WE", "FR"], "count": 12, "until": null, "tz": "Asia/Shanghai" }, "cycleLastCompleted": "2026-09-26T17:00:00+08:00",
         "owner": { "id": 11, "name": "张三" }, "assignees": [], "ccUsers": [{ "id": 1, "name": "管理员" }], "participantIds": [11, 1],

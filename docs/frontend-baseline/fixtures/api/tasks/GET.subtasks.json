@@ -6,7 +6,7 @@
     "list": [
       {
         "id": 1301, "title": "整理数据", "content": "",
-        "status": "ACTIVE", "completed": true,
+        "status": "ACTIVE", "completed": true, "version": 0,
         "dueAt": "2026-09-26T18:00:00+08:00", "remindAt": null,
         "priority": "MEDIUM", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },
@@ -17,7 +17,7 @@
       },
       {
         "id": 1302, "title": "初稿评审", "content": "",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-27T18:00:00+08:00", "remindAt": null,
         "priority": "MEDIUM", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },
@@ -28,7 +28,7 @@
       },
       {
         "id": 1303, "title": "终稿提交", "content": "",
-        "status": "ACTIVE", "completed": false,
+        "status": "ACTIVE", "completed": false, "version": 0,
         "dueAt": "2026-09-28T18:00:00+08:00", "remindAt": null,
         "priority": "HIGH", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },

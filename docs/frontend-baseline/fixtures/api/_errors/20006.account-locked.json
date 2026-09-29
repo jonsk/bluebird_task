@@ -1,0 +1,6 @@
+{
+  "code": 20006,
+  "message": "账号已锁定",
+  "data": null,
+  "traceId": "fix-err-20006-0001"
+}
