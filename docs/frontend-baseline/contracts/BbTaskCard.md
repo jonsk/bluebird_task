@@ -13,4 +13,6 @@
 | **边界与已知缺陷** | `onMounted` 用 `document.querySelector('.tast-item')` 量宽（脆弱，重写改用 CSS/ResizeObserver，见 R16）；`changeBtnFlag` 防抖 |
 | **验收用例** | 1) 完成失败后勾选自动回滚；2) 逾期日期显示红色；3) 非参与者不显示加子任务/可否决完成；4) 子任务折叠可切换；5) 收藏视图完成态不加删除线 |
 
-> 证据：`childTaskList.vue`、`taskListOne/Two.vue` 均复用本卡；`TaskVO` 契约见 `02 §4.5`。截图证据待旧前端隔离运行后补充。
+> 证据：`childTaskList.vue`、`taskListOne/Two.vue` 均复用本卡；`TaskVO` 契约见 `02 §4.5`。截图/录屏证据已采集（见 `../screenshots/README.md`；按策略**不入库**，由 `../../scripts/golden-capture/` 复现）。
+
+> **权限口径收敛（0304/D4）**：本契约「业务规则（修订 RF3）」为**目标态（新系统）**=当前用户 ∈ {owner, assignee, cc} 或 ADMIN 可写；**基线（旧实现）**=仅 `belongUserId`（owner）可写、参与者只读（见 `BbTaskDetailDrawer.md`/`BbParticipantList.md` 的 `taskDisabled`）。重写以实现**目标态**为准；本条使三份契约口径一致。

@@ -7,7 +7,7 @@
     "status": "ACTIVE", "completed": false,
     "dueAt": "2026-09-28T18:00:00+08:00", "remindAt": "2026-09-28T09:00:00+08:00",
     "priority": "HIGH", "cycleRule": null, "cycleLastCompleted": null,
-    "owner": { "id": 1, "name": "李四" },
+    "owner": { "id": 1, "name": "管理员" },
     "assignees": [{ "id": 11, "name": "张三" }], "ccUsers": [{ "id": 8, "name": "王五" }],
     "participantIds": [1, 11, 8],
     "category": { "id": 3, "name": "汇报" },
@@ -16,9 +16,9 @@
     "files": [{ "id": 1001, "fileName": "数据.xlsx", "size": 20480 }],
     "createdAt": "2026-09-25T10:00:00+08:00",
     "subtasks": [
-      { "id": 1202, "title": "收集数据", "content": "", "status": "ACTIVE", "completed": true, "dueAt": null, "remindAt": null, "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null, "owner": { "id": 1, "name": "李四" }, "assignees": [], "ccUsers": [], "participantIds": [1], "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [], "createdAt": "2026-09-25T10:05:00+08:00" },
-      { "id": 1203, "title": "撰写分析", "content": "", "status": "ACTIVE", "completed": false, "dueAt": null, "remindAt": null, "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null, "owner": { "id": 1, "name": "李四" }, "assignees": [], "ccUsers": [], "participantIds": [1], "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [], "createdAt": "2026-09-25T10:06:00+08:00" },
-      { "id": 1204, "title": "评审定稿", "content": "", "status": "ACTIVE", "completed": false, "dueAt": null, "remindAt": null, "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null, "owner": { "id": 1, "name": "李四" }, "assignees": [], "ccUsers": [], "participantIds": [1], "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [], "createdAt": "2026-09-25T10:07:00+08:00" }
+      { "id": 1202, "title": "收集数据", "content": "", "status": "ACTIVE", "completed": true, "dueAt": null, "remindAt": null, "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null, "owner": { "id": 1, "name": "管理员" }, "assignees": [], "ccUsers": [], "participantIds": [1], "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [], "createdAt": "2026-09-25T10:05:00+08:00" },
+      { "id": 1203, "title": "撰写分析", "content": "", "status": "ACTIVE", "completed": false, "dueAt": null, "remindAt": null, "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null, "owner": { "id": 1, "name": "管理员" }, "assignees": [], "ccUsers": [], "participantIds": [1], "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [], "createdAt": "2026-09-25T10:06:00+08:00" },
+      { "id": 1204, "title": "评审定稿", "content": "", "status": "ACTIVE", "completed": false, "dueAt": null, "remindAt": null, "priority": "LOW", "cycleRule": null, "cycleLastCompleted": null, "owner": { "id": 1, "name": "管理员" }, "assignees": [], "ccUsers": [], "participantIds": [1], "category": null, "tags": [], "subtaskCompleted": 0, "subtaskTotal": 0, "files": [], "createdAt": "2026-09-25T10:07:00+08:00" }
     ]
   }
 }

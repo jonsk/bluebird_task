@@ -12,4 +12,4 @@
 | **边界与已知缺陷** | ① 提交后 `addTaskList` 的 promise **无 .catch**：失败静默且输入已清空（重写需补失败提示 + 不清空或回滚）；② 「添加」按钮依赖 `task.length` 判断（`v-model.trim` 后空串判定在方法内重复校验）；③ 每次提交后重置全部 dropdown 文本与 `isImportant=''`（L178-184，收藏态重置为字符串空值，重写改 `false`） |
 | **验收用例** | 1) 空输入不触发新增；2) 主视图新建 → 调 `/tasks` POST → 列表刷新；3) 收藏视图新建默认收藏；4) 自定义栏路径新建带 `menuid`；5) Enter 与点「添加」等价；6) 子模式 placeholder/样式为子任务；7) 提交失败有提示且不丢输入 |
 
-> 新语义：`dateText`=due_at、`tipsText`=remind_at、`eachText`→`cycle_rule`（全新格式 `{freq,interval,dtstart,...}`，见 02 §4.3）、分配→`assigneeIds`、`belongUserId`→`owner.id`。截图证据待旧前端隔离运行补充。
+> 新语义：`dateText`=due_at、`tipsText`=remind_at、`eachText`→`cycle_rule`（全新格式 `{freq,interval,dtstart,...}`，见 02 §4.3）、分配→`assigneeIds`、`belongUserId`→`owner.id`。截图/录屏证据已采集（见 `../screenshots/README.md`；按策略**不入库**，由 `../../scripts/golden-capture/` 复现）。

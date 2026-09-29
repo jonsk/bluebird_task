@@ -1,0 +1,10 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-auth-config-0001",
+  "data": {
+    "provider": "LOCAL",
+    "corpId": null,
+    "agentId": null
+  }
+}

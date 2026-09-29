@@ -1,0 +1,6 @@
+{
+  "code": 10005,
+  "message": "重复提交",
+  "data": null,
+  "traceId": "fix-err-10005-0001"
+}

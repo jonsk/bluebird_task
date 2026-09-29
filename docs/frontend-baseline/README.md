@@ -38,7 +38,7 @@ docs/frontend-baseline/
 ## 2. 冻结原则（对照 03 §2.3）
 
 1. **行为契约必须基于旧源码导出**，并在旧前端可运行期间补齐「录屏/截图」证据，禁止仅靠推断。
-2. **同一份 fixtures**：旧前端用 Playwright `page.route('**/api/**', ...)` 在浏览器层拦截旧接口返回 fixture；新前端用 MSW 加载**同一份** fixture（JSON 跨新旧共享、版本化），保证同数据对比（03 §2.3.2 修订 M3）。
+2. **同一逻辑数据集（两种序列化形态）**：旧前端用 Playwright `page.route('**/api/**', ...)` 拦截**旧接口**、加载 `fixtures/legacy-api/`；新前端用 MSW 拦截**新接口**、加载 `fixtures/api/`。两形态**字段/语义对齐、随契约版本化**，但**报文结构不同（`code==0` 信封 vs 裸 `Page`，非同一份字节级 JSON）**；口径详见 `fixtures/README §1.1`（0304/§5 统一）。
 3. **黄金截图**：固定视口（默认 1440×900）+ 固定 Mock 数据渲染，版本化管理，新前端同数据同视口 → 结构化/像素对比（03 §2.5.1）。
 4. **验收依据**：`DoD`（03 §2.8）= 单测绿 + E2E 绿 + 视觉对比通过 + 无 TS/console 错 + 评审通过；且生产构建 `dist` 不含 `mockServiceWorker.js`（R14）。
 
@@ -59,8 +59,8 @@ docs/frontend-baseline/
 | 业务行为契约 | 16 | ✅ 16（`contracts/Bb*.md`） |
 | 原子设计契约 | 14 | ✅ 14（`contracts/Bb*.md`，风格契约） |
 | E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`）；**旧基线已跑 9 项通过**（`scripts/golden-capture/e2e-baseline.mjs`） |
-| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口：读态 + **写态** + **错误态** + 分类/栏详情态与空态）+ `fixtures/legacy-api/**`（旧接口） |
-| 黄金截图/录屏证据 | 采集 | ✅ **38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**（`screenshots/`，fixtures 注入，确定性；由仓根 `scripts/golden-capture/` 复现） |
+| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口：读态 + **写态 21** + **错误态 19**（`02 §1.4` 全覆盖）+ auth 4 + 分类/栏详情态与空态）+ `fixtures/legacy-api/**`（旧接口）；详见 `fixtures/README §6` |
+| 黄金截图/录屏证据 | 采集 | ✅ **38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**（`screenshots/`，fixtures 注入，确定性；由仓根 `scripts/golden-capture/` 复现）；**图片/录屏按策略不入库**（`.gitignore`，0304/D3） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
 | 引用可解析 | 全绿 | ✅ 设计文档已入仓 `../../Task/`（M1） |
 
@@ -107,6 +107,20 @@ docs/frontend-baseline/
   - **N3**（合成数据）：`legacy-api/README.md` 增「合成 vs 真实」说明（结构真、数值合成，非缺陷）。
   - **N4**（BbOrgTree 不可达）：契约标注**去留待确认**（不阻断冻结）；重写须提供可用视图切换入口。
   - **N5**（写态计数）：`fixtures/README` 由「24」更正为 **21**（实测）。
+- **2026-09-29（0304 审核修订 · 四审层级）**：真实登录抓包复核（legacy 形态 100% 吻合）。
+  - **D1 闭环**（映射表方法动词错误）：`contracts/README` 8 处 `POST→GET` 校正（`record.js` 实为 `method:'get'`：del/updateStatus/complete/completewithdraw/doCollect/delCollect/subrecord del|complete）；并补全 `/sys/category/*`、`/sysTag/*`、`/admin/user/*`、`/sys/file/*` 映射（D6）。
+  - **D2 闭环**（日历路径）：`BbCalendarCard.md` 旧接口 `/calendar` → `/task/record/getproxycalendar`。
+  - **D3 澄清**（视觉证据）：非「缺口」——证据已采集，**按用户指令不入库**（`.gitignore`），由 harness 复现；各契约尾注已由「待补充」改为「已采集（不入库）」。
+  - **D4 闭环**（权限口径）：`BbTaskCard`/`BbTaskDetailDrawer`/`BbParticipantList` 三份增「权限口径收敛」注（基线=仅 owner；目标=RF3 参与者可写）。
+  - **D5 闭环**（死组件）：`BbCategoryTree`/`BbOrgTree` 显式标注 **as-is 不可用**（`CategoryTree` 未 import、`OrgTree` `radio-group` 被注释）。
+  - **G1 闭环**（身份错位，P0）：`users/GET.me.json` 当前用户 `id=1`（admin）；`users/GET.index.json` 重排（admin=1、李四=12）；`tasks/*` 的 `owner/ccUsers` 名称对齐；两形态当前用户/归属人统一为 `1`。
+  - **G2 澄清**（信封）：`api/` 为目标态（`code==0`，`02 §1.3` 设计决策）、`legacy-api/` 为现状态，**刻意不兼容**，非缺陷；已在 openapi `info.description` 与 `fixtures/README §1.1` 显式标注。
+  - **G3 闭环**：补 `auth/POST.logout.json`、`POST.refresh.json`、`GET.external-config.json`。
+  - **G4 闭环**：openapi 补 `Department`/`OperateLogVO`/`LoginLogVO`/`OperateLogPage`/`LoginLogPage`，并为 `/users/me`、`/departments`、`/tags`、`/categories`、`/menus`、`/audit/*` 定义 data schema。
+  - **G5 闭环**：删除孤儿 `fixtures/api/users/GET.tree.json`。
+  - **P2 闭环**（错误态盲区）：`_errors/` 9 → **19**（`02 §1.4` 非 0 码全覆盖）。
+  - **§5 闭环**：本 README §2 #2「同一份 fixtures」措辞改为「同一逻辑数据集（两形态）」；openapi 标注目标态。
+  - **§2/S1-S5**：`openapi` 为**目标态**，旧系统 S1（`/myself` 回传 password 哈希）/S2（`/wechat/getWeChat` 泄漏 `corpSecret`）/S3（文件下载无越权校验）/S4（GET 写操作）/S5（计数键名）均由目标设计（`02`）修正；**S2 需运维侧轮换线上密钥（已提请用户）**。
 
 ## 6. 关联文档
 
@@ -114,3 +128,5 @@ docs/frontend-baseline/
 - 旧组件清单/映射：`../../Task/03前端模块详细设计.md §1.1`、`§2.9`
 - API 契约源：`../../docs/api/openapi.yaml`
 - 采集脚本（harness）：`../../scripts/golden-capture/README.md`
+
+> **路径说明（0304/§5）**：以上相对路径均相对**本文件目录** `docs/frontend-baseline/`，解析到**仓库根 `bluebird-task/`** 下的 `Task/`、`docs/api/`、`scripts/`（`Task/` 为仓库内权威副本，`../../Task/` 已 `Test-Path` 校验通过）。注意目标仓库根即 `bluebird-task/`（非其父目录）。

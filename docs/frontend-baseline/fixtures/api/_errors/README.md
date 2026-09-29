@@ -10,16 +10,28 @@
   - **传输层错误**（网关 502/网络中断）→ handler 直接 `HttpResponse.error()` 或 `status: 500` 空 body，无需 JSON。
 - 复现旧前端「HTTP 500 → 静默」缺陷的对照证据见 `../../screenshots/README.md`（`state-httperr-*`）。
 
-## 清单（对齐 `02 §1.4`）
+## 清单（对齐 `02 §1.4`，共 **19** 个非 0 码全覆盖 · 0304/P2 补齐）
 
 | 文件 | code | 含义 |
 |---|---|---|
+| `10000.system.json` | 10000 | SYSTEM_ERROR 系统异常（兜底） |
 | `10001.param.json` | 10001 | PARAM_ERROR 参数校验失败 |
 | `10002.unauthenticated.json` | 10002 | UNAUTHENTICATED 未登录 |
 | `10003.forbidden.json` | 10003 | FORBIDDEN 无权限 |
 | `10004.notfound.json` | 10004 | NOT_FOUND 资源不存在（含 API 404 规范，02 RF6） |
+| `10005.repeat-submit.json` | 10005 | REPEAT_SUBMIT 重复提交（前端 UI 高频：防抖/双击） |
+| `20001.user-not-found.json` | 20001 | USER_NOT_FOUND 用户不存在 |
+| `20002.user-disabled.json` | 20002 | USER_DISABLED 用户被禁用 |
 | `20003.bad-credentials.json` | 20003 | BAD_CREDENTIALS 用户名或密码错误 |
+| `20004.no-permission-external.json` | 20004 | NO_PERMISSION_EXTERNAL 外部身份源无权限 |
 | `20005.token-invalid.json` | 20005 | TOKEN_INVALID token 失效（触发 refresh/登出） |
-| `30001.task-not-found.json` | 30001 | TASK_NOT_FOUND |
-| `30003.task-already-completed.json` | 30003 | TASK_ALREADY_COMPLETED |
-| `40002.file-too-large.json` | 40002 | FILE_TOO_LARGE |
+| `30001.task-not-found.json` | 30001 | TASK_NOT_FOUND 任务不存在 |
+| `30002.task-deleted.json` | 30002 | TASK_DELETED 任务已删除 |
+| `30003.task-already-completed.json` | 30003 | TASK_ALREADY_COMPLETED 任务已完成 |
+| `30004.parent-not-found.json` | 30004 | PARENT_NOT_FOUND 父任务不存在 |
+| `40001.file-not-found.json` | 40001 | FILE_NOT_FOUND 文件不存在 |
+| `40002.file-too-large.json` | 40002 | FILE_TOO_LARGE 文件超限 |
+| `40003.file-type-not-allow.json` | 40003 | FILE_TYPE_NOT_ALLOW 文件类型不允许 |
+| `60001.sync-in-progress.json` | 60001 | SYNC_IN_PROGRESS 同步进行中（orgsync） |
+
+> 覆盖口径：`02 §1.4` 除 `0 OK` 外的 **19** 个错误码已全部提供 fixture（0304/§4.2 盲区消除）。

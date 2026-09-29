@@ -14,7 +14,7 @@
 fixtures/
 ├── README.md                       # 本文
 ├── api/                            # 【新接口形态】MSW 用，按接口路径镜像
-│   ├── auth/POST.login.json
+│   ├── auth/POST.login.json · POST.logout.json · POST.refresh.json · GET.external-config.json
 │   ├── tasks/                      # 读态
 │   │   ├── GET.list.json           # 六大视图列表（含周期任务；E-03/E-16）
 │   │   ├── GET.detail.json         # 含子任务
@@ -24,7 +24,7 @@ fixtures/
 │   │                               # 写态（2026-09-29 补）
 │   │   ├── POST.create.json · PUT.update.json · DELETE.remove.json
 │   │   └── POST.complete.json · POST.uncomplete.json · POST.collect.json · DELETE.collect.json
-│   ├── users/GET.index.json · GET.tree.json · GET.me.json · POST.create.json · PUT.password.json
+│   ├── users/GET.index.json · GET.me.json · POST.create.json · PUT.password.json
 │   ├── departments/GET.tree.json   # 部门树（GET /departments）
 │   ├── tags/GET.list.json · POST.create.json · PUT.update.json · DELETE.remove.json
 │   ├── categories/
@@ -47,7 +47,7 @@ fixtures/
 
 ## 1.1 双形态（修订 0301/M2 落地）
 
-基线 fixtures 存在**两种序列化形态**，表达**同一组逻辑数据**：
+基线 fixtures 存在**两种序列化形态**，表达**同一逻辑数据集（字段/语义对齐；样例值与 id 命名空间各自合成，非逐字节同一份）**：
 
 | 形态 | 目录 | 消费方 | 外层/字段 |
 |---|---|---|---|
@@ -55,6 +55,10 @@ fixtures/
 | **旧接口形态** | `legacy-api/` | 旧前端 Playwright route（黄金截图） | 旧系统真实结构（`{records,...}` / 裸数组 / `taskContent` 等） |
 
 > 原因：旧/新接口**报文结构本就不同**（旧 `task/record/*` vs 新 `/tasks`），无法用一份字节级 JSON 同时喂两端。故约定**同一逻辑数据集、两种形态**，字段映射见各 README。黄金截图证据由 `legacy-api/` 驱动（`../screenshots/README.md`）。
+
+> **身份对齐（0304/G1，最高优先级）**：`legacy-api` 与 `api/` 的**当前用户均为 `admin`（`id=1`）**，任务 `owner`（新）/`belongUserId`（旧）同为 `1`，因此「我的一天 / 分配给我 / 我参与 / 我的收藏」在两端过滤结果一致（旧 id 为字符串、新为整数，类型见 §3）。`api/users/GET.me.json` 已对齐为 `id=1`（原 `100` 已废弃）。
+
+> **现状态 vs 目标态（0304/G2、§2）**：`api/` 与 `../../api/openapi.yaml` 描述的是**目标态**（`/api/v1` + 成功码 `code==0`）；`legacy-api/` 是**现状态**（`/task/record/*` 裸 `Page`/裸实体，无 `code`）。二者**刻意不兼容**，不可用同一 handler 互喂；`code==0` 为 `02 §1.3` 设计决策，非缺陷。
 
 ## 1.2 详情态 / 空态 fixture 口径（2026-09-29）
 
@@ -92,7 +96,7 @@ fixtures/
 > 参与人 / 附件绑定：走 `PUT /tasks/{id}`（`participantIds[]` / `fileIds[]`），无独立端点；上传走 `POST /files`。
 > 同步对齐 `openapi.yaml`：补 `PUT/DELETE /menus/{id}`、`DELETE /menus/{id}/items/{itemId}` 三个此前遗漏的端点（与 `02 §3.x` 一致）。
 
-**错误态（P5）** —— `_errors/` 提供 `ApiResult{code!=0}` 错误体（对齐 `02 §1.4 ErrorCode`：10001/10002/10003/10004/20003/20005/30001/30003/40002），供 MSW 错误分支使用；**HTTP 状态码不入 JSON**，由 handler 决定（业务错误=HTTP200+JSON；传输层错误=空 body/5xx），详见 `_errors/README.md`。
+**错误态（P5；**0304/P2 扩至全覆盖**）** —— `_errors/` 提供 `ApiResult{code!=0}` 错误体，**覆盖 `02 §1.4` 全部 19 个非 0 错误码**（10000/10001/10002/10003/10004/10005/20001/20002/20003/20004/20005/30001/30002/30003/30004/40001/40002/40003/60001），供 MSW 错误分支使用；**HTTP 状态码不入 JSON**，由 handler 决定（业务错误=HTTP200+JSON；传输层错误=空 body/5xx），详见 `_errors/README.md`。
 
 ## 3. JSON 表达约定
 
@@ -116,6 +120,8 @@ fixtures/
 | `Department` | `id,name,parentId,sort,children[]` | 部门树节点；`GET /departments`（`guides`：`BbOrgTree` 数据源） |
 | `CountVO` | `{day,week,joined,assigned,collect,all}` | 六大视图计数（recurring 按展开实例） |
 
+> **身份 / 命名空间（0304/G1）**：当前用户 = `admin`（新形态 `id=1`；旧形态 `id="1"` 字符串），任务归属人 = `1`。两形态**样例值不逐字节对应**（id 命名空间各自独立），仅字段与语义对齐；比对以「同视图、同过滤结果」为准。
+
 ## 5. MSW / Playwright 契约
 
 - **新前端（MSW）**：`src/mocks/handlers.ts` 的每个 `http.get('/api/v1/tasks', ...)` 返回 `fixtures/api/tasks/GET.list.json`（按 scope 过滤出对应子集以复用同一份数据）。
@@ -124,10 +130,11 @@ fixtures/
 
 ## 6. 当前状态
 
-- ✅ **新接口形态**（`api/`，2026-09-28）：`tasks/GET.list|detail|count|calendar.json`、`users/GET.index|tree.json`、`tags/`、`categories/`、`menus/`、`audit/`、`auth/POST.login.json`，字段对齐 `../../api/openapi.yaml`。
+- ✅ **新接口形态**（`api/`，2026-09-28）：`tasks/GET.list|detail|count|calendar.json`、`users/GET.index|me.json`、`tags/`、`categories/`、`menus/`、`audit/`、`auth/POST.login.json`，字段对齐 `../../api/openapi.yaml`。
 - ✅ **分类 / 自定义栏覆盖率补齐**（2026-09-29）：`categories` 增加**全字段 + 3 级嵌套**树、单节点详情态（`GET.detail.json`）、空态（`GET.tree.empty.json`）；`menus` 增加**条目内嵌任务摘要**的列表、单栏详情态（`GET.detail.json`）、空态（`GET.list.empty.json`）。同步补齐 openapi `Category/Menu/MenuItem/TaskBrief` schema（详见 §1.2）。
 - ✅ **周期任务全字段样例**（E-16 依赖，新形态）：`GET.list.json` 覆盖 DAILY 无限、WEEKLY+`byDay`+`count`、MONTHLY+`until`、`cycleLastCompleted` 已推进/未开始各一；`GET.calendar.json` 演示展开实例。
-- ✅ **写操作 / 错误态覆盖**（2026-09-29，修订 0302/P3、P5；计数 0303/N5 修正）：写态 **21 份**（tasks 7 + tags 3 + categories 3 + menus 5 + users 2 + files 1）+ 子任务读态；错误态 9 份 + `_errors/README.md`（对齐 `02 §1.4`）；同步补 openapi `PUT/DELETE /menus/{id}` 等 3 端点。详见 §1.3。
+- ✅ **写操作 / 错误态覆盖**（2026-09-29，修订 0302/P3、P5；计数 0303/N5 修正）：写态 **21 份**（tasks 7 + tags 3 + categories 3 + menus 5 + users 2 + files 1）+ 子任务读态；错误态 **9 份** + `_errors/README.md`（对齐 `02 §1.4`）；同步补 openapi `PUT/DELETE /menus/{id}` 等 3 端点。详见 §1.3。
+- ✅ **四审（0304）修订**（2026-09-29）：① **G1 身份对齐**——`users/GET.me.json` 当前用户 `id=1`（admin），与 `legacy-api` 一致，`owner.id`/`belongUserId` 均 `1`；② **G3**——补 `auth/POST.logout.json`、`POST.refresh.json`、`GET.external-config.json`；③ **G4**——openapi 补 `Department`/`OperateLogVO`/`LoginLogVO`/`OperateLogPage`/`LoginLogPage` schema，并为 `/users/me`、`/departments`、`/tags`、`/categories`、`/menus`、`/audit/*` 定义 data schema；④ **P2 错误态**——`_errors/` 由 9 → **19**（`02 §1.4` 非 0 码全覆盖）；⑤ **G5**——删除孤儿 `users/GET.tree.json`（`BbOrgTree` 已改用 `departments/GET.tree.json`）；⑥ **G2**——显式标注 `api/` 为目标态、`legacy-api/` 为现状态（§1.1）。
 - ✅ **覆盖率缺口补齐**（2026-09-29，修订 0303/N2）：补 `users/GET.me.json`（`GET /users/me`）、`departments/GET.tree.json`（`GET /departments`）；`BbOrgTree` 数据源明确为后者（不再复用 users 树）。
 - ✅ **旧接口形态**（`legacy-api/`，2026-09-28）：线上抓包结构 + 合成数据，驱动 `../screenshots/` 黄金截图；真实密钥/口令已脱敏（见 `legacy-api/README.md`）。
 - ⏳ 待办：`users/GET.index.json` 按 `deptId/scope` 过滤子集（MSW handler 内过滤）；若确认需要「按 id 取单分类/单栏」独立接口，同步改 `02 §3.x` + openapi。

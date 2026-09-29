@@ -1,0 +1,6 @@
+{
+  "code": 40001,
+  "message": "文件不存在",
+  "data": null,
+  "traceId": "fix-err-40001-0001"
+}

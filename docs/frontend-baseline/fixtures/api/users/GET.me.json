@@ -3,7 +3,7 @@
   "message": "ok",
   "traceId": "fix-users-me-0001",
   "data": {
-    "id": 100,
+    "id": 1,
     "username": "admin",
     "name": "管理员",
     "mobile": "138****0100",

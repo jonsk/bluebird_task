@@ -12,4 +12,4 @@
 | **边界与已知缺陷** | 旧实现用 `:key="index"`（L13）→ 列表变化时**复用 DOM key 出错风险**（新增/删除子任务后状态错位），重写改用 `:key="item.id"` 修正（R16 相关）；旧代码 import 了被注释的 `VueDraggable`（拖拽排序未启用，暂不承诺） |
 | **验收用例** | 1) 子任务逐项显示为任务卡；2) 子任务卡背景 `#f5f7fa`；3) 折叠父卡时子列表同步隐藏；4) 删除子任务后 DOM key 稳定不串位；5) 子任务卡交互（完成/删除）与主卡一致 |
 
-> 新组件 `BbSubtaskList` 待导出，契约以旧 `childTaskList.vue` 为准。截图证据待旧前端隔离运行补充。
+> 新组件 `BbSubtaskList` 已导出（本契约），以旧 `childTaskList.vue` 为准。截图/录屏证据已采集（见 `../screenshots/README.md`；按策略**不入库**，由 `../../scripts/golden-capture/` 复现）。

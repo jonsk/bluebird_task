@@ -1,7 +1,8 @@
 # 黄金截图与录屏证据（Golden Screenshots / Evidence）
 
-> 本目录存放基线冻结的**黄金截图**（Playwright 固定视口导出，版本化）与录屏证据。
-> 依据 `../../../Task/03前端模块详细设计.md §2.3.2`；`generated/` 为运行期对比产物（不入库，见 `.gitignore`）。
+> 本目录登记基线冻结的**黄金截图**（Playwright 固定视口导出）与录屏证据。
+> **策略（0304/D3，依用户指令）**：图片/录屏**不纳入版本库**（`.gitignore` 排除 `*.png|jpg|jpeg|webm|mp4` 与 `generated/`）；版本库内仅保留本说明 + `.gitkeep`，证据由 harness 确定性复现。
+> 依据 `../../../Task/03前端模块详细设计.md §2.3.2`。
 
 ## 状态
 
