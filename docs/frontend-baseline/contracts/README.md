@@ -30,6 +30,8 @@
 
 ## 组件契约清单
 
+### 业务组件（16 · 行为契约）
+
 | 旧组件（源码） | 新组件 | 契约 | 状态 |
 |---|---|---|---|
 | `todolistModule/components/TaskCard.vue` | `BbTaskCard` | `BbTaskCard.md` | ✅ |
@@ -37,20 +39,40 @@
 | `todolistModule/components/childTaskList.vue` | `BbSubtaskList` | `BbSubtaskList.md` | ✅ |
 | `todolistModule/components/CalendarCard.vue` | `BbCalendarCard` | `BbCalendarCard.md` | ✅ |
 | `todolistModule/components/dropdownSetDate.vue` | `BbDatePicker` | `BbDatePicker.md` | ✅ |
-| `todolistModule/components/dropdownSetTips.vue` | `BbRemindSelect` | （待导出） | ⛔ |
-| `todolistModule/components/dropdownSetEach.vue` | `BbRepeatSelect` | （待导出） | ⛔ |
-| `todolistModule/components/selectUser.vue` | `BbUserSelect` | （待导出） | ⛔ |
-| `layoutNew/components/LeftBox/categoryTree.vue` | `BbCategoryTree` | （待导出） | ⛔ |
-| `layoutNew/components/LeftBox/OrganizationalMechanismTree.vue` | `BbOrgTree` | （待导出） | ⛔ |
-| `layoutNew/components/TagConfig/index.vue` | `BbTagConfig` | （待导出） | ⛔ |
-| `todolistModule/components/taskListOne.vue` / `taskListTwo.vue` | `BbTaskList` | （待导出） | ⛔ |
-| `todolistModule/components/RightBoxDialog` / 详情 | `BbTaskDetailDrawer` | （待导出） | ⛔ |
-| （对话/详情表单字段） | `BbTaskMetaLine` | （待导出） | ⛔ |
-| 附件 | `BbAttachmentList` | （待导出） | ⛔ |
-| 参与人展示 | `BbParticipantList` | （待导出） | ⛔ |
-| …其余（见 03 §1.1 完整清单） | 14 原子 + 16 业务 | — | 待导出 |
+| `todolistModule/components/dropdownSetTips.vue` | `BbRemindSelect` | `BbRemindSelect.md` | ✅ |
+| `todolistModule/components/dropdownSetEach.vue` | `BbRepeatSelect` | `BbRepeatSelect.md` | ✅ |
+| `todolistModule/components/selectUser.vue` | `BbUserSelect` | `BbUserSelect.md` | ✅ |
+| `layoutNew/components/LeftBox/categoryTree.vue` | `BbCategoryTree` | `BbCategoryTree.md` | ✅ |
+| `layoutNew/components/LeftBox/OrganizationalMechanismTree.vue` | `BbOrgTree` | `BbOrgTree.md` | ✅ |
+| `layoutNew/components/TagConfig/index.vue` | `BbTagConfig` | `BbTagConfig.md` | ✅ |
+| `todolistModule/components/taskListOne.vue` / `taskListTwo.vue` | `BbTaskList` | `BbTaskList.md` | ✅ |
+| `todolistModule/components/RightBoxDialog` / 详情 | `BbTaskDetailDrawer` | `BbTaskDetailDrawer.md` | ✅ |
+| `TaskCard.vue`「元信息行」（日期/重复/提醒/标签/附件/@） | `BbTaskMetaLine` | `BbTaskMetaLine.md` | ✅ |
+| `RightBoxDialog` el-upload + `.task-file-list` | `BbAttachmentList` | `BbAttachmentList.md` | ✅ |
+| `TaskCard` `@userNameList` / `RightBoxDialog` 人员行 + `selectUser` | `BbParticipantList` | `BbParticipantList.md` | ✅ |
 
-> **完成度即 M0 出口硬标准（03 §8 / 修订 R15）**：全部 30 组件契约导出后才放行 M1。上表 ⛔ 为待办。
+### 原子组件（14 · 设计/风格契约）
+
+| 新组件 | 封装基线 | 契约 | 状态 |
+|---|---|---|---|
+| `BbButton` | `el-button` | `BbButton.md` | ✅ |
+| `BbInput` | `el-input` | `BbInput.md` | ✅ |
+| `BbSelect` | `el-select` | `BbSelect.md` | ✅ |
+| `BbModal` | `el-dialog` | `BbModal.md` | ✅ |
+| `BbDrawer` | `el-drawer` | `BbDrawer.md` | ✅ |
+| `BbTag` | `el-tag` | `BbTag.md` | ✅ |
+| `BbIcon` | `@element-plus/icons-vue` | `BbIcon.md` | ✅ |
+| `BbTree` | `el-tree` | `BbTree.md` | ✅ |
+| `BbTable` | `el-table` | `BbTable.md` | ✅ |
+| `BbPagination` | `el-pagination` | `BbPagination.md` | ✅ |
+| `BbEmpty` | `el-empty` | `BbEmpty.md` | ✅ |
+| `BbTooltip` | `el-tooltip` | `BbTooltip.md` | ✅ |
+| `BbLoading` | `v-loading` | `BbLoading.md` | ✅ |
+| `BbConfirm` | `ElMessageBox.confirm` | `BbConfirm.md` | ✅ |
+
+> 原子契约统一引用令牌命名 `--bb-color-* / --bb-space-* / --bb-radius-* / --bb-font-size-* / --bb-shadow-*`（03 §4.4），与实现期 `styles/tokens.css` 对齐。
+
+> **完成度即 M0 出口硬标准（03 §8 / 修订 R15）**：全部 30 组件契约导出后才放行 M1。**现状：16 业务 ✅ + 14 原子 ✅ = 30/30，已达 M0 出口条件。** 契约的证据（截图/录屏）见 `../screenshots/`（含各视图 `state-empty-*` / `state-error-*`）。
 
 ## 旧接口 → 新接口 废弃映射（修订 L4）
 

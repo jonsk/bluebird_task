@@ -38,6 +38,19 @@
 | `popover-tag-config-1440x900.png` | 顶栏标签配置下拉 `TagConfig` → `BbTagConfig` |
 | `dialog-select-user-1440x900.png` | 人员选择对话框 `selectUser` → `BbUserSelect` |
 
+### 空态 / 异常态（`capture-states.mjs`）
+
+| 文件 | 状态 |
+|---|---|
+| `state-empty-{day,week,joined,assigned,collect,all}-1440x900.png` | 六大视图 · 列表为空 |
+| `state-error-{day,week,joined,assigned,collect,all}-1440x900.png` | 六大视图 · 接口错误（`body.code=500` → `ElMessage` 错误提示） |
+| `state-httperr-*.png` | 六大视图 · HTTP 层 500（**静默无提示**，见下缺陷） |
+| `state-error-login-1440x900.png` | 登录失败（`ElMessage` 错误提示） |
+
+> **既有缺陷留痕（供重写修正决策）**：
+> 1. 旧前端 `utils/request.js` 对 **HTTP 非 2xx** 的错误分支**只 reject、不弹提示**（原 `ElMessage` 被注释），用户无反馈；仅当 HTTP 200 且 `body.code≠200` 才提示。→ 重写应统一错误 UI。
+> 2. 错误态下 `ElMessage` 会**累积堆叠**（每视图 3 条：未完成/已完成/count），无节流去重。
+
 截图覆盖任务卡片关键态（逾期红 / 临期绿 / 正常 / 已完成删除线 / 收藏高亮 / 子任务展开 / 标签着色 / @人 / 附件图标）。
 
 ## 采集约束与说明

@@ -9,13 +9,14 @@
 ```
 docs/frontend-baseline/
 ├── README.md           # 本文：总览 / 清单状态 / 验收依据 / 流程 / 历史
-├── contracts/          # 行为契约（每个旧组件一份，见 03 §2.3.1 模板）
-│   ├── README.md       # 契约索引 + 模板 + 范围与计数口径(L3) + 旧→新接口映射(L4)
-│   ├── BbTaskCard.md      （旧 TaskCard.vue）
-│   ├── BbTaskComposer.md  （旧 addTaskBlock.vue）
-│   ├── BbSubtaskList.md   （旧 childTaskList.vue）
-│   ├── BbCalendarCard.md  （旧 CalendarCard.vue）
-│   └── BbDatePicker.md    （旧 dropdownSetDate.vue）
+├── contracts/          # 契约 30 份 = 16 业务（行为契约）+ 14 原子（设计/风格契约）
+│   ├── README.md       # 索引 + 模板 + 计数口径(L3) + 旧→新接口映射(L4) + 完成度
+│   ├── Bb*.md          # 16 业务：TaskCard / Composer / SubtaskList / CalendarCard /
+│   │                   #   DatePicker / RemindSelect / RepeatSelect / UserSelect /
+│   │                   #   CategoryTree / OrgTree / TagConfig / TaskList /
+│   │                   #   TaskDetailDrawer / TaskMetaLine / AttachmentList / ParticipantList
+│   └── Bb*.md          # 14 原子：Button / Input / Select / Modal / Drawer / Tag / Icon /
+│                       #   Tree / Table / Pagination / Empty / Tooltip / Loading / Confirm
 ├── e2e/
 │   └── scenarios.md    # E2E 场景清单（先对旧前端跑通作基线，再对新建前端验收）
 ├── fixtures/
@@ -40,25 +41,23 @@ docs/frontend-baseline/
 
 ## 3. 组件映射与契约状态（M0 出口标准：契约完成度为放行条件，见 03 §8）
 
-| 旧组件（源码路径） | 新组件 | 契约文档 | 状态 |
+| 类别 | 数量 | 契约文档 | 状态 |
 |---|---|---|---|
-| `todolistModule/components/TaskCard.vue` | `BbTaskCard` | `contracts/BbTaskCard.md` | ✅ 已导出 |
-| `todolistModule/components/addTaskBlock.vue` | `BbTaskComposer` | `contracts/BbTaskComposer.md` | ✅ 已导出 |
-| `todolistModule/components/childTaskList.vue` | `BbSubtaskList` | `contracts/BbSubtaskList.md` | ✅ 已导出 |
-| `todolistModule/components/CalendarCard.vue` | `BbCalendarCard` | `contracts/BbCalendarCard.md` | ✅ 已导出 |
-| `todolistModule/components/dropdownSetDate.vue` | `BbDatePicker` | `contracts/BbDatePicker.md` | ✅ 已导出 |
+| 业务组件（**行为契约**，基于旧源码） | 16 | `contracts/Bb*.md` | ✅ 全部导出 |
+| 原子组件（**设计/风格契约**，EP 薄封装） | 14 | `contracts/Bb*.md` | ✅ 全部导出 |
+| **合计** | **30** | 索引见 `contracts/README.md` | ✅ **30/30** |
 
-> 完整 30 组件 = **16 业务（行为契约）+ 14 原子（设计/样式契约）**，计数口径与交付形态见 `contracts/README.md`「契约范围与计数口径(L3)」。**契约完成度是 M0 出口硬标准**（03 §8 / 修订 R15）；以上为已基于源码导出的首批 5 份业务契约。
+> 完整清单、计数口径与交付形态见 `contracts/README.md`「契约范围与计数口径(L3)」与「组件契约清单」。**契约完成度是 M0 出口硬标准**（03 §8 / 修订 R15）。
 
 ## 3.1 M0 出口进度（03 §8）
 
 | 出口项 | 目标 | 现状 |
 |---|---|---|
-| 业务行为契约 | 16 | 5（`contracts/Bb*.md`） |
-| 原子设计契约 | 14 | 0（待建，见 L3 口径） |
+| 业务行为契约 | 16 | ✅ 16（`contracts/Bb*.md`） |
+| 原子设计契约 | 14 | ✅ 14（`contracts/Bb*.md`，风格契约） |
 | E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`） |
-| fixtures JSON | 有样例 | ✅ 首批（`fixtures/api/**`，含周期任务） |
-| 黄金截图/录屏证据 | 采集 | ✅ 8 张 + 1 录屏（`screenshots/`，fixtures 注入，确定性） |
+| fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口）+ `fixtures/legacy-api/**`（旧接口） |
+| 黄金截图/录屏证据 | 采集 | ✅ 19 基线 + 12 空态/异常态（`state-*`）+ 1 录屏（`screenshots/`，fixtures 注入，确定性） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
 | 引用可解析 | 全绿 | ✅ 设计文档已入仓 `../../Task/`（M1） |
 
@@ -89,6 +88,10 @@ docs/frontend-baseline/
   - 采集 **8 张黄金截图 + 1 段录屏** → `screenshots/`（我的一天/未来7天/我@Ta/分配给我/我的收藏/全部任务/登录/完成交互）。
   - 线上库任务为空，故用固定 fixtures 注入渲染（确定性、无真实数据）；`verify.mjs` 断言卡片数通过。
   - **组件级补充采集**（`capture-components.mjs`）：左栏、日历卡、新增任务块（收起/展开）、四个下拉（日期/提醒/重复/标签）、标签配置、人员选择对话框，共 +10 张；截图合计 19 张 + 1 录屏。
+- **2026-09-29（契约补齐 + 空/异常态）**：
+  - **契约 30/30 达成（M0 出口硬标准）**：新增 11 份业务行为契约（RemindSelect/RepeatSelect/UserSelect/CategoryTree/OrgTree/TagConfig/TaskList/TaskDetailDrawer/TaskMetaLine/AttachmentList/ParticipantList）；新建 14 份原子设计契约（Button/Input/Select/Modal/Drawer/Tag/Icon/Tree/Table/Pagination/Empty/Tooltip/Loading/Confirm，统一 `--bb-*` 令牌）。
+  - **空态/异常态证据**（`scripts/golden-capture/capture-states.mjs`）：六大视图 `state-empty-*`（6）、`state-error-*`（6，`body.code=500` → ElMessage）、`state-httperr-*`（6，HTTP 500 静默）、登录失败（1），共 +19 张。
+  - **缺陷留痕**：旧 `utils/request.js` 对 HTTP 非 2xx **静默 reject 无提示**；错误态 ElMessage **累积堆叠**（见 `screenshots/README.md`）。
 
 ## 6. 关联文档
 
