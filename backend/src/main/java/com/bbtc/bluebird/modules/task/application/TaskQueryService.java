@@ -107,7 +107,9 @@ public class TaskQueryService {
             return List.of();
         }
         List<Task> tasks = taskMapper.selectList(Wrappers.<Task>lambdaQuery()
-                .in(Task::getId, candidate).eq(Task::getStatus, "ACTIVE"));
+                .in(Task::getId, candidate).eq(Task::getStatus, "ACTIVE")
+                // 步骤/子任务不计入日历（只在父任务详情里展示）
+                .isNull(Task::getParentId));
         Map<Long, List<TaskParticipant>> parts = participantsOf(tasks.stream().map(Task::getId).toList());
         List<TaskVO> out = new ArrayList<>();
         List<Task> plain = new ArrayList<>();
@@ -185,7 +187,11 @@ public class TaskQueryService {
 
         var wrapper = Wrappers.<Task>lambdaQuery()
                 .in(Task::getId, candidate)
-                .eq(Task::getStatus, "ACTIVE");
+                .eq(Task::getStatus, "ACTIVE")
+                // 步骤（子任务）不是独立的列表项：只在父任务详情的 subtasks 里展示，
+                // 否则每加一个步骤，六大视图/计数里就多出一条「任务」（用户反馈的 BUG）。
+                // 旧系统步骤存于独立的子表，天然不会混进 task_record 的列表查询。
+                .isNull(Task::getParentId);
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(Task::getTitle, kw).or().like(Task::getContent, kw));
@@ -207,7 +213,9 @@ public class TaskQueryService {
         var cycleWrapper = Wrappers.<Task>lambdaQuery()
                 .in(Task::getId, candidate)
                 .eq(Task::getStatus, "ACTIVE")
-                .isNotNull(Task::getCycleRule);
+                .isNotNull(Task::getCycleRule)
+                // 同 plain wrapper：步骤不进六大视图
+                .isNull(Task::getParentId);
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();
             cycleWrapper.and(w -> w.like(Task::getTitle, kw).or().like(Task::getContent, kw));
