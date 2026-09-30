@@ -267,8 +267,7 @@ function onSelectCategory(id: number | null): void {
 
     <div class="left-box__bottom">
       <el-icon class="left-box__bottom-icon" title="日历" data-test="nav-calendar" @click="goView('calendar')"><Calendar /></el-icon>
-      <el-icon v-if="canManageUsers" class="left-box__bottom-icon" title="用户管理" data-test="nav-adminUsers" @click="goView('adminUsers')"><User /></el-icon>
-      <el-icon v-if="canManageUsers" class="left-box__bottom-icon" title="部门管理" data-test="nav-adminDepts" @click="goView('adminDepts')"><Notebook /></el-icon>
+      <el-icon v-if="canManageUsers" class="left-box__bottom-icon" title="组织管理" data-test="nav-adminOrg" @click="goView('adminOrg')"><User /></el-icon>
       <el-icon v-if="canViewAudit" class="left-box__bottom-icon" title="操作/登录日志" data-test="nav-adminAudit" @click="goView('adminAudit')"><List /></el-icon>
     </div>
   </aside>

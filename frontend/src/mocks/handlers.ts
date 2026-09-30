@@ -21,6 +21,7 @@ interface TaskLike {
   id: number
   title: string
   content?: string
+  parentId?: number
   status?: string
   completed: boolean
   version?: number
@@ -115,6 +116,29 @@ const tags: TagLike[] = structuredClone(dataOf<TagLike[]>('tags/GET.list'))
 const menus: MenuLike[] = structuredClone(dataOf<MenuLike[]>('menus/GET.list'))
 const detail = dataOf<TaskLike & { subtasks?: TaskLike[] }>('tasks/GET.detail')
 const subtaskList = dataOf<PageLike<TaskLike>>('tasks/GET.subtasks').list
+
+/** 在主列表、详情子任务、子任务列表 fixture 中查找任务（完成/子任务状态切换需覆盖子任务）。 */
+function findAnyTask(id: number): TaskLike | undefined {
+  return (
+    tasks.find((t) => t.id === id) ??
+    (detail.subtasks ?? []).find((t) => t.id === id) ??
+    subtaskList.find((t) => t.id === id)
+  )
+}
+
+/* 附件内存库：初始化为详情 fixture 的附件，上传/删除就地变更（item 10：文件名用用户所选文件、可删除）。 */
+interface FileLike {
+  id: number
+  fileName: string
+  size: number
+  md5?: string
+}
+const fileStore: FileLike[] = structuredClone((detail.files ?? []) as FileLike[])
+let fileSeq = 9000
+function mergeFiles(base: unknown[]): FileLike[] {
+  const seen = new Set<number>(base.map((f) => Number((f as FileLike).id)))
+  return [...(base as FileLike[]), ...fileStore.filter((f) => !seen.has(Number(f.id)))]
+}
 
 /* ---------- 分类树：内存 CRUD + 子树/范围 ---------- */
 
@@ -312,18 +336,17 @@ export const handlers = [
   http.get(`${AUTH}/menus`, () => ok(menus)),
   http.post(`${AUTH}/menus`, async ({ request }) => {
     const body = (await request.json()) as { name?: string; sort?: number }
-    const created = dataOf<{ id: number }>('menus/POST.create')
-    if (!menus.some((m) => m.id === created.id)) {
-      menus.push({
-        id: created.id,
-        userId: ME_ID,
-        name: body.name ?? '新栏',
-        sort: body.sort ?? 0,
-        createdAt: new Date().toISOString(),
-        items: [],
-      })
-    }
-    return raw('menus/POST.create')
+    // 每次新建分配递增 id（item 4：多个自定义栏）。固定 fixture id 会导致重复栏不生效。
+    const id = seq++
+    menus.push({
+      id,
+      userId: ME_ID,
+      name: body.name ?? '新栏',
+      sort: body.sort ?? 0,
+      createdAt: new Date().toISOString(),
+      items: [],
+    })
+    return ok({ id })
   }),
   http.put(`${AUTH}/menus/:id`, async ({ request, params }) => {
     const menu = menus.find((m) => String(m.id) === params.id)
@@ -398,7 +421,7 @@ export const handlers = [
     const created = dataOf<{ id: number }>('tasks/POST.create')
     const body = (await request.json()) as Partial<TaskLike>
     if (!tasks.some((t) => t.id === created.id)) {
-      tasks.unshift({
+      const createdTask: TaskLike = {
         id: created.id,
         title: String(body.title ?? ''),
         content: String(body.content ?? ''),
@@ -420,7 +443,13 @@ export const handlers = [
         subtaskTotal: 0,
         files: [],
         createdAt: new Date().toISOString(),
-      })
+      }
+      tasks.unshift(createdTask)
+      // 子任务：追加到详情 subtasks，供详情面板展示（item 8）
+      if (body.parentId != null && Number(body.parentId) === detail.id) {
+        detail.subtasks ??= []
+        detail.subtasks.push(createdTask)
+      }
     }
     return raw('tasks/POST.create')
   }),
@@ -447,6 +476,7 @@ export const handlers = [
       ...base,
       ...overlay,
       subtasks: isDetail ? (detail.subtasks ?? []) : subtaskList,
+      files: mergeFiles(base.files ?? []),
     })
   }),
   http.put(`${AUTH}/tasks/:id`, async ({ request, params }) => {
@@ -466,7 +496,7 @@ export const handlers = [
     return raw('tasks/DELETE.remove')
   }),
   http.post(`${AUTH}/tasks/:id/complete`, ({ params }) => {
-    const task = tasks.find((t) => String(t.id) === params.id)
+    const task = findAnyTask(Number(params.id))
     if (!task) return fail(30001, 'task-not-found')
     if (task.cycleRule) task.cycleLastCompleted = new Date().toISOString()
     else task.completed = true
@@ -474,7 +504,7 @@ export const handlers = [
     return raw('tasks/POST.complete')
   }),
   http.post(`${AUTH}/tasks/:id/uncomplete`, ({ params }) => {
-    const task = tasks.find((t) => String(t.id) === params.id)
+    const task = findAnyTask(Number(params.id))
     if (!task) return fail(30001, 'task-not-found')
     task.completed = false
     task.version = (task.version ?? 0) + 1
@@ -490,7 +520,22 @@ export const handlers = [
   }),
 
   // ---- files ----
-  http.post(`${AUTH}/files`, () => raw('files/POST.upload')),
+  // item 10：上传回显用户所选文件（文件名/大小），不再固定返回 fixture 的「季度报告.pdf」
+  http.post(`${AUTH}/files`, async ({ request }) => {
+    const form = await request.formData()
+    const file = form.get('file')
+    const fileName = file instanceof File ? file.name : '未命名文件'
+    const size = file instanceof File ? file.size : 0
+    const stored: FileLike = { id: fileSeq++, fileName, size }
+    fileStore.push(stored)
+    return ok(stored)
+  }),
+  // item 10：允许删除上传的附件（内存移除）
+  http.delete(`${AUTH}/files/:id`, ({ params }) => {
+    const idx = fileStore.findIndex((f) => String(f.id) === params.id)
+    if (idx >= 0) fileStore.splice(idx, 1)
+    return ok(null)
+  }),
 
   // ---- audit ----
   http.get(`${AUTH}/audit/operates`, () => raw('audit/GET.operates')),

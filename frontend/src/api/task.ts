@@ -19,6 +19,8 @@ export interface TaskListData {
 export interface TaskUpsertPayload {
   title: string
   content?: string | null
+  /** 父任务 id：用于创建子任务（新建时）。 */
+  parentId?: number | null
   dueAt?: string | null
   remindAt?: string | null
   priority?: Priority

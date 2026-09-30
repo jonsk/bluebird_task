@@ -45,16 +45,10 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '日历' },
       },
       {
-        path: 'admin/users',
-        name: 'adminUsers',
-        component: () => import('@/views/admin/UserManage.vue'),
-        meta: { title: '用户管理', roles: ['ADMIN', 'USER_MANAGER'] },
-      },
-      {
-        path: 'admin/depts',
-        name: 'adminDepts',
-        component: () => import('@/views/admin/DeptManage.vue'),
-        meta: { title: '部门管理', roles: ['ADMIN', 'USER_MANAGER'] },
+        path: 'admin/org',
+        name: 'adminOrg',
+        component: () => import('@/views/admin/OrgManage.vue'),
+        meta: { title: '组织管理', roles: ['ADMIN', 'USER_MANAGER'] },
       },
       {
         path: 'admin/audit',

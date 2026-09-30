@@ -323,6 +323,8 @@ async function onRemove(task: TaskVO): Promise<void> {
   margin-top: 20px;
 }
 .detail {
-  min-height: 400px;
+  height: calc(100vh - 310px);
+  min-height: 0;
+  overflow-y: auto;
 }
 </style>

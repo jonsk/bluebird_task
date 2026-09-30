@@ -48,7 +48,18 @@ body,
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 14px;
+  font-size: 16px; /* 全局字体统一调大 2 号（14 → 16） */
   color: var(--bb-text);
   background: var(--bg-secondary);
+}
+
+/* 全局字体调大 2 号：同步 Element Plus 基础字号令牌（覆盖其默认 14 系列），
+   使所有 EP 组件（按钮/输入/选择/日历/表格等）随之放大。 */
+:root {
+  --el-font-size-extra-large: 22px; /* 原 20 */
+  --el-font-size-large: 20px;       /* 原 18 */
+  --el-font-size-medium: 18px;      /* 原 16 */
+  --el-font-size-base: 16px;        /* 原 14 */
+  --el-font-size-small: 15px;       /* 原 13 */
+  --el-font-size-extra-small: 14px; /* 原 12 */
 }

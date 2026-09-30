@@ -42,7 +42,7 @@ test('E-03 六大视图切换：计数（fixtures count）与列表（fixtures l
     { href: '/index', url: /\/index$/, count: 4, cards: 6 },
     { href: '/myWeek', url: /\/myWeek$/, count: 5, cards: 6 },
     { href: '/myJoin', url: /\/myJoin$/, count: 2, cards: 2 },
-    { href: '/myDo', url: /\/myDo$/, count: 3, cards: 0 },
+    { href: '/myDo', url: /\/myDo$/, count: 3, cards: 3 },
     { href: '/myCollect', url: /\/myCollect$/, count: 1, cards: 1 },
     { href: '/allTask', url: /\/allTask$/, count: 9, cards: 7 },
   ]
@@ -129,10 +129,11 @@ test('E-13 附件上传（详情面板）', async ({ page }) => {
   await expect(panel.locator('.bb-attachments__item')).toHaveCount(2)
 })
 
-test('E-14 用户管理（ADMIN）', async ({ page }) => {
+test('E-14 组织管理（用户 + 部门 左树右表）', async ({ page }) => {
   await login(page)
-  await goView(page, '/admin/users', /\/admin\/users$/)
+  await goView(page, '/admin/org', /\/admin\/org$/)
   await expect(page.locator('.el-table__row')).toHaveCount(4)
+  await expect(page.locator('.org-manage__dept-root')).toHaveText('全部部门')
 })
 
 test('E-15 审计日志（操作 + 登录）', async ({ page }) => {

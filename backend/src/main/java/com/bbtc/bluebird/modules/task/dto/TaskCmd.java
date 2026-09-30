@@ -9,6 +9,7 @@ import java.util.List;
 public record TaskCmd(
         String title,
         String content,
+        Long parentId,
         Instant dueAt,
         Instant remindAt,
         String priority,

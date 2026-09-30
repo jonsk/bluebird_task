@@ -6,10 +6,11 @@ import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.List;
 
-/** 新建/更新任务请求（02 §4.5）。{@code version} 更新时必填。 */
+/** 新建/更新任务请求（02 §4.5）。{@code version} 更新时必填。{@code parentId} 用于创建子任务。 */
 public record TaskCreateReq(
         @NotBlank String title,
         String content,
+        Long parentId,
         Long version,
         Instant dueAt,
         Instant remindAt,
@@ -22,7 +23,7 @@ public record TaskCreateReq(
         List<Long> fileIds) {
 
     public TaskCmd toCmd() {
-        return new TaskCmd(title, content, dueAt, remindAt, priority, cycleRule, categoryId,
+        return new TaskCmd(title, content, parentId, dueAt, remindAt, priority, cycleRule, categoryId,
                 assigneeIds, ccIds, tagIds, fileIds, version);
     }
 }

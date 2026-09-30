@@ -47,6 +47,12 @@ jwt:
   refresh-ttl: ${JWT_REFRESH_TTL:604800}      # 秒（7 天）
 
 app:
+  log:
+    # 运行日志目录：留空则默认 <jar 所在目录>/log（目录自动创建，每天一个文件 bluebird-task-YYYY-MM-dd.log）。
+    # 可用环境变量 LOG_DIR 覆盖；相对路径按启动工作目录解析。
+    dir: ${LOG_DIR:}
+    # 日志文件保留天数，超过自动清理（Logback maxHistory）。
+    max-history-days: ${LOG_MAX_HISTORY:30}
   identity:
     provider: ${IDENTITY_PROVIDER:LOCAL}      # LOCAL|OIDC|WECHAT（默认 LOCAL，ADR-008）
     auto-create-user: ${AUTO_CREATE_USER:true}
@@ -59,7 +65,7 @@ app:
     url-prefix: ${STORAGE_URL_PREFIX:/api/v1/files}
     max-size: ${STORAGE_MAX_SIZE:50MB}
     cache-max-age: ${STORAGE_CACHE_MAX_AGE:300}
-    allowed-ext: png,jpg,jpeg,gif,pdf,doc,docx,xls,xlsx,ppt,pptx,zip,rar,7z,txt,md
+    allowed-ext: ${STORAGE_ALLOWED_EXT:}   # 留空=不限制文件类型（用户要求）
   security:
     login-max-fail: 5
     login-lock-seconds: 900

@@ -15,12 +15,13 @@ import {
   User,
 } from '@element-plus/icons-vue'
 import {
+  completeTask,
+  createTask,
   deleteTask,
   detail as fetchDetail,
   updateTask,
   collectTask,
   uncollectTask,
-  completeTask,
   uncompleteTask,
   type CycleRule,
   type TaskDetailVO,
@@ -118,6 +119,7 @@ const title = ref('')
 const note = ref('')
 const dueLocal = ref<string>('')
 const remindLocal = ref<string>('')
+const newStepTitle = ref('')
 
 watch(
   detail,
@@ -245,6 +247,21 @@ async function onToggleSubtask(sub: NonNullable<TaskDetailVO['subtasks']>[number
     ElMessage.error((e as Error)?.message || '操作失败')
   }
 }
+
+/** 新建子任务（旧站「添加步骤」，item 8）。 */
+async function onAddStep(): Promise<void> {
+  const t = detail.value
+  const step = newStepTitle.value.trim()
+  if (!t || !step || !writable.value) return
+  try {
+    await createTask({ title: step, parentId: Number(t.id), content: null })
+    newStepTitle.value = ''
+    detail.value = await fetchDetail(Number(t.id))
+    emit('changed')
+  } catch (e) {
+    ElMessage.error((e as Error)?.message || '添加步骤失败')
+  }
+}
 </script>
 
 <template>
@@ -273,7 +290,14 @@ async function onToggleSubtask(sub: NonNullable<TaskDetailVO['subtasks']>[number
           </div>
           <div class="drbbi-one-child">
             <el-icon class="t-b-i-b-d-icon"><Paperclip /></el-icon>
-            <input class="drbbi-one-child__input" type="text" placeholder="添加步骤" disabled />
+            <input
+              v-model="newStepTitle"
+              class="drbbi-one-child__input"
+              type="text"
+              placeholder="添加步骤"
+              :disabled="!writable"
+              @keyup.enter="onAddStep"
+            />
           </div>
         </div>
 
@@ -402,8 +426,7 @@ async function onToggleSubtask(sub: NonNullable<TaskDetailVO['subtasks']>[number
       </div>
     </template>
 
-    <div v-else class="dialog-right-box__empty">选择任务查看详情</div>
-  </div>
+    <div v-else class="dialog-right-box__empty">选择任务查看详情</div>  </div>
 </template>
 
 <style scoped>
@@ -551,6 +574,10 @@ async function onToggleSubtask(sub: NonNullable<TaskDetailVO['subtasks']>[number
   cursor: pointer;
 }
 .dialog-right-box__empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
   color: var(--bb-text-muted);
   font-size: 13px;

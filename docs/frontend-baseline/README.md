@@ -78,6 +78,20 @@ docs/frontend-baseline/
 
 ## 5. 历史与变更记录
 
+- **2026-09-30（12 项需求落地：UI 交互 + 功能修复 + 日志）**：用户提出 12 项需求（UI 交互对齐 + 若干功能修复 + 日志功能），已全部落地并通过全门禁（前端 typecheck/test/E2E 28/build、后端 `mvn test` 14、contract、gitleaks）：
+  - **#1 新建任务选择器点图标弹出**：`BbTaskComposer` 截止/提醒/重复由内联选择器改为「图标→`el-dropdown` 弹层」交互（对齐旧 `addTaskBlock.vue`：快捷项 今天/明天/下周 + 选择日期和时间日历 + 重复自定义），优先级/指派/标签/分类保留内联。
+  - **#2 中文 locale**：`App.vue` `<el-config-provider :locale="zhCn">`。
+  - **#3 右栏编辑框与日历重叠**：`TaskView` `.detail` 改 `height: calc(100vh - 310px)` + `overflow-y:auto`（对齐旧站），消除与日历重叠。
+  - **#4 自定义栏多个不生效**：根因 MSW `POST /menus` 固定返回 fixture id 且拒重复 → 改为 `seq++` 递增 id 并 `ok({id})` 回显；现可新建多个栏。
+  - **#5 全局字体 +2**：`tokens.css` `body{16px}` + 覆盖 EP 字号令牌。
+  - **#6 用户管理+部门管理合并左树右表**：`OrgManage.vue`（左部门树 + 右用户表）替换 `UserManage/DeptManage`；路由 `/admin/org`（`adminOrg`）、左栏底部单图标「组织管理」`nav-adminOrg`。
+  - **#7 分配给我的任务为空**：fixtures 1201/1205/1207 补 assignee admin（count/list 一致）。
+  - **#8 新建子任务**：后端 `TaskCmd/TaskCreateReq` 加 `parentId`；详情面板「添加步骤」启用。
+  - **#9 日历「选择任务查看详情」居中**：空态 `display:flex; flex:1` 居中。
+  - **#10 文件上传**：`LocalFileStorage` 自动建目录；`app.storage.allowed-ext` 可配为空（不限类型）；MSW `POST/DELETE /files` 内存态。
+  - **#11 子任务状态切换**：MSW `findAnyTask` 覆盖子任务。
+  - **日志功能**：`LogDirectoryEnvironmentPostProcessor`（order +30、`java.class.path` 定位 jar）+ `logback-spring.xml` 每日滚动，默认 `<jarDir>/log/bluebird-task-YYYY-MM-dd.log`，`LOG_DIR`/`LOG_MAX_HISTORY` 可覆盖。
+  - **刻意偏离更新**：`frontend/README.md` 表扩至 9 条（#4 组织管理单入口、#5 composer 弹层、#6 子任务创建已启用），E-14 改「组织管理（用户+部门左树右表）」；视觉基线 `admin-org-1440x900.png`（原 `admin-users-*` 删除）、`task-composer-*` 重生。
 - **2026-09-30（旧系统 UI 全量对齐）**：用户要求「界面与旧系统对齐」，授权查看旧前端源码并访问线上 `http://10.14.37.187:8081/`。以 Playwright 驱动实时旧系统提取**几何 + 计算样式规格**（`getBoundingClientRect()`/`getComputedStyle()`）作为客观靶心，全面改造新前端：
   - **布局**：删除顶部 header；左栏 `300px`（`.left-box`）、页面底 `#faf9f8`、主区 `.right-box-top`(50px)/`.todo-box`(padding `0 20px`)、右栏日历 `360px`。
   - **左栏**：`.left-title`(64px) 用户块（16px/14px + Fold/退出）；六视图 50px 行（18px 图标 + 计数，`全部任务` 行 `borderBottom:2px solid #0065c0`）；自定义栏内联行；底部 50px 管理入口。
@@ -87,7 +101,7 @@ docs/frontend-baseline/
   - **文案对齐**：六视图旧文案（我的一天/未来7天任务/我@Ta的任务/分配给我的任务/我的收藏/全部任务）；登录页 400×480 白卡 + 24px `#555` 标题。
   - **测试**：`pnpm test:e2e` = **28 passed**（`filter-rail` 3 + `task-flow` 16 + 视觉回归 9）；基线新增 `component-sidebar-leftbox-1440x900.png`、`task-detail-panel-1440x900.png`（原 `task-detail-drawer-*` 删除）。
   - **修复**：`BbTaskCard` 卡片点击 `emit('open', props.task)`（原引用未定义的 `task` → `ReferenceError`，导致详情面板永不打开，E-05/E-13/详情面板视觉连环失败）；E-08 改名改用 `.bb-menu-row__input input` 定位。
-  - **刻意偏离（8 条，详见 `frontend/README.md`）**：详情面板内联而非抽屉、日历常驻右栏、标签入口在主区顶栏、左栏底部放管理入口、子任务创建 disabled（无 `parentId`）、登录背景用渐变、单 Tab 隐藏、不复制旧站横向溢出。
+  - **刻意偏离（9 条，详见 `frontend/README.md`）**：详情面板内联而非抽屉、日历常驻右栏、标签入口在主区顶栏、左栏底部单管理入口（组织管理）、composer 截止/提醒/重复用弹层、子任务创建已启用（`parentId`）、登录背景用渐变、单 Tab 隐藏、不复制旧站横向溢出。
 - **2026-09-29（E-08/E-10 补 UI + 后端契约/缺陷修复）**：
   - **左栏 UI 补齐**：新增 `frontend/src/components/bb/BbFilterRail.vue`（左栏承载：六视图计数 + 分类树 + 自定义栏，替代 `DefaultLayout` 内联 nav）、`BbCategoryTree.vue`（`GET/POST/PUT/DELETE /categories`；范围过滤 全部/个人/部门/组织、范围徽标、只读锁定、悬停增/改/删、拖拽改父级、点选联动）、`BbCustomMenu.vue`（`/menus` CRUD + 条目）；`BbTaskDetailDrawer` 增「移动到自定义栏」（`POST /menus/{id}/items`）；`TaskView` 增筛选条（分类/自定义栏 chip + 清除）。新增 `stores/menu.ts`；`task` store 增 `categoryId/menuId` 筛选态。
   - **契约扩展**：`GET /tasks` 增 `categoryId`（**子树**，ADR-015 共享分类）/`menuId`（仅本人栏）查询参数（`docs/api/openapi.yaml` + 后端 `TaskQuery`/`TaskQueryService`/`TaskController` + MSW 同步实现）。

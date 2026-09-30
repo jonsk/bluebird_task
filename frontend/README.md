@@ -2,7 +2,7 @@
 
 > **当前阶段：M1–M5 视图与组件已落地（M0 脚手架 + 业务实现）。** 技术栈/工程结构/基线冻结详见 `../Task/03前端模块详细设计.md`。
 >
-> 已实现：Vite 5 + Vue 3 + TS(strict) + **Element Plus（`unplugin-auto-import` + `unplugin-vue-components` 按需引入）** + Tailwind(preflight off) + Pinia + Vue Router；`openapi-typescript` 生成类型（禁手改）；`api/http.ts`（ApiResult 解包/错误码/20005 续签）；task/meta/auth/app/menu store；路由守卫（六大视图→scope 映射、roles→403）；LoginView/OidcSuccessView/DefaultLayout/TaskView/CalendarView/Admin(User/Dept/Audit)/Error 视图；BB 组件（BbFilterRail/BbCategoryTree/BbTaskCard/BbTaskList/BbTaskComposer/BbTaskDetailPanel/BbMiniCalendar/BbTagConfig/BbAttachmentList/BbPriorityTag 等）+ `v-permission`；**MSW 直连基线 fixtures**（dev/test，生产剔除）。
+> 已实现：Vite 5 + Vue 3 + TS(strict) + **Element Plus（`unplugin-auto-import` + `unplugin-vue-components` 按需引入）** + Tailwind(preflight off) + Pinia + Vue Router；`openapi-typescript` 生成类型（禁手改）；`api/http.ts`（ApiResult 解包/错误码/20005 续签）；task/meta/auth/app/menu store；路由守卫（六大视图→scope 映射、roles→403）；LoginView/OidcSuccessView/DefaultLayout/TaskView/CalendarView/Admin(Org/Audit)/Error 视图；BB 组件（BbFilterRail/BbCategoryTree/BbTaskCard/BbTaskList/BbTaskComposer/BbTaskDetailPanel/BbMiniCalendar/BbTagConfig/BbAttachmentList/BbPriorityTag 等）+ `v-permission`；**MSW 直连基线 fixtures**（dev/test，生产剔除）。
 >
 > 验证：`pnpm typecheck`、`pnpm test`（13/13）、`pnpm test:e2e`（28/28）、`pnpm build`；DoD：`dist/` 无 `mockServiceWorker.js`（R14）。
 >
@@ -22,7 +22,7 @@
 - **E2E / 视觉回归**（Playwright Test）：`e2e/filter-rail.spec.ts`（E-08/E-10 左栏筛选）+ `e2e/task-flow.spec.ts`（E-01..E-17）+ `e2e/visual.spec.ts`（9 张，基线入库于 `e2e/__screenshots__/`）。
   - `pnpm test:e2e` / `pnpm test:e2e:update`（更新基线）；本地默认复用系统 **Edge**（`channel: msedge`，免下载），CI 用随包 Chromium（`playwright install chromium`）。
   - 视口 1440×900、时区 Asia/Shanghai、`page.clock` 冻结时间 → 确定性。
-  - 选择器约定：下拉项用 `.el-dropdown-menu__item:visible`（所有节点的 dropdown 菜单都常驻 DOM）；树的点选用 `.cat-node__label`（徽标已 `pointer-events:none`）；左栏管理入口 `[data-test="nav-calendar|nav-adminUsers|nav-adminDepts|nav-adminAudit"]`；不使用 toast（瞬态）作为断言依据。
+  - 选择器约定：下拉项用 `.el-dropdown-menu__item:visible`（所有节点的 dropdown 菜单都常驻 DOM）；树的点选用 `.cat-node__label`（徽标已 `pointer-events:none`）；左栏管理入口 `[data-test="nav-calendar|nav-adminOrg|nav-adminAudit"]`；不使用 toast（瞬态）作为断言依据。
   - `settle()`（`e2e/helpers.ts`）会等左栏**异步**数据落地（`.layout__count` × 6、`.cat-node` × 7、`[data-test="menu-row"]` × 3）后才截图/断言——否则与 MSW 响应竞态，基线会缺左栏内容。
   - ⚠️ 视觉门禁为「默认逐像素 `threshold` + `maxDiffPixelRatio: 0.02`」，**浅色文本差异可能不触发失败**；改动左栏/布局后请**显式重生基线**（`pnpm test:e2e:update`，必要时先删旧 PNG）。
 
@@ -35,11 +35,12 @@
 | 1 | 详情面板为右栏内联的 `.dialog-right-box` | 同左（`BbTaskDetailPanel`），**非**覆盖式抽屉 | 与旧站一致；`BbTaskDetailDrawer.vue` 已删除 |
 | 2 | 日历常驻右栏（下方即详情面板） | 同左（`BbMiniCalendar`）；`/calendar` 路由保留，由左栏底部日历图标进入 | 保留独立日历视图入口 |
 | 3 | 「标签」入口在主区顶栏 `.r-b-t-r-item` | 同左（`BbTagConfig` 挂主区顶栏） | 与旧站一致，不占用左栏空间 |
-| 4 | 左栏底部为空块 | 50px 图标条：日历 / 用户管理 / 部门管理 / 日志 | 管理页否则不可达（旧站另有路由） |
-| 5 | 「添加步骤」可内联创建子任务 | 渲染输入框但 `disabled` | `TaskCreateReq` 无 `parentId`，后端不支持创建子任务 |
-| 6 | 登录页背景为 `login-background.jpg` | 同色系 CSS 渐变 | 图片素材未随仓迁移 |
-| 7 | `provider=LOCAL` 时仍显示 企业微信/账密 Tabs | 仅 `provider!=='LOCAL'` 才渲染 Tabs | 单一 Tab 无意义；默认本地账密 |
-| 8 | 1440 视口下主栏横向溢出（947.8 + 360 > 1140） | **不复制**：主栏 740 + 右栏 360 = 1100 | 旧站布局缺陷 |
+| 4 | 左栏底部为空块 | 50px 图标条：日历 / 组织管理（用户+部门左树右表）/ 日志 | 管理页否则不可达（旧站另有路由）；`UserManage`+`DeptManage` 合并为 `OrgManage`（左树右表） |
+| 5 | 新建任务配置行为**点图标→弹层**（`dropdownSetDate/Tips/Each`） | `BbTaskComposer` 截止/提醒/重复同左（`el-dropdown` 弹层，快捷项 + 日历/自定义），其余（优先级/指派/标签/分类）为内联选择 | 对齐旧 `addTaskBlock.vue` 交互 |
+| 6 | 「添加步骤」可内联创建子任务 | 同左：详情面板「添加步骤」输入框已启用，`POST /tasks` 传 `parentId`（子任务入详情 `subtasks`） | `TaskCreateReq/TaskCmd` 已加 `parentId` |
+| 7 | 登录页背景为 `login-background.jpg` | 同色系 CSS 渐变 | 图片素材未随仓迁移 |
+| 8 | `provider=LOCAL` 时仍显示 企业微信/账密 Tabs | 仅 `provider!=='LOCAL'` 才渲染 Tabs | 单一 Tab 无意义；默认本地账密 |
+| 9 | 1440 视口下主栏横向溢出（947.8 + 360 > 1140） | **不复制**：主栏 740 + 右栏 360 = 1100 | 旧站布局缺陷 |
 
 > 旧系统权威依据：`bluebird_task_Front/src/layoutNew/**`、`assets/styles/todolist.scss`；实测 spec 见 `scripts/golden-capture/`（`probe.mjs`/`capture-components.mjs` 几何与计算样式提取）。
 

@@ -46,8 +46,9 @@ export async function settle(page: Page): Promise<void> {
 
 /** 路由路径 → 左栏 data-test 键（管理页路径含斜杠，需显式映射）。 */
 const NAV_KEY: Record<string, string> = {
-  '/admin/users': 'adminUsers',
-  '/admin/depts': 'adminDepts',
+  '/admin/org': 'adminOrg',
+  '/admin/users': 'adminOrg',
+  '/admin/depts': 'adminOrg',
   '/admin/audit': 'adminAudit',
 }
 

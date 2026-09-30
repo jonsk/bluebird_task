@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BlueBird Task 运行日志配置（Spring Boot 3.3，Logback）。
+
+  目录来源（LogDirectoryEnvironmentPostProcessor 注入 Spring 环境）：
+    - bluebird.log.dir               日志目录；默认 <jar 所在目录>/log，目录自动创建
+    - bluebird.log.max-history-days  保留天数，默认 30
+  日志级别沿用 application.yml 的 logging.level.*（root / com.bbtc.bluebird）。
+  文件：<logDir>/bluebird-task-YYYY-MM-dd.log（每天一个文件，按天滚动，超过保留天数自动清理）。
+  编码：控制台沿用 logging.charset.console（跟随 BB_LOG_CHARSET，修复 Windows GBK 中文乱码），
+        文件沿用 logging.charset.file（默认 UTF-8）。
+-->
+<configuration>
+    <springProperty scope="context" name="logDir" source="bluebird.log.dir" defaultValue="log"/>
+    <springProperty scope="context" name="logMaxHistory" source="bluebird.log.max-history-days" defaultValue="30"/>
+    <springProperty scope="context" name="logRootLevel" source="logging.level.root" defaultValue="info"/>
+    <springProperty scope="context" name="consoleCharset" source="logging.charset.console" defaultValue="UTF-8"/>
+    <springProperty scope="context" name="fileCharset" source="logging.charset.file" defaultValue="UTF-8"/>
+
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{40} - %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>${consoleCharset}</charset>
+        </encoder>
+    </appender>
+
+    <!-- 运行日志：按天滚动，每天一个文件，保留 maxHistory 天 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${logDir}/bluebird-task-%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>${logMaxHistory}</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>${fileCharset}</charset>
+        </encoder>
+    </appender>
+
+    <root level="${logRootLevel}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

@@ -41,7 +41,7 @@
 | E-11 | 标签增删改 | 标签配置 | `/tags` CRUD | 🟢 新验收（标签 fixture 直连着色：重要/紧急/日常；标签 CRUD UI 未提供） |
 | E-12 | 人员选择按部门筛选 | 选人弹窗→部门→搜索 | `/users?deptId=&keyword=`；手机号脱敏；优先本部门 | 🟢 旧基线 → 🟢 新验收（编辑器负责人下拉 = users fixture 4 人） |
 | E-13 | 附件上传/预览/删除 | 上传→出现→预览 | `/files` 上传 / `GET /files/{id}/preview`（登录取）；磁盘级联删 | 🟢 新验收（右栏详情面板附件列表 + `setInputFiles` 上传成功追加） |
-| E-14 | 用户/部门管理（ADMIN） | 建用户/建部门 | 权限 `hasRole(ADMIN)`；首登改密引导 | 🟢 新验收（`/admin/users` 表格 4 行 = users fixture） |
+| E-14 | 组织管理（用户+部门，ADMIN） | 建用户/建部门/选部门过滤 | 权限 `hasRole(ADMIN)`；首登改密引导 | 🟢 新验收（`/admin/org` 左树右表：部门树 + 用户表格 4 行 = users fixture；原 `/admin/users`+`/admin/depts` 合并） |
 | E-15 | 审计日志查询（ADMIN） | 查操作/登录日志 | `/audit/operates`、`/audit/logins`；参数脱敏 | 🟢 新验收（操作/登录两 Tab 各 2 行 = audit fixtures） |
 | E-16 | 周期任务 | fixtures 含周期任务：列表/日历按展开实例显示；完成推进下一实例 | recurring 豁免 `completed=0`；complete/dueAt 推进 `cycle_last_completed`（R2）；counts 按展开实例 | 🟢 旧基线 → 🟢 新验收（列表 3 张「周期」标记；日历展开 3 实例） |
 | E-17 | 刷新 token / 未登录 | token 失效→refresh；未登录→登录页 | 20005→refresh；10002→登录；`/auth/refresh` 匿名白名单 | 🟢 旧基线 → 🟢 新验收（未登录访问 `/index` → `/login?redirect=/index`） |

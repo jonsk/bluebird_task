@@ -43,6 +43,12 @@ public class LocalFileStorage implements FileStorage {
         this.allowedExt = allowedExt == null || allowedExt.isBlank()
                 ? Set.of()
                 : Set.of(allowedExt.toLowerCase(Locale.ROOT).split("\\s*,\\s*"));
+        // 首次启动确保存储根目录存在（用户要求：存储目录不存在则自动创建）
+        try {
+            Files.createDirectories(this.root);
+        } catch (IOException e) {
+            log.warn("初始化存储目录失败 {}：{}", this.root, e.getMessage());
+        }
     }
 
     @Override

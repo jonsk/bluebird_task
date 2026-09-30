@@ -61,11 +61,11 @@ test.describe('视觉回归基线（1440×900）', () => {
     await expect(page).toHaveScreenshot('calendar-1440x900.png')
   })
 
-  test('用户管理', async ({ page }) => {
+  test('组织管理', async ({ page }) => {
     await login(page)
-    await goView(page, '/admin/users', /\/admin\/users$/)
+    await goView(page, '/admin/org', /\/admin\/org$/)
     await expect(page.locator('.el-table__row')).toHaveCount(4)
-    await expect(page).toHaveScreenshot('admin-users-1440x900.png')
+    await expect(page).toHaveScreenshot('admin-org-1440x900.png')
   })
 
   test('审计日志', async ({ page }) => {

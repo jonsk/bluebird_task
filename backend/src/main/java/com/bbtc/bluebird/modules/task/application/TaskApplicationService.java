@@ -54,6 +54,7 @@ public class TaskApplicationService {
         t.setRemindAt(cmd.remindAt());
         t.setCategoryId(cmd.categoryId());
         t.setOwnerId(me);
+        t.setParentId(cmd.parentId());
         t.setVersion(0);
         if (cmd.cycleRule() != null) {
             t.setCycleRule(JsonUtils.toJson(cmd.cycleRule()));
