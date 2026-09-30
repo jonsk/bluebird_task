@@ -67,6 +67,48 @@ test('登录 + 六大视图计数渲染（真实后端）', async ({ page }) => 
   await expect(page).toHaveURL(/\/index$/)
 })
 
+test('#R26 我的一天＝当天新建的任务（含不设截止时间）+ 日历按日筛选', async ({ page, request }) => {
+  page.setDefaultTimeout(30_000)
+  const lg = await (await request.post('/api/v1/auth/login', { data: { username: 'admin', password: PASSWORD } })).json()
+  const H = { Authorization: `Bearer ${lg.data.accessToken}` }
+
+  // 两条「今天新建」的任务：修复前按截止时间开窗，这两条都进不了「我的一天」
+  const noDue = uniq('R26-无截止-')
+  const farDue = uniq('R26-远期-')
+  const r1 = await (await request.post('/api/v1/tasks', { headers: H, data: { title: noDue, priority: 'NORMAL' } })).json()
+  const r2 = await (
+    await request.post('/api/v1/tasks', {
+      headers: H,
+      data: { title: farDue, priority: 'NORMAL', dueAt: '2030-10-01T10:00:00Z' },
+    })
+  ).json()
+  expect(r1.code).toBe(0)
+  expect(r2.code).toBe(0)
+
+  await login(page)
+  await expect(page).toHaveURL(/\/index$/)
+  await page.waitForTimeout(1500)
+  const titles = (await page.locator('.bb-task-card__title').allInnerTexts()).map((t) => t.trim())
+  check('#R26 我的一天显示「今天新建、不设截止时间」的任务', titles.some((t) => t.includes(noDue)), JSON.stringify(titles.slice(0, 8)))
+  check('#R26 我的一天显示「今天新建、远期截止」的任务', titles.some((t) => t.includes(farDue)), JSON.stringify(titles.slice(0, 8)))
+
+  // 日历按日筛选（此前日历选择只改 UI 状态，从未传给接口）
+  const target = new Date().getDate() === 1 ? 2 : 1
+  const cell = page.locator('.bb-calendar__inner .el-calendar-table td.current', {
+    hasText: new RegExp(`^\\s*${target}\\s*$`),
+  })
+  await cell.first().click()
+  await page.waitForTimeout(1600)
+  check('#R26 选中日期后出现「日期」筛选标签', (await page.locator('[data-test="filter-date"]').count()) > 0, '')
+  const filtered = (await page.locator('.bb-task-card__title').allInnerTexts()).map((t) => t.trim())
+  check('#R26 切到「非当天」后不再显示今天新建的任务', !filtered.some((t) => t.includes(noDue)), JSON.stringify(filtered.slice(0, 8)))
+
+  // 清理
+  await request.delete(`/api/v1/tasks/${r1.data}`, { headers: H })
+  await request.delete(`/api/v1/tasks/${r2.data}`, { headers: H })
+  expect(failed()).toBe(0)
+})
+
 test('#1 分类：个人标签 + 部门分类可建立', async ({ page }) => {
   page.setDefaultTimeout(25_000)
   await login(page)
