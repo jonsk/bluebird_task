@@ -197,7 +197,7 @@ test.describe('真实后端 · API 联调', () => {
     await request.delete(`/api/v1/users/${uid}`, { headers: auth(ctx) })
   })
 
-  test('分类：个人/部门分类可建，部门分类须指定部门', async ({ request }) => {
+  test('分类：个人/部门分类可建（部门分类按本部门兜底）', async ({ request }) => {
     const tree0 = await body(await request.get('/api/v1/departments', { headers: auth(ctx) }))
     const deptId = (tree0.data ?? [])[0]?.id
     expect(deptId).toBeTruthy()

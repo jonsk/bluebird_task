@@ -84,22 +84,20 @@ test('#1 分类：个人标签 + 部门分类可建立', async ({ page }) => {
   const dName = uniq('部门-')
   await page.locator('.bb-cat__add').first().click()
   await page.locator('.el-dropdown-menu__item:visible', { hasText: '新增部门分类' }).first().click()
-  const deptSelect = page.locator('[data-test="category-dept-select"]')
-  await expect(deptSelect).toBeVisible()
-  check('#1 部门分类草稿行提供「选择部门」下拉', (await deptSelect.count()) > 0, '')
-  await page.getByPlaceholder('分类名称，回车保存').fill(dName)
-  await deptSelect.click()
-  await page.waitForTimeout(700)
-  const opts = page.locator('.el-select-dropdown:visible .el-select-dropdown__item')
-  check('#1 部门下拉选中不提前提交（可选部门）', (await opts.count()) > 0, `options=${await opts.count()}`)
-  await opts.first().click()
-  await page.waitForTimeout(1200)
-  // 兜底：若下拉关闭后草稿仍在（例如重复选中同一部门不触发 change），按回车提交
-  if ((await page.getByPlaceholder('分类名称，回车保存').count()) > 0) {
-    await page.getByPlaceholder('分类名称，回车保存').press('Enter')
-  }
+  // 部门分类不再要求用户选择部门：只输入分类名即可（所属部门由系统按本部门判定）
+  check(
+    '#1 部门分类不再出现「选择部门」下拉',
+    (await page.locator('[data-test="category-dept-select"]').count()) === 0,
+    'dept select still rendered',
+  )
+  const deptInput = page.getByPlaceholder('分类名称，回车保存')
+  await expect(deptInput).toBeVisible()
+  await deptInput.fill(dName)
+  await deptInput.press('Enter')
   await page.waitForTimeout(2200)
-  check('#1 部门分类可成功建立', (await page.locator('.cat-node').filter({ hasText: dName }).count()) > 0, 'dept category missing')
+  const deptNode = page.locator('.cat-node').filter({ hasText: dName }).first()
+  check('#1 只输入名称即可建立部门分类', (await deptNode.count()) > 0, 'dept category missing')
+  check('#1 部门分类标签使用独立颜色（success）', (await deptNode.locator('.el-tag--success').count()) > 0, await deptNode.innerText().catch(() => 'n/a'))
   expect(failed()).toBe(0)
 })
 
