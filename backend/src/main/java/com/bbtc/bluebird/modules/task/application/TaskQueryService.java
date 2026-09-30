@@ -163,22 +163,25 @@ public class TaskQueryService {
         if (candidate.isEmpty()) {
             return new ArrayList<>();
         }
-        boolean windowed = "day".equals(scope) || "week".equals(scope);
+        // 我的一天（day）：按**任务建立时间**取当天 —— 对齐旧系统 getDayTask 的
+        //   `task_setup_time LIKE 'yyyy-MM-dd'`（旧库该列注释即「任务建立时间」，非截止时间）。
+        // 未来7天（week）：按**截止时间**开窗 —— 对齐旧系统 getWeekTask 的
+        //   `DATE_ADD(task_setup_time, INTERVAL 7 DAY) > task_alarm_time`。
+        boolean byCreated = "day".equals(scope);
+        boolean byDueWindow = "week".equals(scope);
+        boolean windowed = byCreated || byDueWindow;
         Instant now = Instant.now();
-        Instant wStart;
-        Instant wEnd;
         LocalDate base = StringUtils.hasText(date) ? LocalDate.parse(date) : LocalDate.now(ZONE);
-        if ("day".equals(scope)) {
-            wStart = Instant.EPOCH; // 含过期未完成
+        Instant wStart = null;
+        Instant wEnd = null;
+        if (byCreated) {
+            wStart = base.atStartOfDay(ZONE).toInstant();
             wEnd = base.plusDays(1).atStartOfDay(ZONE).toInstant();
-        } else if ("week".equals(scope)) {
+        } else if (byDueWindow) {
             wStart = base.atStartOfDay(ZONE).toInstant();
             wEnd = base.plusDays(7).atStartOfDay(ZONE).toInstant();
-        } else {
-            wStart = null;
-            wEnd = null;
         }
-        boolean requireUncompleted = "day".equals(scope) || "week".equals(scope);
+        boolean requireUncompleted = windowed;
 
         var wrapper = Wrappers.<Task>lambdaQuery()
                 .in(Task::getId, candidate)
@@ -190,7 +193,10 @@ public class TaskQueryService {
         if (requireUncompleted) {
             wrapper.eq(Task::getCompleted, 0);
         }
-        if (windowed) {
+        if (byCreated) {
+            // 当天新建：只看建立时间落在所选日期内，与是否设置截止时间无关
+            wrapper.ge(Task::getCreatedAt, wStart).lt(Task::getCreatedAt, wEnd);
+        } else if (byDueWindow) {
             wrapper.isNotNull(Task::getDueAt).ge(Task::getDueAt, wStart).lt(Task::getDueAt, wEnd);
         }
         // 非周期任务
@@ -206,6 +212,10 @@ public class TaskQueryService {
             String kw = keyword.trim();
             cycleWrapper.and(w -> w.like(Task::getTitle, kw).or().like(Task::getContent, kw));
         }
+        if (byCreated) {
+            // 周期任务同样按建立时间归属当天（旧系统 getDayTask 不展开周期实例）
+            cycleWrapper.ge(Task::getCreatedAt, wStart).lt(Task::getCreatedAt, wEnd);
+        }
         List<Task> cycleTasks = taskMapper.selectList(cycleWrapper);
 
         List<Long> allIds = new ArrayList<>();
@@ -216,7 +226,7 @@ public class TaskQueryService {
         List<TaskVO> out = new ArrayList<>(assemble(plainTasks, parts));
         for (Task t : cycleTasks) {
             CycleRule rule = JsonUtils.parse(t.getCycleRule(), CycleRule.class);
-            if (windowed) {
+            if (byDueWindow) {
                 for (Instant occ : CycleExpander.expand(rule, t.getCycleLastCompleted(), wStart, wEnd, CYCLE_MAX)) {
                     out.add(assembleInstance(t, occ, parts));
                 }
