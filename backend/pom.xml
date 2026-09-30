@@ -132,6 +132,35 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <!-- 先清空上一次内嵌的前端产物：maven-resources 只做覆盖拷贝，
+                 增量构建（不带 clean）会残留旧 hash 的 chunk，导致 jar 里同时存在多份
+                 旧前端资源（曾出现 7 个 LoginView-*.js，其中 6 个仍是改品牌前的旧文案）。
+                 该执行必须声明在 copy-frontend-dist 之前（同 phase 按声明顺序执行）。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>clean-stale-frontend-static</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.outputDirectory}/static</directory>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <followSymlinks>false</followSymlinks>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- 打包期内嵌前端产物（ADR-009）。frontend/dist 不存在时安全跳过。 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
