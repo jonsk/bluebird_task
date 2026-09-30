@@ -141,7 +141,7 @@ test('#3 编辑器：优先级/指派/标签/分类「只保留图标，点图�
     `selects=${await composer.locator('.t-b-i-box-config .el-select').count()}`,
   )
 
-  for (const [key, label] of [['composer-priority', '优先级'], ['composer-assignee', '指派'], ['composer-tags', '标签'], ['composer-category', '分类']] as const) {
+  for (const [key, label] of [['composer-priority', '优先级'], ['composer-tags', '标签'], ['composer-category', '分类']] as const) {
     const trigger = composer.locator(`[data-test="${key}"]`)
     check(`#3 ${label}：存在图标触发器`, (await trigger.count()) === 1, `count=${await trigger.count()}`)
     await trigger.click()
@@ -152,6 +152,13 @@ test('#3 编辑器：优先级/指派/标签/分类「只保留图标，点图�
     await page.waitForTimeout(350)
   }
 
+  // 指派：@ 图标打开「左机构树 + 右人员表 + 搜索」弹窗（详细断言见专门用例）
+  await composer.locator('[data-test="composer-assignee"]').click()
+  await page.waitForTimeout(1000)
+  check('#3 指派：点 @ 图标打开人员选择弹窗', (await page.locator('.bb-user-picker').count()) > 0, 'no dialog')
+  await page.locator('.bb-user-picker').getByRole('button', { name: '取消' }).click()
+  await page.waitForTimeout(500)
+
   // 选中后：图标旁展示已选值，且弹层自动关闭（优先级）
   await composer.locator('[data-test="composer-priority"]').click()
   await page.waitForTimeout(600)
@@ -159,18 +166,73 @@ test('#3 编辑器：优先级/指派/标签/分类「只保留图标，点图�
   await page.waitForTimeout(600)
   check('#3 选中优先级后图标旁展示已选值', (await composer.locator('[data-test="composer-priority"]').innerText()).includes('紧急'), '')
   check('#3 选中后弹层关闭', (await page.locator('.bb-cfg-popper:visible').count()) === 0, 'popper still open')
+  expect(failed()).toBe(0)
+})
 
-  // 指派：勾选行后展示姓名
+test('人员选择器：左机构树 + 右人员表 + 搜索 + 含下级部门 + 确认回填', async ({ page, request }) => {
+  page.setDefaultTimeout(30_000)
+  const lg = await (await request.post('/api/v1/auth/login', { data: { username: 'admin', password: PASSWORD } })).json()
+  const H = { Authorization: `Bearer ${lg.data.accessToken}` }
+
+  // 造一棵两层部门树 + 一个挂在**子部门**的人员，用于验证「含下级部门」与搜索
+  const stamp = String(Date.now()).slice(-7)
+  const rootName = `选择器部-${stamp}`
+  const childName = `选择器子部-${stamp}`
+  const personName = `选择器人员${stamp}`
+  const rootDept = (await (await request.post('/api/v1/departments', { headers: H, data: { name: rootName } })).json()).data
+  const childDept = (await (await request.post('/api/v1/departments', { headers: H, data: { name: childName, parentId: rootDept } })).json()).data
+  const uid = (
+    await (
+      await request.post('/api/v1/users', {
+        headers: H,
+        data: { username: `picker${stamp}`, name: personName, password: 'Xx123!', deptId: childDept, roleCode: 'COMMON' },
+      })
+    ).json()
+  ).data
+
+  await login(page)
+  const composer = page.locator('.t-b-input-box')
+  await composer.getByPlaceholder('添加任务').click()
   await composer.locator('[data-test="composer-assignee"]').click()
+  const dlg = page.locator('.bb-user-picker')
+  await expect(dlg).toBeVisible({ timeout: 15_000 })
+  await page.waitForTimeout(1500)
+
+  check('人员选择器：左栏为机构树', (await dlg.locator('.el-tree').count()) > 0, 'no tree')
+  check('人员选择器：右栏为人员表', (await dlg.locator('[data-test="picker-table"]').count()) > 0, 'no table')
+  check('人员选择器：提供「全部人员」入口', (await dlg.locator('[data-test="picker-dept-all"]').count()) > 0, '')
+
+  // 4 万人规模下最关键的能力：按姓名/账号服务端搜索
+  await dlg.locator('[data-test="picker-keyword"]').fill(personName)
+  await dlg.getByRole('button', { name: '查询' }).click()
+  await page.waitForTimeout(1500)
+  const searched = (await dlg.locator('.el-table__row').allInnerTexts()).join('|')
+  check('人员选择器：按姓名搜索命中目标人员', searched.includes(personName), searched.slice(0, 200))
+
+  // 勾选 → 已选汇总 → 确定回填
+  await dlg.locator('.el-table__row', { hasText: personName }).first().locator('.el-checkbox').click()
+  await page.waitForTimeout(400)
+  check('人员选择器：已选汇总显示数量', (await dlg.locator('.bb-up__picked-label').innerText()).includes('1'), await dlg.locator('.bb-up__picked-label').innerText())
+  await dlg.locator('[data-test="picker-confirm"]').click()
+  await page.waitForTimeout(900)
+  check('人员选择器：确认后编辑器图标旁展示姓名', (await composer.locator('[data-test="composer-assignee"]').innerText()).includes(personName), '')
+
+  // 机构树下钻：选中**上级**部门时应包含下级部门成员（includeSubDept）
+  await composer.locator('[data-test="composer-assignee"]').click()
+  await expect(dlg).toBeVisible({ timeout: 15_000 })
+  await page.waitForTimeout(1200)
+  await dlg.locator('.el-tree-node__content', { hasText: rootName }).first().click()
+  await page.waitForTimeout(1600)
+  const scoped = (await dlg.locator('.el-table__row').allInnerTexts()).join('|')
+  check('人员选择器：选中上级部门包含下级部门成员（includeSubDept）', scoped.includes(personName), scoped.slice(0, 200))
+  check('人员选择器：展示当前范围', (await dlg.locator('.bb-up__scope').innerText()).includes(rootName), await dlg.locator('.bb-up__scope').innerText())
+  await dlg.getByRole('button', { name: '取消' }).click()
   await page.waitForTimeout(600)
-  const rows = page.locator('.bb-cfg-picker:visible .bb-cfg-picker__row')
-  check('#3 指派弹层为勾选列表', (await rows.count()) > 0, `rows=${await rows.count()}`)
-  if (await rows.count()) {
-    const name = (await rows.first().locator('.bb-cfg-picker__name').innerText()).trim()
-    await rows.first().click()
-    await page.waitForTimeout(600)
-    check('#3 勾选人员后图标旁展示姓名', (await composer.locator('[data-test="composer-assignee"]').innerText()).includes(name), name)
-  }
+
+  // 清理
+  await request.delete(`/api/v1/users/${uid}`, { headers: H })
+  await request.delete(`/api/v1/departments/${childDept}`, { headers: H })
+  await request.delete(`/api/v1/departments/${rootDept}`, { headers: H })
   expect(failed()).toBe(0)
 })
 
