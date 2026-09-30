@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { ElMessage, ElSelect } from 'element-plus'
-import { Bell, Calendar, Flag, Plus, RefreshRight, User } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Bell, Calendar, Flag, FolderOpened, Plus, PriceTag, RefreshRight } from '@element-plus/icons-vue'
 import { createTask, type CycleRule, type TaskUpsertPayload } from '@/api/task'
 import { PRIORITY, PRIORITY_LABEL, type Priority } from '@/utils/constants'
 import { toOffsetIso } from '@/utils/date'
@@ -13,8 +13,8 @@ import type { UserVO } from '@/api/user'
  * 任务编辑器（旧 `.t-b-input-box`，行高 52）：列表顶部内联的「添加任务」输入框，
  * 聚焦后展开配置行 +「添加」。
  *
- * 交互对齐旧 `addTaskBlock.vue`（item 1）：截止/提醒/重复为**图标 → 点击弹出**选择器，
- * 选中后图标旁内联展示文字；其余（优先级/指派/标签/分类）为内联选择。
+ * 交互对齐旧 `addTaskBlock.vue`（item 1）：配置行一律为**「图标（+ 已选值文字）→ 点击弹出选择层」**，
+ * **不使用可见的下拉框**；截止/提醒/重复为日期/提醒/周期，优先级/指派/标签/分类为各自的选择层。
  */
 const props = withDefaults(
   defineProps<{
@@ -44,19 +44,57 @@ const form = reactive({
 
 const canSubmit = computed(() => form.title.trim().length > 0 && !submitting.value)
 
-// ── 优先级/指派/标签/分类：图标与 el-select 同排，点图标需等同点选择框 ──
-type SelectRef = InstanceType<typeof ElSelect>
-const priorityRef = ref<SelectRef>()
-const assigneeRef = ref<SelectRef>()
-const tagsRef = ref<SelectRef>()
-const categoryRef = ref<SelectRef>()
+// ── 优先级/指派/标签/分类：只保留图标，点图标弹出选择层（无下拉框） ──
+// 旧 addTaskBlock.vue 的配置行即「图标 + 已选值文字」，没有 el-select 框（用户反馈 #3）。
+const userKeyword = ref('')
 
-/** 点图标时代替点击选择框：命中内部 wrapper 触发 el-select 展开。 */
-function openSelect(r: SelectRef | undefined): void {
-  const root: unknown = r?.$el
-  if (!(root instanceof Element)) return
-  const wrap = root.querySelector('.el-select__wrapper, .el-input__wrapper')
-  if (wrap instanceof HTMLElement) wrap.click()
+/** 单选类弹层（优先级/分类）选中后需主动关闭：菜单项是自定义 div，不适用 el-dropdown 的 hide-on-click。 */
+const priorityDd = ref<{ handleClose: () => void }>()
+const categoryDd = ref<{ handleClose: () => void }>()
+
+function pickPriority(p: Priority): void {
+  form.priority = p
+  priorityDd.value?.handleClose()
+}
+function pickCategory(id: number | null): void {
+  form.categoryId = id
+  categoryDd.value?.handleClose()
+}
+
+const selectedUsers = computed(() => props.users.filter((u) => form.assigneeIds.includes(Number(u.id))))
+const selectedTags = computed(() => props.tags.filter((t) => form.tagIds.includes(Number(t.id))))
+const assigneeLabel = computed(() => selectedUsers.value.map((u) => u.name ?? '').join('、'))
+const tagLabel = computed(() => selectedTags.value.map((t) => t.name ?? '').join('、'))
+
+/** 分类树按层级拍平：弹层内做缩进列表，同时用于展示已选分类名。 */
+const flatCategories = computed(() => {
+  const out: Array<{ id: number; name: string; depth: number }> = []
+  const walk = (nodes: CategoryNode[], depth: number): void => {
+    for (const n of nodes) {
+      out.push({ id: Number(n.id), name: n.name ?? '', depth })
+      if (n.children?.length) walk(n.children, depth + 1)
+    }
+  }
+  walk(props.categories ?? [], 0)
+  return out
+})
+const categoryLabel = computed(() => flatCategories.value.find((c) => c.id === form.categoryId)?.name ?? '')
+
+const filteredUsers = computed(() => {
+  const kw = userKeyword.value.trim()
+  if (!kw) return props.users
+  return props.users.filter((u) => (u.name ?? '').includes(kw) || (u.username ?? '').includes(kw))
+})
+
+function toggleAssignee(id: number): void {
+  const i = form.assigneeIds.indexOf(id)
+  if (i >= 0) form.assigneeIds.splice(i, 1)
+  else form.assigneeIds.push(id)
+}
+function toggleTag(id: number): void {
+  const i = form.tagIds.indexOf(id)
+  if (i >= 0) form.tagIds.splice(i, 1)
+  else form.tagIds.push(id)
 }
 
 // ── 截止/提醒/重复：点图标弹层（旧 dropdownSetDate/dropdownSetTips/dropdownSetEach）──
@@ -180,6 +218,7 @@ function reset(): void {
   form.categoryId = props.defaultCategoryId
   form.assigneeIds = []
   form.tagIds = []
+  userKeyword.value = ''
   dueShowCalendar.value = false
   remindShowCalendar.value = false
   eachShowCustom.value = false
@@ -325,30 +364,112 @@ async function onSubmit(): Promise<void> {
           </el-dropdown>
         </div>
 
-        <!-- 优先级：内联选择（点左侧图标同样展开） -->
-        <div class="t-b-i-b-c-l-d-item">
-          <el-icon class="t-b-i-b-c-l-d-item-icon" @click="openSelect(priorityRef)"><Flag /></el-icon>
-          <el-select ref="priorityRef" v-model="form.priority" size="small" class="t-b-i-b-c-field-sm" data-test="composer-priority">
-            <el-option v-for="p in PRIORITY" :key="p" :label="PRIORITY_LABEL[p]" :value="p" />
-          </el-select>
+        <!-- 优先级：点图标弹出（取消下拉框） -->
+        <div class="t-b-i-b-c-l-d-item" :class="{ 'is-set': form.priority !== 'MEDIUM' }">
+          <el-dropdown ref="priorityDd" trigger="click" popper-class="bb-cfg-popper">
+            <div class="bb-cfg-trigger" data-test="composer-priority">
+              <el-icon class="t-b-i-b-c-l-d-item-icon"><Flag /></el-icon>
+              <span class="bb-cfg-text">{{ PRIORITY_LABEL[form.priority] }}</span>
+            </div>
+            <template #dropdown>
+              <div class="bb-cfg-menu">
+                <div
+                  v-for="p in PRIORITY"
+                  :key="p"
+                  class="bb-cfg-menu__item"
+                  :class="{ 'is-active': form.priority === p }"
+                  @click="pickPriority(p)"
+                >
+                  {{ PRIORITY_LABEL[p] }}
+                </div>
+              </div>
+            </template>
+          </el-dropdown>
         </div>
-        <div class="t-b-i-b-c-l-d-item">
-          <span class="assigning" @click="openSelect(assigneeRef)">@</span>
-          <el-select ref="assigneeRef" v-model="form.assigneeIds" size="small" multiple collapse-tags filterable placeholder="指派" class="t-b-i-b-c-field" data-test="composer-assignee">
-            <el-option v-for="u in users" :key="u.id" :label="u.name" :value="Number(u.id)" />
-          </el-select>
+
+        <!-- 指派：@ 图标点开勾选人员（取消下拉框） -->
+        <div class="t-b-i-b-c-l-d-item" :class="{ 'is-set': form.assigneeIds.length }">
+          <el-dropdown trigger="click" popper-class="bb-cfg-popper" :hide-on-click="false">
+            <div class="bb-cfg-trigger" data-test="composer-assignee">
+              <span class="assigning">@</span>
+              <span v-if="assigneeLabel" class="bb-cfg-text">{{ assigneeLabel }}</span>
+            </div>
+            <template #dropdown>
+              <div class="bb-cfg-picker">
+                <el-input v-model="userKeyword" size="small" placeholder="搜索姓名" clearable class="bb-cfg-picker__search" />
+                <div class="bb-cfg-picker__list">
+                  <div
+                    v-for="u in filteredUsers"
+                    :key="u.id"
+                    class="bb-cfg-picker__row"
+                    @click="toggleAssignee(Number(u.id))"
+                  >
+                    <el-checkbox :model-value="form.assigneeIds.includes(Number(u.id))" />
+                    <span class="bb-cfg-picker__name">{{ u.name }}</span>
+                  </div>
+                  <div v-if="!filteredUsers.length" class="bb-cfg-picker__empty">无可选人员</div>
+                </div>
+              </div>
+            </template>
+          </el-dropdown>
         </div>
-        <div class="t-b-i-b-c-l-d-item">
-          <el-icon class="t-b-i-b-c-l-d-item-icon" @click="openSelect(tagsRef)"><User /></el-icon>
-          <el-select ref="tagsRef" v-model="form.tagIds" size="small" multiple collapse-tags filterable placeholder="标签" class="t-b-i-b-c-field" data-test="composer-tags">
-            <el-option v-for="t in tags" :key="t.id" :label="t.name" :value="Number(t.id)" />
-          </el-select>
+
+        <!-- 标签：点图标弹出勾选（取消下拉框） -->
+        <div class="t-b-i-b-c-l-d-item" :class="{ 'is-set': form.tagIds.length }">
+          <el-dropdown trigger="click" popper-class="bb-cfg-popper" :hide-on-click="false">
+            <div class="bb-cfg-trigger" data-test="composer-tags">
+              <el-icon class="t-b-i-b-c-l-d-item-icon"><PriceTag /></el-icon>
+              <span v-if="tagLabel" class="bb-cfg-text">{{ tagLabel }}</span>
+            </div>
+            <template #dropdown>
+              <div class="bb-cfg-picker">
+                <div class="bb-cfg-picker__list">
+                  <div
+                    v-for="t in tags"
+                    :key="t.id"
+                    class="bb-cfg-picker__row"
+                    @click="toggleTag(Number(t.id))"
+                  >
+                    <el-checkbox :model-value="form.tagIds.includes(Number(t.id))" />
+                    <span class="bb-cfg-picker__name">{{ t.name }}</span>
+                  </div>
+                  <div v-if="!tags.length" class="bb-cfg-picker__empty">暂无标签</div>
+                </div>
+              </div>
+            </template>
+          </el-dropdown>
         </div>
-        <div class="t-b-i-b-c-l-d-item">
-          <el-icon class="t-b-i-b-c-l-d-item-icon" @click="openSelect(categoryRef)"><Calendar /></el-icon>
-          <el-select ref="categoryRef" v-model="form.categoryId" size="small" clearable placeholder="分类" class="t-b-i-b-c-field" data-test="composer-category">
-            <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="Number(c.id)" />
-          </el-select>
+
+        <!-- 分类：点图标弹出（取消下拉框） -->
+        <div class="t-b-i-b-c-l-d-item" :class="{ 'is-set': form.categoryId != null }">
+          <el-dropdown ref="categoryDd" trigger="click" popper-class="bb-cfg-popper">
+            <div class="bb-cfg-trigger" data-test="composer-category">
+              <el-icon class="t-b-i-b-c-l-d-item-icon"><FolderOpened /></el-icon>
+              <span v-if="categoryLabel" class="bb-cfg-text">{{ categoryLabel }}</span>
+            </div>
+            <template #dropdown>
+              <div class="bb-cfg-menu bb-cfg-menu--scroll">
+                <div
+                  v-for="c in flatCategories"
+                  :key="c.id"
+                  class="bb-cfg-menu__item"
+                  :class="{ 'is-active': form.categoryId === c.id }"
+                  :style="{ paddingLeft: `${16 + c.depth * 14}px` }"
+                  @click="pickCategory(c.id)"
+                >
+                  {{ c.name }}
+                </div>
+                <div v-if="!flatCategories.length" class="bb-cfg-menu__item bb-cfg-menu__item--empty">暂无分类</div>
+                <div
+                  v-if="form.categoryId != null"
+                  class="bb-cfg-menu__item bb-cfg-menu__item--divider bb-cfg-menu__item--danger"
+                  @click="pickCategory(null)"
+                >
+                  清除分类
+                </div>
+              </div>
+            </template>
+          </el-dropdown>
         </div>
       </div>
 
@@ -417,12 +538,6 @@ async function onSubmit(): Promise<void> {
   color: var(--bb-text-secondary);
   cursor: pointer;
 }
-.t-b-i-b-c-field {
-  width: 170px;
-}
-.t-b-i-b-c-field-sm {
-  width: 100px;
-}
 .t-b-i-b-c-right-div {
   flex-shrink: 0;
 }
@@ -440,6 +555,9 @@ async function onSubmit(): Promise<void> {
   color: var(--bg-accent);
 }
 .t-b-i-b-c-l-d-item.is-set .bb-cfg-text {
+  color: var(--bg-accent);
+}
+.t-b-i-b-c-l-d-item.is-set .assigning {
   color: var(--bg-accent);
 }
 </style>
@@ -469,6 +587,59 @@ async function onSubmit(): Promise<void> {
 }
 .bb-cfg-menu__item--danger {
   color: var(--el-color-danger);
+}
+.bb-cfg-menu--scroll {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.bb-cfg-menu__item.is-active {
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+.bb-cfg-menu__item--empty {
+  color: var(--el-text-color-placeholder);
+  cursor: default;
+}
+.bb-cfg-menu__item--empty:hover {
+  background: transparent;
+}
+/* 指派 / 标签：图标点开的勾选层（替代原可见下拉框） */
+.bb-cfg-picker {
+  width: 220px;
+  padding: 6px 0;
+}
+.bb-cfg-picker__search {
+  width: calc(100% - 16px);
+  margin: 0 8px 6px;
+}
+.bb-cfg-picker__list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.bb-cfg-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.bb-cfg-picker__row:hover {
+  background: var(--el-color-primary-light-9);
+}
+/* 整行负责切换，复选框只做展示，避免双击/双触发 */
+.bb-cfg-picker__row .el-checkbox {
+  pointer-events: none;
+}
+.bb-cfg-picker__name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bb-cfg-picker__empty {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--el-text-color-placeholder);
 }
 .bb-cfg-calendar {
   width: 280px;
