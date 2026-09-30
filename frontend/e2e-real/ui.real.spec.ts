@@ -127,22 +127,49 @@ test('#2 自定义栏可删除且确认框居中', async ({ page }) => {
   expect(failed()).toBe(0)
 })
 
-test('#3 编辑器：点图标即开下拉（优先级/指派/标签/分类）', async ({ page }) => {
+test('#3 编辑器：优先级/指派/标签/分类「只保留图标，点图标弹出」', async ({ page }) => {
   page.setDefaultTimeout(25_000)
   await login(page)
   const composer = page.locator('.t-b-input-box')
   await composer.getByPlaceholder('添加任务').click()
   await page.waitForTimeout(600)
+
+  // 用户反馈 #3：这四项不再有可见下拉框，只保留图标
+  check(
+    '#3 配置行内不再有可见下拉框（取消下拉框）',
+    (await composer.locator('.t-b-i-box-config .el-select').count()) === 0,
+    `selects=${await composer.locator('.t-b-i-box-config .el-select').count()}`,
+  )
+
   for (const [key, label] of [['composer-priority', '优先级'], ['composer-assignee', '指派'], ['composer-tags', '标签'], ['composer-category', '分类']] as const) {
-    const field = composer.locator(`[data-test="${key}"]`)
-    const icon = field.locator('xpath=preceding-sibling::*[1]').first()
-    await page.keyboard.press('Escape')
-    await page.waitForTimeout(250)
-    await icon.click()
-    await page.waitForTimeout(800)
-    check(`#3 ${label}：点图标即打开下拉（用户反馈 #3）`, (await page.locator('.el-select-dropdown:visible').count()) > 0, 'no dropdown')
-    await page.keyboard.press('Escape')
-    await page.waitForTimeout(250)
+    const trigger = composer.locator(`[data-test="${key}"]`)
+    check(`#3 ${label}：存在图标触发器`, (await trigger.count()) === 1, `count=${await trigger.count()}`)
+    await trigger.click()
+    await page.waitForTimeout(700)
+    check(`#3 ${label}：点图标即弹出选择层`, (await page.locator('.bb-cfg-popper:visible').count()) > 0, 'no popper')
+    // 点输入框关闭弹层并进入下一项
+    await composer.getByPlaceholder('添加任务').click()
+    await page.waitForTimeout(350)
+  }
+
+  // 选中后：图标旁展示已选值，且弹层自动关闭（优先级）
+  await composer.locator('[data-test="composer-priority"]').click()
+  await page.waitForTimeout(600)
+  await page.locator('.bb-cfg-popper:visible .bb-cfg-menu__item', { hasText: '紧急' }).first().click()
+  await page.waitForTimeout(600)
+  check('#3 选中优先级后图标旁展示已选值', (await composer.locator('[data-test="composer-priority"]').innerText()).includes('紧急'), '')
+  check('#3 选中后弹层关闭', (await page.locator('.bb-cfg-popper:visible').count()) === 0, 'popper still open')
+
+  // 指派：勾选行后展示姓名
+  await composer.locator('[data-test="composer-assignee"]').click()
+  await page.waitForTimeout(600)
+  const rows = page.locator('.bb-cfg-picker:visible .bb-cfg-picker__row')
+  check('#3 指派弹层为勾选列表', (await rows.count()) > 0, `rows=${await rows.count()}`)
+  if (await rows.count()) {
+    const name = (await rows.first().locator('.bb-cfg-picker__name').innerText()).trim()
+    await rows.first().click()
+    await page.waitForTimeout(600)
+    check('#3 勾选人员后图标旁展示姓名', (await composer.locator('[data-test="composer-assignee"]').innerText()).includes(name), name)
   }
   expect(failed()).toBe(0)
 })

@@ -104,15 +104,17 @@ test('E-11 标签数据（fixtures 直连，顶部标签入口）', async ({ pag
   await expect(inputs.first()).toHaveValue('重要')
 })
 
-test('E-12 人员选择（fixtures 用户源，编辑器指派）', async ({ page }) => {
+test('E-12 人员选择（fixtures 用户源，编辑器指派：点 @ 弹出勾选层，无下拉框）', async ({ page }) => {
   await login(page)
   const box = composer(page)
   await box.getByPlaceholder('添加任务').click()
+  // 配置行不得再有可见下拉框（用户反馈 #3：改为只保留图标）
+  await expect(box.locator('.t-b-i-box-config .el-select')).toHaveCount(0)
   await box.locator('[data-test="composer-assignee"]').click()
-  const options = page.locator('.el-select-dropdown:visible .el-select-dropdown__item')
-  await expect(options).toHaveCount(4)
-  await expect(options.filter({ hasText: '张三' })).toHaveCount(1)
-  await expect(options.filter({ hasText: '王五' })).toHaveCount(1)
+  const rows = page.locator('.bb-cfg-picker:visible .bb-cfg-picker__row')
+  await expect(rows).toHaveCount(4)
+  await expect(rows.filter({ hasText: '张三' })).toHaveCount(1)
+  await expect(rows.filter({ hasText: '王五' })).toHaveCount(1)
 })
 
 test('E-13 附件上传（详情面板）', async ({ page }) => {
