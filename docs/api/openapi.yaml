@@ -611,7 +611,8 @@ components:
         - type: object
           properties:
             username: { type: string }
-            mobile: { type: string, description: 脱敏 138****0000 }
+            mobile: { type: string, description: 手机号；ADMIN/USER_MANAGER 取得明文（用于编辑），其余角色脱敏 138****0000 }
+            email: { type: string, description: 邮箱 }
             deptId: { type: integer, format: int64 }
             deptName: { type: string }
             roleCode: { type: string, enum: [ADMIN, AUDITOR, USER_MANAGER, COMMON] }
@@ -735,6 +736,7 @@ components:
         parentId: { type: integer, format: int64, nullable: true }
         leaderId: { type: integer, format: int64, nullable: true, description: 部门负责人用户 id（组织级可见性，ADR-012） }
         sort: { type: integer }
+        system: { type: boolean, description: 系统默认顶级部门：可改名，不可删除 }
         children: { type: array, items: { $ref: '#/components/schemas/Department' } }
     OperateLogVO:
       type: object
@@ -792,13 +794,15 @@ components:
         refreshToken: { type: string }
     UserCreateReq:
       type: object
-      required: [username, name]
+      required: [username, name, deptId]
       properties:
         username: { type: string }
         name: { type: string }
         password: { type: string, format: password, nullable: true, description: 可选；首登 must_change_password 强制改密 }
-        deptId: { type: integer, format: int64, nullable: true }
+        deptId: { type: integer, format: int64, description: 必填：新用户必须归属一个部门 }
         roleCode: { type: string, enum: [ADMIN, AUDITOR, USER_MANAGER, COMMON] }
+        mobile: { type: string, nullable: true, description: 手机号 }
+        email: { type: string, nullable: true, description: 邮箱 }
     UserUpdateReq:
       type: object
       properties:
@@ -806,6 +810,8 @@ components:
         deptId: { type: integer, format: int64, nullable: true }
         roleCode: { type: string, enum: [ADMIN, AUDITOR, USER_MANAGER, COMMON] }
         status: { type: string, enum: [ACTIVE, DISABLED] }
+        mobile: { type: string, nullable: true, description: 手机号（传空串清空） }
+        email: { type: string, nullable: true, description: 邮箱（传空串清空） }
     PasswordUpdateReq:
       type: object
       required: [newPassword]

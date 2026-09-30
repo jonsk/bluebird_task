@@ -1766,8 +1766,10 @@ export interface components {
         };
         UserVO: components["schemas"]["UserBrief"] & {
             username?: string;
-            /** @description 脱敏 138****0000 */
+            /** @description 手机号；ADMIN/USER_MANAGER 取得明文（用于编辑），其余角色脱敏 138****0000 */
             mobile?: string;
+            /** @description 邮箱 */
+            email?: string;
             /** Format: int64 */
             deptId?: number;
             deptName?: string;
@@ -1934,6 +1936,8 @@ export interface components {
              */
             leaderId?: number | null;
             sort?: number;
+            /** @description 系统默认顶级部门：可改名，不可删除 */
+            system?: boolean;
             children?: components["schemas"]["Department"][];
         };
         /** @description 操作日志（ADMIN / AUDITOR）。字段对应 `02 §6.2` 表 `audit_operate_log`（module/action/uri/method/user_id/ip/user_agent/duration/status/msg）。 */
@@ -2017,10 +2021,17 @@ export interface components {
              * @description 可选；首登 must_change_password 强制改密
              */
             password?: string | null;
-            /** Format: int64 */
-            deptId?: number | null;
+            /**
+             * Format: int64
+             * @description 必填：新用户必须归属一个部门
+             */
+            deptId: number;
             /** @enum {string} */
             roleCode?: "ADMIN" | "AUDITOR" | "USER_MANAGER" | "COMMON";
+            /** @description 手机号 */
+            mobile?: string | null;
+            /** @description 邮箱 */
+            email?: string | null;
         };
         UserUpdateReq: {
             name?: string;
@@ -2030,6 +2041,10 @@ export interface components {
             roleCode?: "ADMIN" | "AUDITOR" | "USER_MANAGER" | "COMMON";
             /** @enum {string} */
             status?: "ACTIVE" | "DISABLED";
+            /** @description 手机号（传空串清空） */
+            mobile?: string | null;
+            /** @description 邮箱（传空串清空） */
+            email?: string | null;
         };
         PasswordUpdateReq: {
             /**
