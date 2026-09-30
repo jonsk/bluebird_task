@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const BASE = process.env.BB_BASE || 'http://10.14.37.187:8081';
+const BASE = process.env.BB_BASE || 'http://localhost:8081';
 const OUT = process.env.BB_OUT || 'X:/TEMP/opencode/bb-probe';
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -38,7 +38,7 @@ try {
 const u = page.locator('input[placeholder="账号"]');
 await u.waitFor({ state: 'visible', timeout: 15000 });
 await u.fill('admin');
-await page.locator('input[placeholder="密码"]').first().fill('admin123');
+await page.locator('input[placeholder="密码"]').first().fill(process.env.BB_PASSWORD || '');
 await page.screenshot({ path: path.join(OUT, '01-login-filled.png') });
 
 await page.locator('button', { hasText: '登' }).first().click();

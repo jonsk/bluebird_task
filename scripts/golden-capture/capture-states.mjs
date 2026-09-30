@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '..', '..');
 const SHOTS = path.join(REPO, 'docs', 'frontend-baseline', 'screenshots');
-const BASE = process.env.BB_BASE || 'http://10.14.37.187:8081';
+const BASE = process.env.BB_BASE || 'http://localhost:8081';
 const VIEWPORT = { width: 1440, height: 900 };
 const ds = JSON.parse(fs.readFileSync(path.join(REPO, 'docs/frontend-baseline/fixtures/legacy-api/dataset.json'), 'utf8'));
 
@@ -64,7 +64,7 @@ async function capture(mode) {
   await page.locator('.el-tabs__item', { hasText: '账号密码' }).first().click();
   await page.waitForTimeout(400);
   await page.locator('input[placeholder="账号"]').fill('admin');
-  await page.locator('input[placeholder="密码"]').fill('admin123');
+  await page.locator('input[placeholder="密码"]').fill(process.env.BB_PASSWORD || '');
   await page.locator('button', { hasText: '登' }).first().click();
   await page.waitForTimeout(2500);
 

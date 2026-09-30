@@ -92,7 +92,7 @@ docs/frontend-baseline/
   - **#11 子任务状态切换**：MSW `findAnyTask` 覆盖子任务。
   - **日志功能**：`LogDirectoryEnvironmentPostProcessor`（order +30、`java.class.path` 定位 jar）+ `logback-spring.xml` 每日滚动，默认 `<jarDir>/log/bluebird-task-YYYY-MM-dd.log`，`LOG_DIR`/`LOG_MAX_HISTORY` 可覆盖。
   - **刻意偏离更新**：`frontend/README.md` 表扩至 9 条（#4 组织管理单入口、#5 composer 弹层、#6 子任务创建已启用），E-14 改「组织管理（用户+部门左树右表）」；视觉基线 `admin-org-1440x900.png`（原 `admin-users-*` 删除）、`task-composer-*` 重生。
-- **2026-09-30（旧系统 UI 全量对齐）**：用户要求「界面与旧系统对齐」，授权查看旧前端源码并访问线上 `http://10.14.37.187:8081/`。以 Playwright 驱动实时旧系统提取**几何 + 计算样式规格**（`getBoundingClientRect()`/`getComputedStyle()`）作为客观靶心，全面改造新前端：
+- **2026-09-30（旧系统 UI 全量对齐）**：用户要求「界面与旧系统对齐」，授权查看旧前端源码并访问线上 `http://<旧系统地址>:8081/`。以 Playwright 驱动实时旧系统提取**几何 + 计算样式规格**（`getBoundingClientRect()`/`getComputedStyle()`）作为客观靶心，全面改造新前端：
   - **布局**：删除顶部 header；左栏 `300px`（`.left-box`）、页面底 `#faf9f8`、主区 `.right-box-top`(50px)/`.todo-box`(padding `0 20px`)、右栏日历 `360px`。
   - **左栏**：`.left-title`(64px) 用户块（16px/14px + Fold/退出）；六视图 50px 行（18px 图标 + 计数，`全部任务` 行 `borderBottom:2px solid #0065c0`）；自定义栏内联行；底部 50px 管理入口。
   - **主区**：内联编辑器 `.t-b-input-box`（h52、placeholder「添加任务」）；卡片 62px 白底 Fluent 行（信息行顺序同旧站：创建于/子任务进度/截止/提醒/优先级/周期/指派）。
@@ -131,7 +131,7 @@ docs/frontend-baseline/
   - **M2**（证据缺口）⏳：新增 `screenshots/README.md` 采集规程；黄金截图/录屏仍待隔离环境采集（M0 内完成）。
   - 审核原文：`Task/0301审核_前端基线冻结.md`（评审工作区）。
 - **2026-09-28（M2 证据采集完成）**：
-  - 旧前端隔离环境跑通（`http://10.14.37.187:8081/`，登录 `admin`）。
+  - 旧前端隔离环境跑通（`http://<旧系统地址>:8081/`，登录 `admin`）。
   - 新增 `fixtures/legacy-api/`（旧接口形态数据集，脱敏）与 `scripts/golden-capture/`（Playwright harness）。
   - 采集 **8 张黄金截图 + 1 段录屏** → `screenshots/`（我的一天/未来7天/我@Ta/分配给我/我的收藏/全部任务/登录/完成交互）。
   - 线上库任务为空，故用固定 fixtures 注入渲染（确定性、无真实数据）；`verify.mjs` 断言卡片数通过。

@@ -6,7 +6,7 @@
 >
 > 验证：`pnpm typecheck`、`pnpm test`（13/13）、`pnpm test:e2e`（28/28）、`pnpm build`；DoD：`dist/` 无 `mockServiceWorker.js`（R14）。
 >
-> **旧系统 UI 对齐（2026-09-30）**：对照旧系统 `bluebird_task_Front` + 线上 `http://10.14.37.187:8081/` 的实测几何/计算样式全面对齐（去顶部 header、左栏 300px、卡片 62px、右栏 360px、内联详情面板、旧色板）。刻意偏离见下节。
+> **旧系统 UI 对齐（2026-09-30）**：对照旧系统 `bluebird_task_Front` + 线上 `http://<旧系统地址>:8081/` 的实测几何/计算样式全面对齐（去顶部 header、左栏 300px、卡片 62px、右栏 360px、内联详情面板、旧色板）。刻意偏离见下节。
 
 ## 左栏筛选（分类树 / 自定义栏）
 

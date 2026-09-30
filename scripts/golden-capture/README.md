@@ -5,7 +5,7 @@
 ## 前置
 
 - Node 18+；本机有 **Microsoft Edge**（用 `channel: 'msedge'`，**无需**下载 Chromium）；录屏需 ffmpeg：`npx playwright install ffmpeg`。
-- 旧系统可访问：`http://10.14.37.187:8081/`（可用 `BB_BASE` 覆盖）。
+- 旧系统可访问：`http://<旧系统地址>:8081/`（可用 `BB_BASE` 覆盖）。
 
 ## 使用
 

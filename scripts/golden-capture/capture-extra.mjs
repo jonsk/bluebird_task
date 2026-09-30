@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '..', '..');
 const dataset = JSON.parse(fs.readFileSync(path.join(REPO, 'docs/frontend-baseline/fixtures/legacy-api/dataset.json'), 'utf8'));
 const SHOTS = path.join(REPO, 'docs', 'frontend-baseline', 'screenshots');
-const BASE = process.env.BB_BASE || 'http://10.14.37.187:8081';
+const BASE = process.env.BB_BASE || 'http://localhost:8081';
 function expand(n){ if(Array.isArray(n))return n.map(expand); if(n&&typeof n==='object'){ if(n.$ref)return dataset.tasks[n.$ref.slice(6)]; const o={}; for(const[k,v]of Object.entries(n))o[k]=expand(v); return o;} if(typeof n==='string'&&n.startsWith('@task:'))return dataset.tasks[n.slice(6)]; return n; }
 function resolve(m,u){const U=new URL(u);for(const ep of dataset.endpoints){if(ep.method.toUpperCase()!==m.toUpperCase())continue;if(ep.path!==U.pathname)continue;if(ep.matchQuery&&!U.search.includes(ep.matchQuery))continue;return expand(ep.body);}return [];}
 const browser=await chromium.launch({channel:'msedge',headless:true});
@@ -20,7 +20,7 @@ await page.waitForTimeout(1000);
 await page.locator('.el-tabs__item',{hasText:'账号密码'}).first().click();
 await page.waitForTimeout(500);
 await page.locator('input[placeholder="账号"]').fill('admin');
-await page.locator('input[placeholder="密码"]').fill('admin123');
+await page.locator('input[placeholder="密码"]').fill(process.env.BB_PASSWORD || '');
 await page.locator('button',{hasText:'登'}).first().click();
 await page.waitForTimeout(3000);
 await page.goto(BASE+'/#/index',{waitUntil:'networkidle',timeout:40000});

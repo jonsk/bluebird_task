@@ -59,7 +59,7 @@ function loginOidc(): void {
 <template>
   <div class="login">
     <div class="login-box">
-      <h3 class="h3">电力公司 To Do 任务管理系统</h3>
+      <h3 class="h3">蓝鸟任务管理系统</h3>
 
       <el-tabs v-if="hasExternal" v-model="activeTab" class="demo-tabs">
         <el-tab-pane :label="externalLabel" name="external">

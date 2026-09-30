@@ -1,7 +1,7 @@
 {
   "meta": {
     "purpose": "Legacy-shape API responses used to render the OLD BlueBird frontend deterministically (golden screenshots / recordings). See README.md.",
-    "source": "Shape captured from live legacy system (10.14.37.187:8081) via Playwright; task bodies are SYNTHETIC (live DB has no task rows). No real secrets/password hashes included.",
+    "source": "Shape captured from live legacy system (legacy-host:8081) via Playwright; task bodies are SYNTHETIC (live DB has no task rows). No real secrets/password hashes included.",
     "capturedAt": "2026-09-28",
     "basePath": "/api-server",
     "notes": [

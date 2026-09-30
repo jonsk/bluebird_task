@@ -12,7 +12,7 @@ const FIXTURES = path.join(REPO, 'docs', 'frontend-baseline', 'fixtures', 'legac
 const SHOTS = path.join(REPO, 'docs', 'frontend-baseline', 'screenshots');
 const RECS = path.join(SHOTS, 'recordings');
 
-const BASE = process.env.BB_BASE || 'http://10.14.37.187:8081';
+const BASE = process.env.BB_BASE || 'http://localhost:8081';
 const VIEWPORT = { width: 1440, height: 900 };
 
 const dataset = JSON.parse(fs.readFileSync(FIXTURES, 'utf8'));
@@ -85,7 +85,7 @@ async function login() {
   const u = page.locator('input[placeholder="账号"]');
   await u.waitFor({ state: 'visible', timeout: 15000 });
   await u.fill('admin');
-  await page.locator('input[placeholder="密码"]').first().fill('admin123');
+  await page.locator('input[placeholder="密码"]').first().fill(process.env.BB_PASSWORD || '');
   await page.locator('button', { hasText: '登' }).first().click();
   await page.waitForTimeout(3500);
   console.log('after login url =', page.url());
