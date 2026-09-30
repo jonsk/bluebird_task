@@ -165,8 +165,8 @@ function startAdd(data: CategoryNode | null, scope: CategoryScope): void {
   if (draftActive.value || editingId.value != null) return
   draftActive.value = true
   draftScope.value = scope
-  // 部门分类必须落到具体部门：优先本部门；ADMIN 等自身无部门者回退到第一个部门，
-  // 并在草稿行内提供下拉可改选（原先固定取 myDeptId，ADMIN 无法建部门分类）。
+  // 部门分类的所属部门由系统静默判定：优先本部门，兜底系统默认部门；
+  // 用户只需输入分类名即可（不再要求选择「部门」）。
   draftDeptId.value =
     scope === 'DEPARTMENT' ? (myDeptId.value ?? deptOptions.value[0]?.id ?? null) : null
   draftParentId.value = data?.id != null ? Number(data.id) : null
@@ -363,29 +363,17 @@ defineExpose({ reload, clearSelection })
             </template>
 
             <template v-else-if="data.__draft">
-              <div class="cat-node__draft">
-                <el-input
-                  ref="nameInput"
-                  v-model="draftName"
-                  size="small"
-                  placeholder="分类名称，回车保存"
-                  class="cat-node__input"
-                  @keyup.enter="commitDraft"
-                  @blur="onDraftBlur"
-                />
-                <el-select
-                  v-if="draftScope === 'DEPARTMENT'"
-                  v-model="draftDeptId"
-                  size="small"
-                  placeholder="选择部门"
-                  class="cat-node__dept"
-                  data-test="category-dept-select"
-                  @change="commitDraft"
-                  @visible-change="(v: boolean) => { if (!v) commitDraft() }"
-                >
-                  <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
-                </el-select>
-              </div>
+              <!-- 部门分类的所属部门由系统自动判定（本部门，兜底系统默认部门），
+                   不再让用户选「部门」，避免多一步无意义的选择。 -->
+              <el-input
+                ref="nameInput"
+                v-model="draftName"
+                size="small"
+                placeholder="分类名称，回车保存"
+                class="cat-node__input"
+                @keyup.enter="commitDraft"
+                @blur="onDraftBlur"
+              />
             </template>
 
             <template v-else>
@@ -393,7 +381,13 @@ defineExpose({ reload, clearSelection })
               <el-tag v-if="data.scope === 'PERSONAL'" size="small" effect="plain" class="cat-node__badge">
                 个人
               </el-tag>
-              <el-tag v-else-if="data.scope === 'DEPARTMENT'" size="small" effect="plain" class="cat-node__badge">
+              <el-tag
+                v-else-if="data.scope === 'DEPARTMENT'"
+                size="small"
+                effect="plain"
+                type="success"
+                class="cat-node__badge"
+              >
                 {{ deptName(data.deptId) }}
               </el-tag>
               <el-tag v-else-if="data.scope === 'ORG'" size="small" effect="plain" type="warning" class="cat-node__badge">
@@ -496,15 +490,6 @@ defineExpose({ reload, clearSelection })
   pointer-events: none;
 }
 .cat-node__input {
-  width: 100%;
-}
-.cat-node__draft {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-}
-.cat-node__dept {
   width: 100%;
 }
 .cat-node__ops {
