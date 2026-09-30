@@ -102,7 +102,13 @@ paths:
       summary: 用户列表（人员选择器；手机号脱敏）
       parameters:
         - { name: deptId, in: query, schema: { type: integer, format: int64 } }
-        - { name: keyword, in: query, schema: { type: string } }
+        - { name: keyword, in: query, schema: { type: string }, description: 按 username 或 name 模糊匹配 }
+        - name: includeSubDept
+          in: query
+          schema: { type: boolean, default: false }
+          description: deptId 是否视为部门子树（含下级部门）。大型组织（数千部门）中间层节点通常无直属成员，人员选择器需传 true
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
       responses:
         '200': { $ref: '#/components/responses/UserPage' }
     post:

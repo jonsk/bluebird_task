@@ -219,7 +219,12 @@ export interface paths {
             parameters: {
                 query?: {
                     deptId?: number;
+                    /** @description 按 username 或 name 模糊匹配 */
                     keyword?: string;
+                    /** @description deptId 是否视为部门子树（含下级部门）。大型组织（数千部门）中间层节点通常无直属成员，人员选择器需传 true */
+                    includeSubDept?: boolean;
+                    page?: number;
+                    size?: number;
                 };
                 header?: never;
                 path?: never;
