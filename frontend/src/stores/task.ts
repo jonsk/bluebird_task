@@ -28,12 +28,26 @@ export const useTaskStore = defineStore('task', () => {
   /** 左栏筛选：分类子树 / 自定义栏（与 scope、keyword 叠加）。 */
   const categoryId = ref<number | null>(null)
   const menuId = ref<number | null>(null)
+  /**
+   * 右栏日历选中的日期（yyyy-MM-dd）。语义随视图而定：
+   * `day`＝该日**新建**的任务（旧系统 getDayTask 的 task_setup_time）；
+   * `week`＝以该日为起点的 7 天窗口；其余视图忽略。
+   */
+  const date = ref<string | null>(null)
 
   const isEmpty = computed(() => !loading.value && list.value.length === 0)
 
   async function fetchList(
     scope: Scope,
-    opts: { keyword?: string; subordinate?: boolean; categoryId?: number | null; menuId?: number | null; page?: number; size?: number } = {},
+    opts: {
+      keyword?: string
+      subordinate?: boolean
+      categoryId?: number | null
+      menuId?: number | null
+      date?: string | null
+      page?: number
+      size?: number
+    } = {},
   ): Promise<void> {
     currentScope.value = scope
     loading.value = true
@@ -44,6 +58,7 @@ export const useTaskStore = defineStore('task', () => {
         subordinate: opts.subordinate ?? subordinate.value,
         categoryId: opts.categoryId === undefined ? (categoryId.value ?? undefined) : (opts.categoryId ?? undefined),
         menuId: opts.menuId === undefined ? (menuId.value ?? undefined) : (opts.menuId ?? undefined),
+        date: opts.date === undefined ? (date.value ?? undefined) : (opts.date ?? undefined),
         page: opts.page ?? 1,
         size: opts.size ?? 100,
       })
@@ -67,10 +82,11 @@ export const useTaskStore = defineStore('task', () => {
     menuId.value = id
   }
 
-  /** 清除分类 + 自定义栏筛选。 */
+  /** 清除分类 + 自定义栏 + 日期筛选。 */
   function clearFilters(): void {
     categoryId.value = null
     menuId.value = null
+    date.value = null
   }
 
   async function fetchCounts(): Promise<void> {
@@ -122,6 +138,7 @@ export const useTaskStore = defineStore('task', () => {
     collectedIds,
     categoryId,
     menuId,
+    date,
     isEmpty,
     fetchList,
     fetchCounts,

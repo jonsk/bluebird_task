@@ -37,8 +37,9 @@ const scopeIcon = computed(() => {
 })
 
 const keyword = ref('')
-const dateFilter = ref<string | null>(null)
 const activeId = ref<number | null>(null)
+/** 日历日期筛选只在按时间开窗的视图生效（day/week），其余视图不展示该筛选项。 */
+const scopeUsesDate = computed(() => scope.value === 'day' || scope.value === 'week')
 
 const currentUserId = computed(() => (auth.user?.id != null ? Number(auth.user.id) : null))
 
@@ -49,13 +50,14 @@ async function reload(): Promise<void> {
 
 watch(scope, () => {
   keyword.value = ''
-  dateFilter.value = null
+  // 切视图回到「默认」：我的一天即当天，未来 7 天即从今天起
+  taskStore.date = null
   activeId.value = null
   void reload()
 })
 
 watch(
-  () => [taskStore.categoryId, taskStore.menuId],
+  () => [taskStore.categoryId, taskStore.menuId, taskStore.date],
   () => {
     void reload()
   },
@@ -76,12 +78,13 @@ const activeCategoryName = computed(() => {
 })
 
 const activeMenuName = computed(() => menuStore.menus.find((m) => Number(m.id) === taskStore.menuId)?.name ?? '')
-const hasFilter = computed(() => taskStore.categoryId != null || taskStore.menuId != null || dateFilter.value != null)
+const hasFilter = computed(
+  () => taskStore.categoryId != null || taskStore.menuId != null || (scopeUsesDate.value && taskStore.date != null),
+)
 
 function clearAllFilters(): void {
   taskStore.clearFilters()
   keyword.value = ''
-  dateFilter.value = null
 }
 
 onMounted(async () => {
@@ -190,8 +193,13 @@ async function onRemove(task: TaskVO): Promise<void> {
                 >
                   自定义栏：{{ activeMenuName || taskStore.menuId }}
                 </el-tag>
-                <el-tag v-if="dateFilter" closable data-test="filter-date" @close="dateFilter = null">
-                  日期：{{ dateFilter }}
+                <el-tag
+                  v-if="taskStore.date"
+                  closable
+                  data-test="filter-date"
+                  @close="taskStore.date = null"
+                >
+                  日期：{{ taskStore.date }}
                 </el-tag>
                 <el-button text size="small" @click="clearAllFilters">清除筛选</el-button>
               </div>
@@ -220,7 +228,7 @@ async function onRemove(task: TaskVO): Promise<void> {
 
       <div class="calendar-box">
         <div class="calendar-box-content">
-          <BbMiniCalendar :selected="dateFilter" @select-date="dateFilter = $event" />
+          <BbMiniCalendar :selected="taskStore.date" @select-date="taskStore.date = $event" />
         </div>
         <div class="detail">
           <BbTaskDetailPanel
