@@ -1,5 +1,7 @@
 # 行为契约：RightBoxDialog/index.vue → BbTaskDetailDrawer
 
+> **目标态更新（2026-09-30）**：旧系统 UI 对齐后，详情改为**右栏内联面板**（非覆盖式抽屉），组件更名为 **`BbTaskDetailPanel.vue`**（`BbTaskDetailDrawer.vue` 已删除）。本契约记录的行为规则（字段/交互/权限）仍适用；仅容器形态由「抽屉」改「内联面板」。
+
 > 源：`bluebird_task_Front/src/layoutNew/components/RightBoxDialog/index.vue`（已读源码 L1-996；行号为导出时快照，以方法名/类名/字段名为准）
 
 - 用途：任务详情 / 编辑右侧抽屉。承载任务完成勾选、标题、步骤（子任务）、截止日期、提醒、重复、标签、附件、接收用户、备注，以及删除任务与关闭抽屉。

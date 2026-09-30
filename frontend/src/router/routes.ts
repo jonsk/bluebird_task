@@ -33,9 +33,9 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
     children: [
       { path: 'index', name: 'index', component: TaskView, meta: { title: '我的一天' } },
-      { path: 'myWeek', name: 'myWeek', component: TaskView, meta: { title: '未来 7 天' } },
-      { path: 'myJoin', name: 'myJoin', component: TaskView, meta: { title: '我@Ta的' } },
-      { path: 'myDo', name: 'myDo', component: TaskView, meta: { title: '分配给我的' } },
+      { path: 'myWeek', name: 'myWeek', component: TaskView, meta: { title: '未来7天任务' } },
+      { path: 'myJoin', name: 'myJoin', component: TaskView, meta: { title: '我@Ta的任务' } },
+      { path: 'myDo', name: 'myDo', component: TaskView, meta: { title: '分配给我的任务' } },
       { path: 'myCollect', name: 'myCollect', component: TaskView, meta: { title: '我的收藏' } },
       { path: 'allTask', name: 'allTask', component: TaskView, meta: { title: '全部任务' } },
       {

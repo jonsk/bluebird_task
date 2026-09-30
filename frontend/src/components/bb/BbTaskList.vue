@@ -5,7 +5,7 @@ import type { TaskVO } from '@/api/task'
 import type { RoleCode } from '@/utils/constants'
 
 /**
- * 任务列表（03 §5.3.2）。写权限：owner/assignee/ADMIN（CC 只读，02 §4.7）。
+ * 任务列表（旧 `.t-b-list-box`）。写权限：owner/assignee/ADMIN（CC 只读，02 §4.7）。
  */
 const props = withDefaults(
   defineProps<{
@@ -24,7 +24,9 @@ const emit = defineEmits<{
   (e: 'toggle', task: TaskVO): void
   (e: 'collect', task: TaskVO): void
   (e: 'open', task: TaskVO): void
+  (e: 'edit', task: TaskVO): void
   (e: 'remove', task: TaskVO): void
+  (e: 'moved'): void
 }>()
 
 function writableOf(task: TaskVO): boolean {
@@ -46,7 +48,9 @@ function writableOf(task: TaskVO): boolean {
       @toggle="emit('toggle', $event)"
       @collect="emit('collect', $event)"
       @open="emit('open', $event)"
+      @edit="emit('edit', $event)"
       @remove="emit('remove', $event)"
+      @moved="emit('moved')"
     />
     <BbEmpty v-if="!loading && !tasks.length" :description="emptyText" />
   </div>

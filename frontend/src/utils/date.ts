@@ -44,6 +44,22 @@ export function toOffsetIso(input: Date | string | number): string {
   return `${base}+08:00`
 }
 
+/** 主区标题下的日期行（旧 `.r-b-t-l-l-t-bottom`）：`9月30日 星期三`。 */
+export function formatHeaderDate(input?: string | number | Date | null): string {
+  const date = input ? (input instanceof Date ? input : new Date(input)) : new Date()
+  if (Number.isNaN(date.getTime())) return ''
+  const week = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][date.getDay()]
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${week}`
+}
+
+/** 任务卡「创建于」段（旧 `.span-generated-on`）：`09月05日`。 */
+export function formatCreatedDate(input?: string | number | Date | null): string {
+  if (!input) return ''
+  const date = input instanceof Date ? input : new Date(input)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${pad(date.getMonth() + 1)}月${pad(date.getDate())}日`
+}
+
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n)
 }

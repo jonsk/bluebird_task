@@ -1,89 +1,57 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { Expand } from '@element-plus/icons-vue'
 import BbFilterRail from '@/components/bb/BbFilterRail.vue'
-import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
 import { useTaskStore } from '@/stores/task'
 
 /**
- * 唯一布局（三栏，03 §5.2）：左栏 BbFilterRail（六视图计数 + 分类树 + 自定义栏）
- * + 中栏 router-view + 右栏抽屉由 TaskView 内嵌。
+ * 唯一布局（旧 `.main-box`，03 §5.2）：左栏 BbFilterRail + 主区 router-view。
+ * 旧系统无顶部 header —— 用户块/退出在左栏顶部；左栏可由 Fold 整体收起（旧 AppMain 的展开按钮）。
  */
-const auth = useAuthStore()
+const app = useAppStore()
 const taskStore = useTaskStore()
-const router = useRouter()
 
 onMounted(() => {
   void taskStore.fetchCounts()
 })
-
-async function onLogout(): Promise<void> {
-  await auth.logout()
-  await router.replace('/login')
-}
 </script>
 
 <template>
   <div class="layout">
-    <header class="layout__header">
-      <div class="layout__brand">BlueBird 任务</div>
-      <div class="layout__user">
-        <span>{{ auth.user?.name ?? auth.user?.username ?? '未登录' }}</span>
-        <span class="layout__role">{{ auth.roleCode }}</span>
-        <a class="layout__logout" @click="onLogout">退出</a>
-      </div>
-    </header>
+    <BbFilterRail v-show="!app.leftCollapsed" />
 
-    <div class="layout__body">
-      <BbFilterRail />
-
-      <main class="layout__main">
-        <router-view />
-      </main>
-    </div>
+    <main class="layout__main">
+      <el-tooltip v-if="app.leftCollapsed" content="展开菜单" placement="bottom" effect="light">
+        <el-icon class="layout__expand" data-test="rail-expand" @click="app.toggleLeft()"><Expand /></el-icon>
+      </el-tooltip>
+      <router-view />
+    </main>
   </div>
 </template>
 
 <style scoped>
 .layout {
   display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-.layout__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: var(--bb-header-height);
-  padding: 0 20px;
-  background: #fff;
-  border-bottom: 1px solid #eef0f3;
-}
-.layout__brand {
-  font-weight: 600;
-  color: var(--bb-color-primary);
-}
-.layout__user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-}
-.layout__role {
-  color: var(--bb-color-muted);
-}
-.layout__logout {
-  color: var(--bb-color-primary);
-  cursor: pointer;
-}
-.layout__body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-secondary);
 }
 .layout__main {
+  position: relative;
   flex: 1;
   min-width: 0;
+  height: 100vh;
   overflow: auto;
+}
+.layout__expand {
+  position: absolute;
+  top: 18px;
+  left: 10px;
+  z-index: 10;
+  font-size: 18px;
+  color: var(--bb-text-secondary);
+  cursor: pointer;
 }
 </style>

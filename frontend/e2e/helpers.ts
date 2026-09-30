@@ -26,7 +26,7 @@ export async function login(page: Page, username = 'admin', password = 'admin123
   await page.getByPlaceholder('密码').fill(password)
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/\/index$/)
-  await expect(page.locator('.layout__brand')).toHaveText('BlueBird 任务')
+  await expect(page.locator('.left-title__name')).toHaveText('管理员')
   await settle(page)
 }
 
@@ -41,17 +41,28 @@ export async function settle(page: Page): Promise<void> {
   await expect(page.locator('.layout__count')).toHaveCount(6)
   await expect(page.locator('.bb-task-list')).toBeVisible()
   await expect(page.locator('.bb-cat .cat-node')).toHaveCount(7)
-  await expect(page.locator('.bb-menu .bb-menu__item')).toHaveCount(3)
+  await expect(page.locator('[data-test="menu-row"]')).toHaveCount(3)
 }
 
-/** 左栏导航项（按 href，避免文案/计数变化导致误匹配）。 */
-export function nav(page: Page, href: string) {
-  return page.locator(`.layout__nav-item[href="${href}"]`)
+/** 路由路径 → 左栏 data-test 键（管理页路径含斜杠，需显式映射）。 */
+const NAV_KEY: Record<string, string> = {
+  '/admin/users': 'adminUsers',
+  '/admin/depts': 'adminDepts',
+  '/admin/audit': 'adminAudit',
 }
 
-/** 点击左栏导航并等待目标路由（含列表稳定）。 */
-export async function goView(page: Page, href: string, urlPattern: RegExp): Promise<void> {
-  await nav(page, href).click()
+/**
+ * 左栏导航项。接受路由名或路径（`/allTask` 与 `allTask` 等价），
+ * 亦可用于左栏底部的「日历 / 用户管理 / 部门管理 / 日志」图标项。
+ */
+export function nav(page: Page, key: string) {
+  const k = NAV_KEY[key] ?? key.replace(/^\//, '')
+  return page.locator(`[data-test="nav-${k}"]`)
+}
+
+/** 点击左栏导航并等待目标路由。 */
+export async function goView(page: Page, key: string, urlPattern: RegExp): Promise<void> {
+  await nav(page, key).click()
   await expect(page).toHaveURL(urlPattern)
 }
 
@@ -63,4 +74,14 @@ export function card(page: Page, title: string) {
 /** 任务卡片标题文本列表。 */
 export function cardTitles(page: Page) {
   return page.locator('.bb-task-card__title')
+}
+
+/** 右侧内联任务详情面板（旧 `.dialog-right-box`）。 */
+export function detailPanel(page: Page) {
+  return page.locator('.dialog-right-box')
+}
+
+/** 列表顶部内联任务编辑器（旧 `.t-b-input-box`）。 */
+export function composer(page: Page) {
+  return page.locator('.t-b-input-box')
 }

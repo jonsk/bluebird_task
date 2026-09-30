@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test'
-import { card, cardTitles, freezeTime, goView, gotoLogin, login, nav } from './helpers'
+import { card, cardTitles, composer, detailPanel, freezeTime, goView, gotoLogin, login, nav } from './helpers'
 
 /**
  * E2E 验收（新前端 · MSW 直连 `docs/frontend-baseline/fixtures/api/**`）。
  *
  * 场景编号对齐 `docs/frontend-baseline/e2e/scenarios.md`（E-01..E-17）。
  * 旧前端基线（前半段）见 `scripts/golden-capture/e2e-baseline.mjs`；本文件为后半段「新前端验收」。
+ *
+ * 选择器已按**旧系统对齐后的 UI**校准：无顶部 header（用户块在左栏 `.left-title__name`）、
+ * 内联编辑器 `.t-b-input-box`、右侧内联详情面板 `.dialog-right-box`。
  */
 
 test.beforeEach(async ({ page }) => {
@@ -14,8 +17,8 @@ test.beforeEach(async ({ page }) => {
 
 test('E-01 登录（账密）', async ({ page }) => {
   await login(page)
-  await expect(page.locator('.layout__user')).toContainText('管理员')
-  await expect(nav(page, '/index')).toHaveClass(/is-active/)
+  await expect(page.locator('.left-title__name')).toHaveText('管理员')
+  await expect(nav(page, '/index')).toHaveClass(/item-active/)
 })
 
 test('E-01b 登录失败提示且停留登录页', async ({ page }) => {
@@ -29,7 +32,8 @@ test('E-01b 登录失败提示且停留登录页', async ({ page }) => {
 
 test('E-02 外部登录默认关闭（provider=LOCAL）', async ({ page }) => {
   await gotoLogin(page)
-  await expect(page.getByRole('button', { name: 'OIDC 登录' })).toHaveCount(0)
+  await expect(page.locator('.demo-tabs')).toHaveCount(0)
+  await expect(page.getByText('企业微信')).toHaveCount(0)
 })
 
 test('E-03 六大视图切换：计数（fixtures count）与列表（fixtures list 过滤）一致', async ({ page }) => {
@@ -49,24 +53,22 @@ test('E-03 六大视图切换：计数（fixtures count）与列表（fixtures l
   }
 })
 
-test('E-04 新建主任务', async ({ page }) => {
+test('E-04 新建主任务（列表顶部内联编辑器）', async ({ page }) => {
   await login(page)
-  await page.getByRole('button', { name: '新建任务' }).click()
-  const dialog = page.locator('.el-dialog:visible')
-  await expect(dialog).toBeVisible()
-  await dialog.getByPlaceholder('任务标题').fill('E2E 新建任务')
-  await dialog.getByRole('button', { name: '保存' }).click()
+  const box = composer(page)
+  await box.getByPlaceholder('添加任务').fill('E2E 新建任务')
+  await box.getByRole('button', { name: '添加' }).click()
   await expect(page.locator('.el-message--success')).toBeVisible()
   await expect(card(page, 'E2E 新建任务')).toHaveCount(1)
 })
 
-test('E-05 子任务列表（详情抽屉，只读列举）', async ({ page }) => {
+test('E-05 子任务列表（详情面板，只读列举）', async ({ page }) => {
   await login(page)
   await card(page, '提交季度报告').click()
-  const drawer = page.locator('.el-drawer:visible')
-  await expect(drawer).toBeVisible()
-  await expect(drawer.locator('.bb-detail__subtask')).toHaveCount(3)
-  await expect(drawer.locator('.bb-detail__subtask').first()).toContainText('收集数据')
+  const panel = detailPanel(page)
+  await expect(panel).toBeVisible()
+  await expect(panel.locator('.drbb-subtask')).toHaveCount(3)
+  await expect(panel.locator('.drbb-subtask').first()).toContainText('收集数据')
 })
 
 test('E-06 完成任务（全部任务视图置已完成）', async ({ page }) => {
@@ -79,7 +81,7 @@ test('E-06 完成任务（全部任务视图置已完成）', async ({ page }) =
 test('E-07 收藏（出现在「我的收藏」）', async ({ page }) => {
   await login(page)
   await goView(page, '/allTask', /\/allTask$/)
-  await card(page, '逾期演示任务').locator('.bb-task-card__side button').first().click()
+  await card(page, '逾期演示任务').locator('.bb-task-card__op').first().click()
   await goView(page, '/myCollect', /\/myCollect$/)
   await expect(cardTitles(page)).toHaveCount(2)
   await expect(card(page, '逾期演示任务')).toHaveCount(1)
@@ -87,43 +89,44 @@ test('E-07 收藏（出现在「我的收藏」）', async ({ page }) => {
 
 test('E-09 删除任务（二次确认，文案不可恢复）', async ({ page }) => {
   await login(page)
-  await card(page, '逾期演示任务').locator('.bb-task-card__side button').last().click()
+  await card(page, '逾期演示任务').locator('.bb-task-card__op').last().click()
   const box = page.locator('.el-message-box:visible')
   await expect(box).toContainText('不可恢复')
   await box.getByRole('button', { name: '删除' }).click()
   await expect(card(page, '逾期演示任务')).toHaveCount(0)
 })
 
-test('E-11 标签数据（fixtures 直连着色）', async ({ page }) => {
+test('E-11 标签数据（fixtures 直连，顶部标签入口）', async ({ page }) => {
   await login(page)
-  await goView(page, '/allTask', /\/allTask$/)
-  await expect(card(page, '提交季度报告').locator('.el-tag', { hasText: '重要' })).toHaveCount(1)
-  await expect(card(page, '逾期演示任务').locator('.el-tag', { hasText: '紧急' })).toHaveCount(1)
+  await page.locator('.r-b-t-r-item').click()
+  const inputs = page.locator('.bb-tag-config__input input')
+  await expect(inputs).toHaveCount(4) // 3 个 fixtures 标签 + 1 个新增输入框
+  await expect(inputs.first()).toHaveValue('重要')
 })
 
-test('E-12 人员选择（fixtures 用户源）', async ({ page }) => {
+test('E-12 人员选择（fixtures 用户源，编辑器指派）', async ({ page }) => {
   await login(page)
-  await page.getByRole('button', { name: '新建任务' }).click()
-  const dialog = page.locator('.el-dialog:visible')
-  await dialog.locator('.el-form-item', { hasText: '负责人' }).locator('.el-select').click()
+  const box = composer(page)
+  await box.getByPlaceholder('添加任务').click()
+  await box.locator('[data-test="composer-assignee"]').click()
   const options = page.locator('.el-select-dropdown:visible .el-select-dropdown__item')
   await expect(options).toHaveCount(4)
   await expect(options.filter({ hasText: '张三' })).toHaveCount(1)
   await expect(options.filter({ hasText: '王五' })).toHaveCount(1)
 })
 
-test('E-13 附件上传（详情抽屉）', async ({ page }) => {
+test('E-13 附件上传（详情面板）', async ({ page }) => {
   await login(page)
   await card(page, '提交季度报告').click()
-  const drawer = page.locator('.el-drawer:visible')
-  await expect(drawer.locator('.bb-attachments__item')).toHaveCount(1)
-  await drawer.locator('input[type=file]').setInputFiles({
+  const panel = detailPanel(page)
+  await expect(panel.locator('.bb-attachments__item')).toHaveCount(1)
+  await panel.locator('input[type=file]').setInputFiles({
     name: 'e2e-upload.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('bluebird e2e'),
   })
   await expect(page.locator('.el-message--success')).toContainText('上传成功')
-  await expect(drawer.locator('.bb-attachments__item')).toHaveCount(2)
+  await expect(panel.locator('.bb-attachments__item')).toHaveCount(2)
 })
 
 test('E-14 用户管理（ADMIN）', async ({ page }) => {
@@ -146,7 +149,7 @@ test('E-15 审计日志（操作 + 登录）', async ({ page }) => {
 test('E-16 周期任务（列表标记 + 日历按实例展开）', async ({ page }) => {
   await login(page)
   await goView(page, '/allTask', /\/allTask$/)
-  await expect(page.locator('.bb-task-card').filter({ hasText: '周期' })).toHaveCount(3)
+  await expect(page.locator('[data-test="cycle"]')).toHaveCount(3)
   await goView(page, '/calendar', /\/calendar$/)
   await expect(page.locator('.calendar-view__task')).toHaveCount(3)
   await expect(page.locator('.calendar-view__task').first()).toContainText('每日站会')

@@ -60,7 +60,7 @@ docs/frontend-baseline/
 |---|---|---|
 | 业务行为契约 | 16 | ✅ 16（`contracts/Bb*.md`） |
 | 原子设计契约 | 14 | ✅ 14（`contracts/Bb*.md`，风格契约） |
-| E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`）；**旧基线已跑 9 项通过**（`scripts/golden-capture/e2e-baseline.mjs`）；**新前端 18/18 场景通过**（`frontend/e2e/`，27 项含 8 项视觉回归，2026-09-29） |
+| E2E 场景清单 | 已列 | ✅ 17 场景（`e2e/scenarios.md`）；**旧基线已跑 9 项通过**（`scripts/golden-capture/e2e-baseline.mjs`）；**新前端 18/18 场景通过**（`frontend/e2e/`，共 28 项 = 19 场景 + 9 项视觉回归，2026-09-30） |
 | fixtures JSON | 有样例 | ✅ 双形态：`fixtures/api/**`（新接口：读态 + **写态 21** + **错误态 19**（`02 §1.4` 全覆盖）+ auth 4 + 分类/栏详情态与空态）+ `fixtures/legacy-api/**`（旧接口）；**新前端 MSW 已直连 `fixtures/api/**`**（`frontend/src/mocks/fixtures.ts`）；详见 `fixtures/README §5/§6` |
 | 黄金截图/录屏证据 | 采集 | ✅ **38 张 PNG（19 基线 + 19 空/异常态）+ 1 录屏**（`screenshots/`，fixtures 注入，确定性；由仓根 `scripts/golden-capture/` 复现）；**图片/录屏按策略不入库**（`.gitignore`，0304/D3）；新前端回归基线另存 `frontend/e2e/__screenshots__/`（**入库**） |
 | API 契约源 | 就位 | ✅ `../../docs/api/openapi.yaml` 初版（M1） |
@@ -78,6 +78,16 @@ docs/frontend-baseline/
 
 ## 5. 历史与变更记录
 
+- **2026-09-30（旧系统 UI 全量对齐）**：用户要求「界面与旧系统对齐」，授权查看旧前端源码并访问线上 `http://10.14.37.187:8081/`。以 Playwright 驱动实时旧系统提取**几何 + 计算样式规格**（`getBoundingClientRect()`/`getComputedStyle()`）作为客观靶心，全面改造新前端：
+  - **布局**：删除顶部 header；左栏 `300px`（`.left-box`）、页面底 `#faf9f8`、主区 `.right-box-top`(50px)/`.todo-box`(padding `0 20px`)、右栏日历 `360px`。
+  - **左栏**：`.left-title`(64px) 用户块（16px/14px + Fold/退出）；六视图 50px 行（18px 图标 + 计数，`全部任务` 行 `borderBottom:2px solid #0065c0`）；自定义栏内联行；底部 50px 管理入口。
+  - **主区**：内联编辑器 `.t-b-input-box`（h52、placeholder「添加任务」）；卡片 62px 白底 Fluent 行（信息行顺序同旧站：创建于/子任务进度/截止/提醒/优先级/周期/指派）。
+  - **右栏**：`BbMiniCalendar`(280px) + 内联 `BbTaskDetailPanel`（旧 `.dialog-right-box`）。
+  - **组件增删**：新增 `BbTaskDetailPanel/BbMiniCalendar/BbTagConfig`；删除 `BbTaskDetailDrawer/BbCustomMenu`（自定义栏并入 `BbFilterRail`）；`tokens.css` 改旧色板 + 布局常量。
+  - **文案对齐**：六视图旧文案（我的一天/未来7天任务/我@Ta的任务/分配给我的任务/我的收藏/全部任务）；登录页 400×480 白卡 + 24px `#555` 标题。
+  - **测试**：`pnpm test:e2e` = **28 passed**（`filter-rail` 3 + `task-flow` 16 + 视觉回归 9）；基线新增 `component-sidebar-leftbox-1440x900.png`、`task-detail-panel-1440x900.png`（原 `task-detail-drawer-*` 删除）。
+  - **修复**：`BbTaskCard` 卡片点击 `emit('open', props.task)`（原引用未定义的 `task` → `ReferenceError`，导致详情面板永不打开，E-05/E-13/详情面板视觉连环失败）；E-08 改名改用 `.bb-menu-row__input input` 定位。
+  - **刻意偏离（8 条，详见 `frontend/README.md`）**：详情面板内联而非抽屉、日历常驻右栏、标签入口在主区顶栏、左栏底部放管理入口、子任务创建 disabled（无 `parentId`）、登录背景用渐变、单 Tab 隐藏、不复制旧站横向溢出。
 - **2026-09-29（E-08/E-10 补 UI + 后端契约/缺陷修复）**：
   - **左栏 UI 补齐**：新增 `frontend/src/components/bb/BbFilterRail.vue`（左栏承载：六视图计数 + 分类树 + 自定义栏，替代 `DefaultLayout` 内联 nav）、`BbCategoryTree.vue`（`GET/POST/PUT/DELETE /categories`；范围过滤 全部/个人/部门/组织、范围徽标、只读锁定、悬停增/改/删、拖拽改父级、点选联动）、`BbCustomMenu.vue`（`/menus` CRUD + 条目）；`BbTaskDetailDrawer` 增「移动到自定义栏」（`POST /menus/{id}/items`）；`TaskView` 增筛选条（分类/自定义栏 chip + 清除）。新增 `stores/menu.ts`；`task` store 增 `categoryId/menuId` 筛选态。
   - **契约扩展**：`GET /tasks` 增 `categoryId`（**子树**，ADR-015 共享分类）/`menuId`（仅本人栏）查询参数（`docs/api/openapi.yaml` + 后端 `TaskQuery`/`TaskQueryService`/`TaskController` + MSW 同步实现）。
