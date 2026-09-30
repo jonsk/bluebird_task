@@ -6,7 +6,6 @@ import {
   Calendar,
   CircleClose,
   Flag,
-  Link,
   Notebook,
   Paperclip,
   RefreshRight,
@@ -286,7 +285,6 @@ async function onAddStep(): Promise<void> {
               :readonly="!writable"
               @blur="onSaveTitle"
             />
-            <div class="drbbi-one__link"><el-icon :size="24"><Link /></el-icon></div>
           </div>
           <div class="drbbi-one-child">
             <el-icon class="t-b-i-b-d-icon"><Paperclip /></el-icon>
@@ -472,15 +470,6 @@ async function onAddStep(): Promise<void> {
   font-size: 15px;
   box-shadow: none;
   padding: 8px;
-}
-.drbbi-one__link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  margin-right: 4px;
-  color: var(--bb-text-secondary);
-  cursor: pointer;
 }
 .drbbi-one-child {
   display: flex;
