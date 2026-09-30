@@ -113,6 +113,36 @@ public class DepartmentService {
         departmentMapper.deleteById(id);
     }
 
+    /**
+     * 部门 id **及其全部后代** id（含自身）。
+     *
+     * <p>用于「含下级部门」的人员检索：大型组织（数千部门）里中间层节点往往没有直属成员，
+     * 只按 deptId 精确匹配会让用户以为「这个部门没人」。
+     */
+    public Set<Long> deptAndDescendants(Long rootId) {
+        if (rootId == null) {
+            return Set.of();
+        }
+        List<Department> all = departmentMapper.selectList(Wrappers.<Department>lambdaQuery()
+                .select(Department::getId, Department::getParentId));
+        Map<Long, List<Long>> childrenOf = new HashMap<>();
+        for (Department d : all) {
+            if (d.getParentId() != null) {
+                childrenOf.computeIfAbsent(d.getParentId(), k -> new ArrayList<>()).add(d.getId());
+            }
+        }
+        Set<Long> ids = new HashSet<>();
+        Deque<Long> queue = new ArrayDeque<>();
+        queue.add(rootId);
+        while (!queue.isEmpty()) {
+            Long cur = queue.poll();
+            if (ids.add(cur)) {
+                queue.addAll(childrenOf.getOrDefault(cur, List.of()));
+            }
+        }
+        return ids;
+    }
+
     /** 部门 id → 名称。 */
     public Map<Long, String> nameMap() {
         Map<Long, String> m = new HashMap<>();

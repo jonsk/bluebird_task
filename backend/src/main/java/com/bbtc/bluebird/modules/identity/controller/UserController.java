@@ -43,9 +43,10 @@ public class UserController {
     @GetMapping
     public ApiResult<PageResult<UserDTO>> page(@RequestParam(required = false) Long deptId,
                                                @RequestParam(required = false) String keyword,
+                                               @RequestParam(defaultValue = "false") boolean includeSubDept,
                                                @RequestParam(defaultValue = "1") long page,
                                                @RequestParam(defaultValue = "20") long size) {
-        return ApiResult.ok(userService.page(deptId, keyword, page, size));
+        return ApiResult.ok(userService.page(deptId, keyword, includeSubDept, page, size));
     }
 
     @Operation(summary = "新增用户（ADMIN）")

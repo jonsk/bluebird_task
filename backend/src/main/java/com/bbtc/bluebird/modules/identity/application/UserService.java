@@ -14,6 +14,7 @@ import com.bbtc.bluebird.modules.identity.dto.PasswordUpdateReq;
 import com.bbtc.bluebird.modules.identity.dto.UserDTO;
 import com.bbtc.bluebird.modules.identity.dto.UserUpdateReq;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
+import com.bbtc.bluebird.modules.org.application.DepartmentService;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ public class UserService {
 
     private final SysUserMapper userMapper;
     private final DepartmentMapper departmentMapper;
+    private final DepartmentService departmentService;
     private final PasswordEncoder passwordEncoder;
 
     public UserDTO me() {
@@ -48,12 +50,26 @@ public class UserService {
         return toDto(u, deptNames(List.of(u)));
     }
 
-    public PageResult<UserDTO> page(Long deptId, String keyword, long page, long size) {
+    /**
+     * 用户分页查询。
+     *
+     * @param includeSubDept 为 true 时 {@code deptId} 视为**部门子树**（含下级部门）——
+     *                       大型组织中间层节点通常没有直属成员，见 {@link DepartmentService#deptAndDescendants}
+     */
+    public PageResult<UserDTO> page(Long deptId, String keyword, boolean includeSubDept, long page, long size) {
         if (size > 100) size = 100;
         if (page < 1) page = 1;
+        Set<Long> deptScope = null;
+        if (deptId != null) {
+            deptScope = includeSubDept ? departmentService.deptAndDescendants(deptId) : Set.of(deptId);
+            if (deptScope.isEmpty()) {
+                return PageResult.of(List.of(), 0, page, size);
+            }
+        }
+        final Set<Long> scope = deptScope;
         IPage<SysUser> p = userMapper.selectPage(new Page<>(page, size),
                 Wrappers.<SysUser>lambdaQuery()
-                        .eq(deptId != null, SysUser::getDeptId, deptId)
+                        .in(scope != null, SysUser::getDeptId, scope == null ? Set.of() : scope)
                         .and(StringUtils.hasText(keyword), w -> w
                                 .like(SysUser::getUsername, keyword).or().like(SysUser::getName, keyword))
                         .orderByAsc(SysUser::getId));
