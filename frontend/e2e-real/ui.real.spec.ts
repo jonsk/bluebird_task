@@ -327,11 +327,30 @@ test('#4/#8/#9/#10/#11 详情面板：不重叠 / 添加步骤 / 附件 / 子任
   const step = panel.locator('input[placeholder="添加步骤"]')
   check('#8 详情面板存在「添加步骤」入口（用户反馈 #8）', (await step.count()) > 0, 'missing')
   const before = await panel.locator('.drbb-subtask').count()
+  const stepTitles: string[] = []
   if (await step.count()) {
-    await step.fill(uniq('界面子任务-'))
-    await step.press('Enter')
-    await page.waitForTimeout(2200)
-    check('#8 可新建子任务', (await panel.locator('.drbb-subtask').count()) === before + 1, `${before} -> ${await panel.locator('.drbb-subtask').count()}`)
+    // 连加两个步骤：验证每个步骤都只成为子任务，**不会变成一条独立任务卡**
+    for (const prefix of ['界面子任务A-', '界面子任务B-']) {
+      const t = uniq(prefix)
+      stepTitles.push(t)
+      await step.fill(t)
+      await step.press('Enter')
+      await page.waitForTimeout(2200)
+    }
+    check(
+      '#8 可新建子任务（连加两个）',
+      (await panel.locator('.drbb-subtask').count()) === before + 2,
+      `${before} -> ${await panel.locator('.drbb-subtask').count()}`,
+    )
+    const subText = (await panel.locator('.drbb-subtask').allInnerTexts()).join('|')
+    check('#R27 两个步骤都显示在父任务详情里', stepTitles.every((t) => subText.includes(t)), subText.slice(0, 200))
+    // 关键回归：步骤不能作为独立任务出现在左侧列表里
+    const cards = (await page.locator('.bb-task-card__title').allInnerTexts()).map((t) => t.trim())
+    check(
+      '#R27 步骤没有变成独立任务（列表卡片数不增加）',
+      !stepTitles.some((t) => cards.some((c) => c.includes(t))),
+      JSON.stringify(cards.slice(0, 8)),
+    )
   }
 
   // #11 子任务状态可切换
