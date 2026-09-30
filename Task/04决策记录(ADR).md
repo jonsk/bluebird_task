@@ -271,4 +271,61 @@
 
 ---
 
+## ADR-017 主键改为 JS 安全的 53 位雪花变体（**修订「默认雪花 ID」实现口径**）
+
+- **状态**：已确认（2026-09-30，**联调实测发现的阻断级缺陷修复**）
+- **背景**：后端原用 MyBatis-Plus 默认雪花生成器（`id-type: assign_id`），产出 id 约 **2.1e18**，**超过 JavaScript 的 `Number.MAX_SAFE_INTEGER`（2^53-1 ≈ 9.007e15）**。浏览器 `JSON.parse` 会**静默改写末位**——实测服务端 `2105180185270796289` 经前端变为 `2105180185270796300`（差 11）。
+  - **后果（实测确认）**：所有「按 id 访问」的请求全部落空——点开任务详情返回 10004（面板显示「任务不存在」或停在空态），**无法编辑/完成/删除任务，子任务与附件操作一并失效**。前端大量使用 `Number(task.id)`（`TaskView.vue`、`stores/task.ts`、`BbTaskDetailPanel.vue` 等），**无法在客户端补救**。
+  - 该缺陷此前未被发现：前端 E2E 走 MSW fixtures（fixture 用小 id 如 101/1201），从未与真实后端联调。
+- **决策**：新增 `IdentifierGenerator` Bean（`config/mybatis/JsSafeIdGenerator`）取代 MP 默认实现：
+  ```
+  id = ((当前毫秒 - 纪元 2024-01-01T00:00:00Z) << 12) | 毫秒内序列
+  ```
+  - **41 位毫秒 + 12 位序列 = 恰好 53 位**，最大值 `2^53-1`，即前端可精确表示的整数上限，**前后端均不丢精度**。
+  - 保留时钟回拨兜底（≤5s 自旋追平，超出 fail-fast），与本仓 `common.util.IdGenerator`（02 §1.10 R7）同口径。
+  - **不保留 workerId**：ADR-016 已明确 SQLite **仅支持单实例**；多实例（集群化）本就必须更换为 C/S 数据库并重新设计 id/锁方案。
+  - 纪元 2024-01-01 起可用约 **69 年**（至 ~2093）。
+- **后果**：
+  - 新 id ≤ 9.007e15，浏览器与 Node 均可精确表示；**前端与 openapi 契约零改动**（id 仍为整数）。
+  - **修订** `02后端模块详细设计.md §1.10` 中「41 位毫秒 + 5 位 workerId + 12 位序列」的表述；实现以本 ADR 为准。
+  - **已存在的旧库**（2.1e18 量级 id）在界面上仍不可按 id 操作；按 **ADR-007「空库起步、不迁移旧数据」**，正常部署不受影响，但若已用旧 jar 建过库需重建。
+  - 多实例仍不可用（与 ADR-016 一致）。
+- **关系**：落地于 `backend/src/main/java/com/bbtc/bluebird/config/mybatis/JsSafeIdGenerator.java`；关联 ADR-007（空库起步）、ADR-016（SQLite 单实例）。
+
+---
+
+## ADR-018 用户必须归属部门 + 系统默认部门 + 用户联系方式契约
+
+- **状态**：已确认（2026-09-30，**联调验收反馈 #5/#8 落地**）
+- **背景**：验收发现三个问题——
+  1. **组织管理没有任何部门**：空库起步（ADR-007）后 `sys_department` 为空，而「新建用户」又需要部门，
+     形成「没部门可选 → 建不了用户」的死锁前态；
+  2. 用户**可以在没有部门的情况下被创建**，导致组织归属缺失、后续按部门过滤/组织级可见性（ADR-012）失效；
+  3. `mobile` 被**一律脱敏**（`138****0000`）返回，管理端拿不到原值就**无法编辑手机号**；且用户没有邮箱字段。
+- **决策**：
+  1. **系统默认顶级部门**：`sys_department` 增 `is_system`（Flyway `V3__dept_system_flag.sql`），
+     由 `DefaultDepartmentRunner` 在启动时保证「存在且仅一个受保护的顶级部门」：
+     空库创建「总公司」；旧库把**最早创建的顶级部门**提升为系统部门（幂等，不重复插入）。
+     该部门**可改名、不可删除**——`DepartmentService.delete` 依 `is_system` 拒绝，前端也不渲染删除入口。
+  2. **新建用户必须选择部门**：`CreateUserCmd.deptId` 加 `@NotNull`（缺失返回 10001），前端表单同步必填校验。
+  3. **无部门用户兜底**：`DefaultDepartmentRunner` 随后把 `dept_id IS NULL` 的用户归入默认部门，
+     覆盖 OIDC/SCIM 自动建号（自动建号本就不经管理端接口）与历史账号，保证「每个用户都有部门」成立。
+     执行顺序：`SeedAdminRunner`（`@Order(10)`）→ `DefaultDepartmentRunner`（`@Order(20)`），
+     使首次启动的种子 ADMIN 也在同一轮被归入默认部门。
+  4. **联系方式契约**：`UserVO` 增 `email`；`POST /users`、`PUT /users/{id}` 增可选 `mobile`/`email`
+     （**传空串表示清空**）。`mobile` 脱敏口径改为：**ADMIN / USER_MANAGER 与本人返回明文**，其余角色仍脱敏——
+     原「一律脱敏」使管理端无法编辑（用户反馈 #8）。
+- **后果**：
+  - 组织管理开箱即用；「每个用户都有部门」成为系统不变量；管理端可维护手机号与邮箱。
+  - 升级旧库时会自动补一个系统默认部门，并**把无部门用户改挂到该部门**（一次性、幂等，日志可见）。
+  - `PUT /users/{id}` 的 `mobile`/`email` 清空语义依赖显式 `UpdateWrapper.set`：
+    MyBatis-Plus `updateById` 默认忽略 null 字段，仅靠实体赋值无法清空。
+  - 角色仍为固定四值枚举（ADR-003），**不引入角色表/角色管理界面**；如需自定义角色属二期并需新 ADR。
+- **关系**：落地于 `V3__dept_system_flag.sql`、`DefaultDepartmentRunner`、`SeedAdminRunner`、`DepartmentService`、
+  `Department`/`DepartmentVO`、`CreateUserCmd`/`UserUpdateReq`/`UserDTO`、`UserService`、
+  `docs/api/openapi.yaml`（`UserVO.email`、`UserCreateReq`/`UserUpdateReq`、`Department.system`）、
+  `frontend/src/views/admin/OrgManage.vue`；关联 ADR-003（角色固定）、ADR-007（空库起步）、ADR-012（组织级可见性）。
+
+---
+
 > 关联文档：`01蓝鸟重构方案.md`（§1.3/§3/§4.2/§5/§7.5/§7.6/§7.7/§7.9/§8.0/§8.2/§8.2.1/§8.3/§9/§11/§12/§13/§14/§15）、`02后端模块详细设计.md`（§1.7/§1.7.1/§1.8/§1.8.1/§2/§3/§4.2/§5/§6）、`03前端模块详细设计.md`（§2 重写质量保障/§3.2/§5 模块设计）、`05需求覆盖矩阵.md`（企业级 TODO 需求 R1–R10 覆盖对照）、`06合规对照表.md`（等保 2.0 三级 + PIPL 对照）、`.gitignore`（`backend/src/main/resources/static/`）。
