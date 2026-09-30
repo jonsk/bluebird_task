@@ -1,6 +1,6 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElSelect } from 'element-plus'
 import { Bell, Calendar, Flag, Plus, RefreshRight, User } from '@element-plus/icons-vue'
 import { createTask, type CycleRule, type TaskUpsertPayload } from '@/api/task'
 import { PRIORITY, PRIORITY_LABEL, type Priority } from '@/utils/constants'
@@ -43,6 +43,21 @@ const form = reactive({
 })
 
 const canSubmit = computed(() => form.title.trim().length > 0 && !submitting.value)
+
+// ── 优先级/指派/标签/分类：图标与 el-select 同排，点图标需等同点选择框 ──
+type SelectRef = InstanceType<typeof ElSelect>
+const priorityRef = ref<SelectRef>()
+const assigneeRef = ref<SelectRef>()
+const tagsRef = ref<SelectRef>()
+const categoryRef = ref<SelectRef>()
+
+/** 点图标时代替点击选择框：命中内部 wrapper 触发 el-select 展开。 */
+function openSelect(r: SelectRef | undefined): void {
+  const root: unknown = r?.$el
+  if (!(root instanceof Element)) return
+  const wrap = root.querySelector('.el-select__wrapper, .el-input__wrapper')
+  if (wrap instanceof HTMLElement) wrap.click()
+}
 
 // ── 截止/提醒/重复：点图标弹层（旧 dropdownSetDate/dropdownSetTips/dropdownSetEach）──
 /** 弹层内是否切到「日历/自定义」面板。 */
@@ -310,28 +325,28 @@ async function onSubmit(): Promise<void> {
           </el-dropdown>
         </div>
 
-        <!-- 优先级：内联选择 -->
+        <!-- 优先级：内联选择（点左侧图标同样展开） -->
         <div class="t-b-i-b-c-l-d-item">
-          <el-icon class="t-b-i-b-c-l-d-item-icon"><Flag /></el-icon>
-          <el-select v-model="form.priority" size="small" class="t-b-i-b-c-field-sm" data-test="composer-priority">
+          <el-icon class="t-b-i-b-c-l-d-item-icon" @click="openSelect(priorityRef)"><Flag /></el-icon>
+          <el-select ref="priorityRef" v-model="form.priority" size="small" class="t-b-i-b-c-field-sm" data-test="composer-priority">
             <el-option v-for="p in PRIORITY" :key="p" :label="PRIORITY_LABEL[p]" :value="p" />
           </el-select>
         </div>
         <div class="t-b-i-b-c-l-d-item">
-          <span class="assigning">@</span>
-          <el-select v-model="form.assigneeIds" size="small" multiple collapse-tags filterable placeholder="指派" class="t-b-i-b-c-field" data-test="composer-assignee">
+          <span class="assigning" @click="openSelect(assigneeRef)">@</span>
+          <el-select ref="assigneeRef" v-model="form.assigneeIds" size="small" multiple collapse-tags filterable placeholder="指派" class="t-b-i-b-c-field" data-test="composer-assignee">
             <el-option v-for="u in users" :key="u.id" :label="u.name" :value="Number(u.id)" />
           </el-select>
         </div>
         <div class="t-b-i-b-c-l-d-item">
-          <el-icon class="t-b-i-b-c-l-d-item-icon"><User /></el-icon>
-          <el-select v-model="form.tagIds" size="small" multiple collapse-tags filterable placeholder="标签" class="t-b-i-b-c-field" data-test="composer-tags">
+          <el-icon class="t-b-i-b-c-l-d-item-icon" @click="openSelect(tagsRef)"><User /></el-icon>
+          <el-select ref="tagsRef" v-model="form.tagIds" size="small" multiple collapse-tags filterable placeholder="标签" class="t-b-i-b-c-field" data-test="composer-tags">
             <el-option v-for="t in tags" :key="t.id" :label="t.name" :value="Number(t.id)" />
           </el-select>
         </div>
         <div class="t-b-i-b-c-l-d-item">
-          <el-icon class="t-b-i-b-c-l-d-item-icon"><Calendar /></el-icon>
-          <el-select v-model="form.categoryId" size="small" clearable placeholder="分类" class="t-b-i-b-c-field" data-test="composer-category">
+          <el-icon class="t-b-i-b-c-l-d-item-icon" @click="openSelect(categoryRef)"><Calendar /></el-icon>
+          <el-select ref="categoryRef" v-model="form.categoryId" size="small" clearable placeholder="分类" class="t-b-i-b-c-field" data-test="composer-category">
             <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="Number(c.id)" />
           </el-select>
         </div>
@@ -395,10 +410,12 @@ async function onSubmit(): Promise<void> {
 .t-b-i-b-c-l-d-item-icon {
   margin: 3px 5px 0 0;
   color: var(--bb-text-secondary);
+  cursor: pointer;
 }
 .assigning {
   margin-right: 5px;
   color: var(--bb-text-secondary);
+  cursor: pointer;
 }
 .t-b-i-b-c-field {
   width: 170px;

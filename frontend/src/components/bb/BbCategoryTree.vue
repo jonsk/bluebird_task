@@ -53,6 +53,11 @@ const myDeptId = computed(() => (auth.user?.deptId != null ? Number(auth.user.de
 const isAdmin = computed(() => auth.roleCode === 'ADMIN')
 const isUserManager = computed(() => auth.roleCode === 'USER_MANAGER')
 
+/** 部门分类可选部门（扁平化，供草稿行内选择）。 */
+const deptOptions = computed(() =>
+  meta.flatDepartments().map((d) => ({ id: Number(d.id), name: d.name ?? '' })),
+)
+
 /** 新增可选范围（超出权限的选项不渲染，避免提交必败）。 */
 const scopeOptions = computed(() => {
   const opts: Array<{ value: CategoryScope; label: string }> = [{ value: 'PERSONAL', label: '个人' }]
@@ -130,10 +135,15 @@ async function onScopeFilter(value: string | number | boolean | undefined): Prom
 }
 
 function onNodeClick(data: CategoryNode): void {
-  if (data.id == null) return
-  activeId.value = Number(data.id)
-  treeRef.value?.setCurrentKey(activeId.value)
-  emit('select', activeId.value)
+  // 草稿行（id 为占位串 __bb_draft__）不是真实分类：点击不得联动过滤，
+  // 否则 Number('__bb_draft__') = NaN → 向后端发出 ?categoryId=NaN（参数类型错误）。
+  const raw = data as unknown as { id?: number | string | null; __draft?: boolean }
+  if (raw.__draft || raw.id == null) return
+  const id = Number(raw.id)
+  if (!Number.isFinite(id)) return
+  activeId.value = id
+  treeRef.value?.setCurrentKey(id)
+  emit('select', id)
 }
 
 function clearSelection(): void {
@@ -155,7 +165,10 @@ function startAdd(data: CategoryNode | null, scope: CategoryScope): void {
   if (draftActive.value || editingId.value != null) return
   draftActive.value = true
   draftScope.value = scope
-  draftDeptId.value = scope === 'DEPARTMENT' ? myDeptId.value : null
+  // 部门分类必须落到具体部门：优先本部门；ADMIN 等自身无部门者回退到第一个部门，
+  // 并在草稿行内提供下拉可改选（原先固定取 myDeptId，ADMIN 无法建部门分类）。
+  draftDeptId.value =
+    scope === 'DEPARTMENT' ? (myDeptId.value ?? deptOptions.value[0]?.id ?? null) : null
   draftParentId.value = data?.id != null ? Number(data.id) : null
   draftName.value = ''
   const parent = data?.id != null ? treeRef.value?.getNode(Number(data.id)) : undefined
@@ -191,15 +204,33 @@ function startEdit(data: CategoryNode): void {
   focusDraft()
 }
 
+/** 草稿行失焦：焦点仍在草稿行内（例如点开同行的「选择部门」下拉）时不提交，避免误用默认部门建档。 */
+function onDraftBlur(e: FocusEvent): void {
+  const target = e.target as HTMLElement | null
+  const next = e.relatedTarget as Node | null
+  const row = target?.closest('.cat-node__draft')
+  if (row && next && row.contains(next)) return
+  void commitDraft()
+}
+
 async function commitDraft(): Promise<void> {
   if (!draftActive.value) return
   const name = draftName.value.trim()
   const parentId = draftParentId.value
   const scope = draftScope.value
   const deptId = draftDeptId.value
+  if (!name) {
+    draftActive.value = false
+    removeDraft()
+    return
+  }
+  // 部门分类未选部门时保留草稿行（选中部门后会再次触发提交），避免静默失败
+  if (scope === 'DEPARTMENT' && deptId == null) {
+    ElMessage.warning('部门分类必须选择所属部门')
+    return
+  }
   draftActive.value = false
   removeDraft()
-  if (!name) return
   try {
     await createCategory({ name, parentId, scope, deptId })
     await reload()
@@ -332,20 +363,37 @@ defineExpose({ reload, clearSelection })
             </template>
 
             <template v-else-if="data.__draft">
-              <el-input
-                ref="nameInput"
-                v-model="draftName"
-                size="small"
-                placeholder="分类名称，回车保存"
-                class="cat-node__input"
-                @keyup.enter="commitDraft"
-                @blur="commitDraft"
-              />
+              <div class="cat-node__draft">
+                <el-input
+                  ref="nameInput"
+                  v-model="draftName"
+                  size="small"
+                  placeholder="分类名称，回车保存"
+                  class="cat-node__input"
+                  @keyup.enter="commitDraft"
+                  @blur="onDraftBlur"
+                />
+                <el-select
+                  v-if="draftScope === 'DEPARTMENT'"
+                  v-model="draftDeptId"
+                  size="small"
+                  placeholder="选择部门"
+                  class="cat-node__dept"
+                  data-test="category-dept-select"
+                  @change="commitDraft"
+                  @visible-change="(v: boolean) => { if (!v) commitDraft() }"
+                >
+                  <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
+                </el-select>
+              </div>
             </template>
 
             <template v-else>
               <span class="cat-node__label" :title="data.name">{{ data.name }}</span>
-              <el-tag v-if="data.scope === 'DEPARTMENT'" size="small" effect="plain" class="cat-node__badge">
+              <el-tag v-if="data.scope === 'PERSONAL'" size="small" effect="plain" class="cat-node__badge">
+                个人
+              </el-tag>
+              <el-tag v-else-if="data.scope === 'DEPARTMENT'" size="small" effect="plain" class="cat-node__badge">
                 {{ deptName(data.deptId) }}
               </el-tag>
               <el-tag v-else-if="data.scope === 'ORG'" size="small" effect="plain" type="warning" class="cat-node__badge">
@@ -448,6 +496,15 @@ defineExpose({ reload, clearSelection })
   pointer-events: none;
 }
 .cat-node__input {
+  width: 100%;
+}
+.cat-node__draft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.cat-node__dept {
   width: 100%;
 }
 .cat-node__ops {

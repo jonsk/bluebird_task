@@ -65,16 +65,30 @@ function onClickDay(day: string): void {
 <style scoped>
 .bb-calendar {
   height: 280px;
+  /* 硬约束：日历内容不得溢出到右栏下方的详情/编辑面板（用户反馈 #4）。 */
+  overflow: hidden;
 }
 .bb-calendar__inner {
   height: 280px;
   background: var(--bg-primary);
 }
+/* 关键修复：EP 默认 `.el-calendar-table .el-calendar-day { height: var(--el-calendar-cell-width) }` = 85px，
+   6 周 × 85px ≈ 510px，加上表头/内边距整体 ~637px，远超 280px 容器 → 日历溢出并压住详情/编辑面板。
+   把日期格压到 33px（6×33=198）+ 表头/星期行/内边距 ≈ 266px，恰好收进 280px。 */
 .bb-calendar__inner :deep(.el-calendar__header) {
-  padding: 10px 20px 0;
+  padding: 6px 16px 0;
+  border-bottom: none;
 }
 .bb-calendar__inner :deep(.el-calendar__body) {
-  padding: 12px 20px 0;
+  padding: 4px 16px 4px;
+}
+.bb-calendar__inner :deep(.el-calendar-table thead th) {
+  padding: 2px 0;
+  font-size: 11px;
+}
+.bb-calendar__inner :deep(.el-calendar-table .el-calendar-day) {
+  height: 33px;
+  padding: 0;
 }
 .bb-calendar__cell {
   position: relative;

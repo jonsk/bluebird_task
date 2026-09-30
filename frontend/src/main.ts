@@ -1,6 +1,11 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import '@/styles/index.css'
+// 命令式组件样式必须显式引入：ElMessage / ElMessageBox 由 JS `import` 使用（而非模板组件），
+// unplugin 的按需解析器（Components/AutoImport）只处理模板用法，不会注入它们的 CSS。
+// 缺失时确认框完全没有样式，会以文档流形式渲染到页面左上/左下角（用户反馈 #2「删除框在左侧最下方」、#9「确认框在最左上角」）。
+import 'element-plus/es/components/message/style/css'
+import 'element-plus/es/components/message-box/style/css'
 import App from './App.vue'
 import { router, setupGuard } from './router'
 import { setupDirectives } from './directives/permission'

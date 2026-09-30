@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createDepartment, deleteDepartment, listDepartments, updateDepartment, type Department } from '@/api/dept'
 import {
@@ -12,7 +12,10 @@ import {
   type UserCreateReq,
 } from '@/api/user'
 import { useMetaStore } from '@/stores/meta'
-import { ROLE_CODE } from '@/utils/constants'
+import { ROLE_CODE, ROLE_DESC } from '@/utils/constants'
+
+/** 角色下拉项：固定四值枚举（ADR-003 无角色表，角色不可新增/修改）。 */
+const roleOptions = Object.values(ROLE_CODE)
 
 /**
  * 组织管理（item 6：用户管理 + 部门管理合并为「左树右表」）。
@@ -34,7 +37,15 @@ const query = reactive({ keyword: '', page: 1, size: 20 })
 
 const userDialogOpen = ref(false)
 const editingId = ref<number | null>(null)
-const userForm = reactive({ username: '', name: '', deptId: null as number | null, roleCode: 'COMMON' as string, password: '' })
+const userForm = reactive({
+  username: '',
+  name: '',
+  deptId: null as number | null,
+  roleCode: 'COMMON' as string,
+  password: '',
+  mobile: '',
+  email: '',
+})
 
 const pwdOpen = ref(false)
 const pwdUser = ref<UserVO | null>(null)
@@ -44,10 +55,15 @@ const deptDialogOpen = ref(false)
 const deptEditingId = ref<number | null>(null)
 const deptForm = reactive({ name: '', parentId: null as number | null, leaderId: null as number | null })
 
+/** 部门 id 统一归一为 number：左树与用户对话框（树选择）共用同一份数据。 */
+function normalizeDept(list: Department[]): Department[] {
+  return list.map((d) => ({ ...d, id: Number(d.id), children: d.children?.length ? normalizeDept(d.children) : d.children }))
+}
+
 async function loadTree(): Promise<void> {
   treeLoading.value = true
   try {
-    tree.value = await listDepartments()
+    tree.value = normalizeDept(await listDepartments())
     await meta.loadDepartments(true)
   } finally {
     treeLoading.value = false
@@ -135,7 +151,7 @@ async function onDeleteDept(node: Department): Promise<void> {
 // ── 用户表 ──
 function openCreateUser(): void {
   editingId.value = null
-  Object.assign(userForm, { username: '', name: '', deptId: selectedDept.value, roleCode: 'COMMON', password: '' })
+  Object.assign(userForm, { username: '', name: '', deptId: selectedDept.value, roleCode: 'COMMON', password: '', mobile: '', email: '' })
   userDialogOpen.value = true
 }
 
@@ -144,15 +160,24 @@ function openEditUser(row: UserVO): void {
   Object.assign(userForm, {
     username: row.username ?? '',
     name: row.name ?? '',
-    deptId: row.deptId ?? null,
+    deptId: row.deptId == null ? null : Number(row.deptId),
     roleCode: row.roleCode ?? 'COMMON',
     password: '',
+    mobile: row.mobile ?? '',
+    email: row.email ?? '',
   })
   userDialogOpen.value = true
 }
 
 async function saveUser(): Promise<void> {
+  // 用户必须归属一个部门（新建与编辑都要求，后端 deptId 必填）。
+  if (userForm.deptId == null) {
+    ElMessage.warning('请选择部门')
+    return
+  }
   try {
+    const mobile = userForm.mobile.trim() || null
+    const email = userForm.email.trim() || null
     if (editingId.value == null) {
       if (!userForm.username || !userForm.name) {
         ElMessage.warning('请填写用户名与姓名')
@@ -164,6 +189,8 @@ async function saveUser(): Promise<void> {
         deptId: userForm.deptId,
         roleCode: userForm.roleCode as UserCreateReq['roleCode'],
         password: userForm.password || null,
+        mobile,
+        email,
       }
       await createUser(payload)
       ElMessage.success('已创建（首登须改密）')
@@ -172,6 +199,8 @@ async function saveUser(): Promise<void> {
         name: userForm.name,
         deptId: userForm.deptId,
         roleCode: userForm.roleCode as UserCreateReq['roleCode'],
+        mobile,
+        email,
       })
       ElMessage.success('已保存')
     }
@@ -210,8 +239,6 @@ async function savePwd(): Promise<void> {
     ElMessage.error((e as Error).message || '重置失败')
   }
 }
-
-const deptOptions = computed(() => meta.flatDepartments())
 </script>
 
 <template>
@@ -242,10 +269,22 @@ const deptOptions = computed(() => meta.flatDepartments())
           <template #default="{ data }">
             <div class="org-manage__node">
               <span>{{ data.name }}</span>
+              <el-tag v-if="data.system" size="small" effect="plain" type="info" class="org-manage__system-tag">
+                系统默认
+              </el-tag>
               <span class="org-manage__node-actions">
                 <el-button text size="small" type="primary" @click.stop="openCreateDept(data)">加子级</el-button>
                 <el-button text size="small" @click.stop="openEditDept(data)">编辑</el-button>
-                <el-button text size="small" type="danger" @click.stop="onDeleteDept(data)">删除</el-button>
+                <!-- 系统默认顶级部门可改名、不可删除（后端同样拒绝），故不提供删除入口 -->
+                <el-button
+                  v-if="!data.system"
+                  text
+                  size="small"
+                  type="danger"
+                  @click.stop="onDeleteDept(data)"
+                >
+                  删除
+                </el-button>
               </span>
             </div>
           </template>
@@ -264,13 +303,14 @@ const deptOptions = computed(() => meta.flatDepartments())
       </header>
 
       <el-table v-loading="loading" :data="rows" border stripe size="small">
-        <el-table-column prop="username" label="用户名" width="140" />
-        <el-table-column prop="name" label="姓名" width="140" />
-        <el-table-column prop="deptName" label="部门" width="160" />
-        <el-table-column prop="mobile" label="手机" width="140" />
+        <el-table-column prop="username" label="用户名" width="130" />
+        <el-table-column prop="name" label="姓名" width="110" />
+        <el-table-column prop="deptName" label="部门" width="140" />
+        <el-table-column prop="mobile" label="手机" width="130" />
+        <el-table-column prop="email" label="邮箱" min-width="180" show-overflow-tooltip />
         <el-table-column prop="roleCode" label="角色" width="130" />
-        <el-table-column prop="status" label="状态" width="100" />
-        <el-table-column label="操作" min-width="200">
+        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column label="操作" min-width="190">
           <template #default="{ row }">
             <el-button text size="small" type="primary" @click="openEditUser(row)">编辑</el-button>
             <el-button text size="small" @click="openPwd(row)">重置密码</el-button>
@@ -305,21 +345,38 @@ const deptOptions = computed(() => meta.flatDepartments())
       </template>
     </el-dialog>
 
-    <el-dialog v-model="userDialogOpen" :title="editingId == null ? '新建用户' : '编辑用户'" width="460px">
+    <el-dialog v-model="userDialogOpen" :title="editingId == null ? '新建用户' : '编辑用户'" width="500px">
       <el-form label-width="80px">
         <el-form-item label="用户名">
           <el-input v-model="userForm.username" :disabled="editingId != null" />
         </el-form-item>
         <el-form-item label="姓名"><el-input v-model="userForm.name" /></el-form-item>
-        <el-form-item label="部门">
-          <el-select v-model="userForm.deptId" clearable placeholder="未分配" style="width: 100%">
-            <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="Number(d.id)" />
-          </el-select>
+        <el-form-item label="部门" required>
+          <el-tree-select
+            v-model="userForm.deptId"
+            :data="tree"
+            :props="{ label: 'name', children: 'children' }"
+            node-key="id"
+            check-strictly
+            default-expand-all
+            :render-after-expand="false"
+            clearable
+            placeholder="请选择部门"
+            style="width: 100%"
+          />
         </el-form-item>
+        <el-form-item label="手机号"><el-input v-model="userForm.mobile" placeholder="选填" /></el-form-item>
+        <el-form-item label="邮箱"><el-input v-model="userForm.email" placeholder="选填" /></el-form-item>
         <el-form-item label="角色">
           <el-select v-model="userForm.roleCode" style="width: 100%">
-            <el-option v-for="(v, k) in ROLE_CODE" :key="k" :label="v" :value="v" />
+            <el-option v-for="code in roleOptions" :key="code" :label="code" :value="code">
+              <span class="org-manage__role-code">{{ code }}</span>
+              <span class="org-manage__role-desc"> — {{ ROLE_DESC[code] }}</span>
+            </el-option>
           </el-select>
+        </el-form-item>
+        <el-form-item label=" ">
+          <div class="org-manage__hint">角色为系统固定枚举（仅上列四项），用于划分功能权限，不可新增或修改。</div>
         </el-form-item>
         <el-form-item v-if="editingId == null" label="初始密码">
           <el-input v-model="userForm.password" type="password" placeholder="留空则首登强制改密" show-password />
@@ -401,6 +458,12 @@ const deptOptions = computed(() => meta.flatDepartments())
   width: 100%;
   padding-right: 8px;
 }
+/* 紧随部门名，右侧留白把操作按钮推到最右 */
+.org-manage__system-tag {
+  margin-left: 6px;
+  margin-right: auto;
+  flex-shrink: 0;
+}
 .org-manage__node-actions {
   display: none;
 }
@@ -438,5 +501,14 @@ const deptOptions = computed(() => meta.flatDepartments())
   margin-top: 12px;
   display: flex;
   justify-content: flex-end;
+}
+.org-manage__role-code {
+  font-weight: 600;
+}
+.org-manage__role-desc,
+.org-manage__hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bb-text-muted);
 }
 </style>

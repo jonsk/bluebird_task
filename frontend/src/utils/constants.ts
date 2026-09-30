@@ -30,6 +30,18 @@ export const ROLE_CODE = {
 
 export type RoleCode = (typeof ROLE_CODE)[keyof typeof ROLE_CODE]
 
+/**
+ * 角色说明（ADR-003：**无角色表**，角色是固定的四值枚举，用于划分功能权限，不可增删改）。
+ * 权限落点：ADMIN/USER_MANAGER → 用户与部门管理（`@PreAuthorize`）；ADMIN/AUDITOR → 审计日志；
+ * 所有已登录用户都可创建/管理自己的任务（任务可写权限由 owner/assignee/ADMIN 判定，与角色无关）。
+ */
+export const ROLE_DESC: Record<RoleCode, string> = {
+  ADMIN: '超级管理员 · 全部权限（用户/部门/审计/任务）',
+  USER_MANAGER: '用户管理员 · 管理用户与部门（不含审计日志）',
+  AUDITOR: '审计员 · 只读查看操作日志与登录日志',
+  COMMON: '普通用户 · 创建与管理自己的任务',
+}
+
 export const PRIORITY = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const
 export type Priority = (typeof PRIORITY)[number]
 

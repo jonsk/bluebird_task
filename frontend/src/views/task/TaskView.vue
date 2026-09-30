@@ -317,13 +317,21 @@ async function onRemove(task: TaskVO): Promise<void> {
   flex: 0 0 var(--bb-calendar-width);
   width: var(--bb-calendar-width);
   min-width: 0;
+  /* 右栏改为纵向 flex：日历固定 280px，详情/编辑区占据剩余高度并各自滚动，
+     避免「日历溢出压住编辑区」（用户反馈 #4）以及 calc(100vh - 310px) 的脆弱耦合。 */
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 20px);
+  min-height: 0;
 }
 .calendar-box-content {
+  flex: 0 0 280px;
   height: 280px;
   margin-top: 20px;
+  overflow: hidden;
 }
 .detail {
-  height: calc(100vh - 310px);
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
 }
