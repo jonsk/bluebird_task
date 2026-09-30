@@ -23,6 +23,8 @@ public class Department {
     private Integer sort;
     private String corpId;
     private Long leaderUserId;
+    /** 系统默认顶级部门标记：1 = 可改名、不可删除（用户反馈 #5）。 */
+    private Integer isSystem;
 
     @TableLogic
     private Integer deleted;

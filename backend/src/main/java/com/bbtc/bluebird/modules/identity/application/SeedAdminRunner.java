@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -19,9 +20,13 @@ import org.springframework.util.StringUtils;
  * <p>空库起步后无 ADMIN 则无法建用户（死锁）。若 {@code BOOTSTRAP_ADMIN_PASSWORD} 非空，
  * 用 BCrypt 计算哈希后插入初始 ADMIN（must_change_password=1）。
  * ADR-010 自动生成后该变量默认非空，种子分支自动执行。
+ *
+ * <p>此处不设部门；由 {@code DefaultDepartmentRunner}（{@code @Order(20)}，本类为 10）
+ * 在同一轮启动中把无部门用户归入系统默认部门。
  */
 @Slf4j
 @Component
+@Order(10)
 @Profile("!test")
 @RequiredArgsConstructor
 public class SeedAdminRunner implements ApplicationRunner {

@@ -41,7 +41,7 @@ public class DepartmentService {
         Map<Long, DepartmentVO> map = new HashMap<>();
         for (Department d : all) {
             map.put(d.getId(), new DepartmentVO(d.getId(), d.getName(), d.getParentId(),
-                    d.getLeaderUserId(), d.getSort()));
+                    d.getLeaderUserId(), d.getSort(), d.getIsSystem() != null && d.getIsSystem() == 1));
         }
         List<DepartmentVO> roots = new ArrayList<>();
         for (Department d : all) {
@@ -93,6 +93,14 @@ public class DepartmentService {
 
     @Transactional
     public void delete(Long id) {
+        Department d = departmentMapper.selectById(id);
+        if (d == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "部门不存在");
+        }
+        // 系统默认顶级部门可改名但不可删除（用户反馈 #5）
+        if (d.getIsSystem() != null && d.getIsSystem() == 1) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "系统默认部门不可删除（可以改名）");
+        }
         Long children = departmentMapper.selectCount(
                 Wrappers.<Department>lambdaQuery().eq(Department::getParentId, id));
         if (children != null && children > 0) {

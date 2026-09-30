@@ -1,5 +1,6 @@
 package com.bbtc.bluebird.modules.identity.application;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -72,6 +74,8 @@ public class UserService {
         u.setDeptId(cmd.deptId());
         u.setRoleCode(StringUtils.hasText(cmd.roleCode()) ? cmd.roleCode() : "COMMON");
         u.setStatus("ACTIVE");
+        u.setMobile(trimToNull(cmd.mobile()));
+        u.setEmail(trimToNull(cmd.email()));
         if (StringUtils.hasText(cmd.password())) {
             u.setPassword(passwordEncoder.encode(cmd.password()));
             u.setMustChangePassword(1);
@@ -91,14 +95,38 @@ public class UserService {
         if (StringUtils.hasText(req.name())) {
             u.setName(req.name());
         }
-        u.setDeptId(req.deptId());
+        // 用户必须归属部门（用户反馈 #5）：仅在显式传值且非空时更新，避免误清空
+        if (req.deptId() != null) {
+            u.setDeptId(req.deptId());
+        }
         if (StringUtils.hasText(req.roleCode())) {
             u.setRoleCode(req.roleCode());
         }
         if (StringUtils.hasText(req.status())) {
             u.setStatus(req.status());
         }
+        // 手机号 / 邮箱可编辑（用户反馈 #8）；空串表示清空
+        boolean touchMobile = req.mobile() != null;
+        boolean touchEmail = req.email() != null;
+        if (touchMobile) {
+            u.setMobile(trimToNull(req.mobile()));
+        }
+        if (touchEmail) {
+            u.setEmail(trimToNull(req.email()));
+        }
         userMapper.updateById(u);
+        // updateById 默认忽略 null 字段（MyBatis-Plus FieldStrategy.NOT_NULL），因此「清空」写不进去。
+        // 显式传值（含空串）时用 UpdateWrapper 强制 set，兑现「空串清空」语义。
+        if (touchMobile || touchEmail) {
+            LambdaUpdateWrapper<SysUser> uw = Wrappers.<SysUser>lambdaUpdate().eq(SysUser::getId, u.getId());
+            if (touchMobile) {
+                uw.set(SysUser::getMobile, trimToNull(req.mobile()));
+            }
+            if (touchEmail) {
+                uw.set(SysUser::getEmail, trimToNull(req.email()));
+            }
+            userMapper.update(null, uw);
+        }
     }
 
     @Transactional
@@ -117,15 +145,30 @@ public class UserService {
         if (u == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        boolean firstLogin = u.getMustChangePassword() != null && u.getMustChangePassword() == 1;
-        if (!firstLogin) {
-            if (!StringUtils.hasText(req.oldPassword())
-                    || !passwordEncoder.matches(req.oldPassword(), u.getPassword())) {
-                throw new BusinessException(ErrorCode.BAD_CREDENTIALS);
+        // 授权：仅本人，或 ADMIN / USER_MANAGER 代为重置。
+        // 修复：原实现无任何归属校验，任意登录用户可重置他人（新建用户 must_change_password=1 时免原口令）→ 越权接管账号。
+        Long me = UserContext.currentUserId();
+        boolean self = Objects.equals(me, id);
+        if (!self) {
+            String role = UserContext.currentRoleCode();
+            if (!"ADMIN".equals(role) && !"USER_MANAGER".equals(role)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
             }
         }
+        boolean firstLogin = u.getMustChangePassword() != null && u.getMustChangePassword() == 1;
+        // 本人改密：非首登须校验原口令。管理员代为重置：不校验原口令（无从得知），但强制下次登录改密。
+        if (self) {
+            if (!firstLogin) {
+                if (!StringUtils.hasText(req.oldPassword())
+                        || !passwordEncoder.matches(req.oldPassword(), u.getPassword())) {
+                    throw new BusinessException(ErrorCode.BAD_CREDENTIALS);
+                }
+            }
+            u.setMustChangePassword(0);
+        } else {
+            u.setMustChangePassword(1);
+        }
         u.setPassword(passwordEncoder.encode(req.newPassword()));
-        u.setMustChangePassword(0);
         userMapper.updateById(u);
         // 改密后失效旧会话
     }
@@ -147,10 +190,31 @@ public class UserService {
     }
 
     private UserDTO toDto(SysUser u, Map<Long, String> deptNames) {
-        return new UserDTO(u.getId(), u.getUsername(), u.getName(), maskMobile(u.getMobile()),
+        return new UserDTO(u.getId(), u.getUsername(), u.getName(), visibleMobile(u),
                 u.getEmail(), u.getAvatarUrl(), u.getDeptId(),
                 u.getDeptId() == null ? null : deptNames.get(u.getDeptId()),
                 u.getRoleCode(), u.getStatus());
+    }
+
+    /**
+     * 手机号可见性（用户反馈 #8「编辑用户时无法编辑手机号」）：
+     * 原实现一律脱敏（138****0000），管理端拿不到原值自然无法编辑。
+     * 现改为：ADMIN / USER_MANAGER 返回明文（其职责就是维护用户资料），本人可见自己的明文，其余角色仍脱敏。
+     */
+    private String visibleMobile(SysUser u) {
+        String role = UserContext.currentRoleCode();
+        boolean manager = "ADMIN".equals(role) || "USER_MANAGER".equals(role);
+        boolean self = u.getId() != null && u.getId().equals(UserContext.currentUserId());
+        return manager || self ? u.getMobile() : maskMobile(u.getMobile());
+    }
+
+    /** 空串/纯空白 → null（前端以空串表达「清空字段」）。 */
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String v = value.trim();
+        return v.isEmpty() ? null : v;
     }
 
     private String maskMobile(String mobile) {
