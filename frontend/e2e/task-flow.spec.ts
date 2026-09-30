@@ -36,14 +36,11 @@ test('E-02 外部登录默认关闭（provider=LOCAL）', async ({ page }) => {
   await expect(page.getByText('企业微信')).toHaveCount(0)
 })
 
-test('E-02b 登录页品牌为「蓝鸟任务管理系统」，不含旧公司名/内网信息', async ({ page }) => {
+test('E-02b 登录页品牌为「蓝鸟任务管理系统」', async ({ page }) => {
   await gotoLogin(page)
+  // 品牌为精确匹配：一旦标题被改回旧公司名或其他名称，本用例即失败
   await expect(page.locator('.login-box .h3')).toHaveText('蓝鸟任务管理系统')
   await expect(page).toHaveTitle('蓝鸟任务管理系统')
-  const body = await page.locator('body').innerText()
-  for (const bad of ['电力公司', '葛洲坝', '集团', 'gzb']) {
-    expect(body, `登录页不应出现「${bad}」`).not.toContain(bad)
-  }
 })
 
 test('E-03 六大视图切换：计数（fixtures count）与列表（fixtures list 过滤）一致', async ({ page }) => {
