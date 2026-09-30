@@ -40,7 +40,10 @@ import java.util.List;
 public class DefaultDepartmentRunner implements ApplicationRunner {
 
     /** 默认顶级部门名称（部署后可自行改名）。 */
-    static final String DEFAULT_NAME = "总公司";
+    static final String DEFAULT_NAME = "部门";
+
+    /** 历史默认名：旧版本种子用的名字，启动时若未被改名则迁到 {@link #DEFAULT_NAME}。 */
+    private static final String LEGACY_DEFAULT_NAME = "总公司";
 
     private final DepartmentMapper departmentMapper;
     private final SysUserMapper userMapper;
@@ -57,7 +60,7 @@ public class DefaultDepartmentRunner implements ApplicationRunner {
         List<Department> marked = departmentMapper.selectList(Wrappers.<Department>lambdaQuery()
                 .eq(Department::getIsSystem, 1).orderByAsc(Department::getId));
         if (!marked.isEmpty()) {
-            return marked.get(0).getId();
+            return renameLegacyDefault(marked.get(0));
         }
         List<Department> roots = departmentMapper.selectList(Wrappers.<Department>lambdaQuery()
                 .isNull(Department::getParentId)
@@ -78,6 +81,21 @@ public class DefaultDepartmentRunner implements ApplicationRunner {
         d.setCreatedAt(Instant.now());
         departmentMapper.insert(d);
         log.info("已创建系统默认顶级部门「{}」（可改名，不可删除）", DEFAULT_NAME);
+        return d.getId();
+    }
+
+    /**
+     * 历史默认名迁移：系统默认部门若仍是旧种子名（「总公司」）则改为 {@link #DEFAULT_NAME}。
+     *
+     * <p>只在名称**未被改名**时迁移，避免覆盖部署方自定义的名称。
+     */
+    private Long renameLegacyDefault(Department d) {
+        if (LEGACY_DEFAULT_NAME.equals(d.getName())) {
+            d.setName(DEFAULT_NAME);
+            d.setUpdatedAt(Instant.now());
+            departmentMapper.updateById(d);
+            log.info("系统默认部门名称已由「{}」更新为「{}」", LEGACY_DEFAULT_NAME, DEFAULT_NAME);
+        }
         return d.getId();
     }
 
