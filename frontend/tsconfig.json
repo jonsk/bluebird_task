@@ -27,11 +27,13 @@
     "src/**/*.vue",
     "tests/**/*.ts",
     "e2e/**/*.ts",
+    "e2e-real/**/*.ts",
     "auto-imports.d.ts",
     "components.d.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",
+    "playwright.real.config.ts",
     "tailwind.config.ts"
   ]
 }

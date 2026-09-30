@@ -7,3 +7,5 @@ test-results/
 playwright-report/
 blob-report/
 e2e/.report/
+# 真实后端联调（pnpm test:e2e:real）的运行期产物
+test-results-real/
