@@ -8,6 +8,7 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -24,7 +25,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class,
-            HttpMessageNotReadableException.class, IllegalArgumentException.class})
+            HttpMessageNotReadableException.class, IllegalArgumentException.class,
+            MethodArgumentTypeMismatchException.class})
     public ApiResult<Void> valid(Exception e) {
         log.debug("参数校验失败: {}", e.getMessage());
         return ApiResult.fail(ErrorCode.PARAM_ERROR);

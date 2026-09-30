@@ -44,9 +44,10 @@ public class CategoryService {
     public List<CategoryNodeDTO> tree(String scopeFilter) {
         Long me = UserContext.currentUserId();
         Long myDept = currentDeptId(me);
+        boolean manager = isAdminOrUserManager();
         List<Category> all = categoryMapper.selectList(Wrappers.<Category>lambdaQuery()
                 .orderByAsc(Category::getSort).orderByAsc(Category::getId));
-        List<Category> visible = all.stream().filter(c -> isVisible(c, me, myDept)).toList();
+        List<Category> visible = all.stream().filter(c -> isVisible(c, me, myDept, manager)).toList();
         if (StringUtils.hasText(scopeFilter)) {
             visible = visible.stream().filter(c -> scopeFilter.equals(c.getScope())).toList();
         }
@@ -189,12 +190,20 @@ public class CategoryService {
         return normalizeDept(scope, null, me);
     }
 
-    private boolean isVisible(Category c, Long me, Long myDept) {
+    private boolean isVisible(Category c, Long me, Long myDept, boolean manager) {
         return switch (c.getScope()) {
             case Category.ORG -> true;
-            case Category.DEPARTMENT -> myDept != null && myDept.equals(c.getDeptId());
+            // 管理员/用户管理员可管理各部门分类；否则仅本部门可见。
+            // 修复「部门分类无法建立/建立后看不到」：ADMIN 往往自身没有部门（dept_id 为空），
+            // 若只按 myDept 判定，则建好后连创建者本人都不可见。
+            case Category.DEPARTMENT -> manager || (myDept != null && myDept.equals(c.getDeptId()));
             default -> me.equals(c.getOwnerId());
         };
+    }
+
+    private boolean isAdminOrUserManager() {
+        String role = UserContext.currentRoleCode();
+        return "ADMIN".equals(role) || "USER_MANAGER".equals(role);
     }
 
     private Long currentDeptId(Long me) {
@@ -212,8 +221,13 @@ public class CategoryService {
 
     private Map<Long, Integer> taskCountsByCategory() {
         Map<Long, Integer> counts = new HashMap<>();
-        for (Task t : taskMapper.selectList(Wrappers.<Task>lambdaQuery().select(Task::getCategoryId))) {
-            if (t.getCategoryId() != null) {
+        // 只统计有分类的任务。必须加 isNotNull：MyBatis 对「被选中的列全为 NULL」的行会返回 null 元素，
+        // 而这里唯一的选中列 category_id 可空 → 任何「无分类任务」都会产生 null 元素，
+        // 原实现在 t.getCategoryId() 处 NPE，导致 GET /categories 整体 10000、左侧分类树渲染失败。
+        for (Task t : taskMapper.selectList(Wrappers.<Task>lambdaQuery()
+                .select(Task::getCategoryId)
+                .isNotNull(Task::getCategoryId))) {
+            if (t != null && t.getCategoryId() != null) {
                 counts.merge(t.getCategoryId(), 1, Integer::sum);
             }
         }

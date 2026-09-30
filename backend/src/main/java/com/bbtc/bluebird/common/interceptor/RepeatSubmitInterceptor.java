@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.nio.charset.StandardCharsets;
@@ -70,8 +72,29 @@ public class RepeatSubmitInterceptor implements HandlerInterceptor {
         CachedBodyRequestWrapper cached = unwrap(request);
         if (cached != null) {
             sb.append("|body=").append(sha256(new String(cached.getCachedBody(), StandardCharsets.UTF_8)));
+        } else {
+            // multipart 请求体不缓存（BodyCachingFilter 跳过），改用「文件名+大小」区分不同上传；
+            // 否则同用户对同一上传接口的连续上传会共用同一 key，第二次被误判为重复提交（10005）。
+            sb.append("|multipart=").append(multipartSignature(request));
         }
         return sha256(sb.toString());
+    }
+
+    /** multipart 上传文件标识（分部名:原始文件名:大小）。非 multipart 返回空串。 */
+    private String multipartSignature(HttpServletRequest request) {
+        if (!(request instanceof MultipartHttpServletRequest multipart)) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        multipart.getMultiFileMap().forEach((part, files) -> {
+            if (files == null) {
+                return;
+            }
+            for (MultipartFile f : files) {
+                sb.append(part).append(':').append(f.getOriginalFilename()).append(':').append(f.getSize()).append(';');
+            }
+        });
+        return sb.toString();
     }
 
     /** 逐层解包 ServletRequestWrapper，找到缓存体包装（Spring Security 会再包一层）。 */

@@ -44,6 +44,14 @@
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
 
+        <!-- 健康检查：/actuator/health 供 systemd / docker healthcheck 使用。
+             application.yml 的 management 配置与 SecurityConfig 白名单均已引用该端点，
+             此前缺此依赖导致 /actuator/health 落到 10004（资源不存在）。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- ORM -->
         <dependency>
             <groupId>com.baomidou</groupId>
