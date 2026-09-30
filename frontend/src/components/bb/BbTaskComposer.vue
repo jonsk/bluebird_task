@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Bell, Calendar, Flag, FolderOpened, Plus, PriceTag, RefreshRight } from '@element-plus/icons-vue'
 import { createTask, type CycleRule, type TaskUpsertPayload } from '@/api/task'
+import BbUserPicker from './BbUserPicker.vue'
 import { PRIORITY, PRIORITY_LABEL, type Priority } from '@/utils/constants'
 import { toOffsetIso } from '@/utils/date'
 import type { CategoryNode } from '@/api/category'
@@ -46,7 +47,9 @@ const canSubmit = computed(() => form.title.trim().length > 0 && !submitting.val
 
 // ── 优先级/指派/标签/分类：只保留图标，点图标弹出选择层（无下拉框） ──
 // 旧 addTaskBlock.vue 的配置行即「图标 + 已选值文字」，没有 el-select 框（用户反馈 #3）。
-const userKeyword = ref('')
+/** 指派：@ 图标打开人员选择弹窗（左机构树 + 右人员表 + 搜索，见 BbUserPicker）。 */
+const pickerOpen = ref(false)
+const pickedUsers = ref<UserVO[]>([])
 
 /** 单选类弹层（优先级/分类）选中后需主动关闭：菜单项是自定义 div，不适用 el-dropdown 的 hide-on-click。 */
 const priorityDd = ref<{ handleClose: () => void }>()
@@ -61,9 +64,17 @@ function pickCategory(id: number | null): void {
   categoryDd.value?.handleClose()
 }
 
-const selectedUsers = computed(() => props.users.filter((u) => form.assigneeIds.includes(Number(u.id))))
+/** 指派：@ 图标 → 打开人员选择弹窗；确认后回填。 */
+function openUserPicker(): void {
+  pickerOpen.value = true
+}
+function onUsersConfirm(users: UserVO[]): void {
+  pickedUsers.value = users
+  form.assigneeIds = users.map((u) => Number(u.id))
+}
+
 const selectedTags = computed(() => props.tags.filter((t) => form.tagIds.includes(Number(t.id))))
-const assigneeLabel = computed(() => selectedUsers.value.map((u) => u.name ?? '').join('、'))
+const assigneeLabel = computed(() => pickedUsers.value.map((u) => u.name ?? '').join('、'))
 const tagLabel = computed(() => selectedTags.value.map((t) => t.name ?? '').join('、'))
 
 /** 分类树按层级拍平：弹层内做缩进列表，同时用于展示已选分类名。 */
@@ -80,17 +91,6 @@ const flatCategories = computed(() => {
 })
 const categoryLabel = computed(() => flatCategories.value.find((c) => c.id === form.categoryId)?.name ?? '')
 
-const filteredUsers = computed(() => {
-  const kw = userKeyword.value.trim()
-  if (!kw) return props.users
-  return props.users.filter((u) => (u.name ?? '').includes(kw) || (u.username ?? '').includes(kw))
-})
-
-function toggleAssignee(id: number): void {
-  const i = form.assigneeIds.indexOf(id)
-  if (i >= 0) form.assigneeIds.splice(i, 1)
-  else form.assigneeIds.push(id)
-}
 function toggleTag(id: number): void {
   const i = form.tagIds.indexOf(id)
   if (i >= 0) form.tagIds.splice(i, 1)
@@ -218,7 +218,8 @@ function reset(): void {
   form.categoryId = props.defaultCategoryId
   form.assigneeIds = []
   form.tagIds = []
-  userKeyword.value = ''
+  pickedUsers.value = []
+  pickerOpen.value = false
   dueShowCalendar.value = false
   remindShowCalendar.value = false
   eachShowCustom.value = false
@@ -387,31 +388,12 @@ async function onSubmit(): Promise<void> {
           </el-dropdown>
         </div>
 
-        <!-- 指派：@ 图标点开勾选人员（取消下拉框） -->
+        <!-- 指派：@ 图标 → 打开「左机构树 + 右人员表 + 搜索」人员选择弹窗（取消下拉框） -->
         <div class="t-b-i-b-c-l-d-item" :class="{ 'is-set': form.assigneeIds.length }">
-          <el-dropdown trigger="click" popper-class="bb-cfg-popper" :hide-on-click="false">
-            <div class="bb-cfg-trigger" data-test="composer-assignee">
-              <span class="assigning">@</span>
-              <span v-if="assigneeLabel" class="bb-cfg-text">{{ assigneeLabel }}</span>
-            </div>
-            <template #dropdown>
-              <div class="bb-cfg-picker">
-                <el-input v-model="userKeyword" size="small" placeholder="搜索姓名" clearable class="bb-cfg-picker__search" />
-                <div class="bb-cfg-picker__list">
-                  <div
-                    v-for="u in filteredUsers"
-                    :key="u.id"
-                    class="bb-cfg-picker__row"
-                    @click="toggleAssignee(Number(u.id))"
-                  >
-                    <el-checkbox :model-value="form.assigneeIds.includes(Number(u.id))" />
-                    <span class="bb-cfg-picker__name">{{ u.name }}</span>
-                  </div>
-                  <div v-if="!filteredUsers.length" class="bb-cfg-picker__empty">无可选人员</div>
-                </div>
-              </div>
-            </template>
-          </el-dropdown>
+          <div class="bb-cfg-trigger" data-test="composer-assignee" title="选择人员" @click="openUserPicker">
+            <span class="assigning">@</span>
+            <span v-if="assigneeLabel" class="bb-cfg-text">{{ assigneeLabel }}</span>
+          </div>
         </div>
 
         <!-- 标签：点图标弹出勾选（取消下拉框） -->
@@ -477,6 +459,9 @@ async function onSubmit(): Promise<void> {
         <el-button :disabled="!canSubmit" :loading="submitting" @click="onSubmit"><span>添加</span></el-button>
       </div>
     </div>
+
+    <!-- 人员选择弹窗（左机构树 + 右人员表 + 搜索/分页） -->
+    <BbUserPicker v-model="pickerOpen" :picked-users="pickedUsers" @confirm="onUsersConfirm" />
   </div>
 </template>
 

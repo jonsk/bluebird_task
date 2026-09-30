@@ -17,7 +17,9 @@ export function me(): Promise<UserVO> {
   return get<UserVO>('/users/me')
 }
 
-export function listUsers(params: { deptId?: number; keyword?: string; page?: number; size?: number } = {}): Promise<UserPage> {
+export function listUsers(
+  params: { deptId?: number; keyword?: string; includeSubDept?: boolean; page?: number; size?: number } = {},
+): Promise<UserPage> {
   return get<UserPage>('/users', params)
 }
 
