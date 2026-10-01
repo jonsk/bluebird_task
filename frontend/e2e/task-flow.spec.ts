@@ -152,7 +152,10 @@ test('E-14 组织管理（用户 + 部门 左树右表）', async ({ page }) => 
   await login(page)
   await goView(page, '/admin/org', /\/admin\/org$/)
   await expect(page.locator('.el-table__row')).toHaveCount(4)
-  await expect(page.locator('.org-manage__dept-root')).toHaveText('全部部门')
+  // 「全部部门」根节点已按用户要求移除；部门面板提供导入/导出
+  await expect(page.locator('.org-manage__dept-root')).toHaveCount(0)
+  await expect(page.locator('[data-test="dept-import-open"]')).toHaveText('导入')
+  await expect(page.locator('[data-test="dept-export"]')).toHaveText('导出')
 })
 
 test('E-15 审计日志（操作 + 登录）', async ({ page }) => {

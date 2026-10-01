@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { createDepartment, deleteDepartment, listDepartments, updateDepartment, type Department } from '@/api/dept'
+import { createDepartment, deleteDepartment, listDepartments, updateDepartment, exportDepartments, downloadDeptTemplate, importDepartments, type Department, type DeptImportResult } from '@/api/dept'
 import {
   listUsers,
   createUser,
@@ -55,6 +55,66 @@ const deptDialogOpen = ref(false)
 const deptEditingId = ref<number | null>(null)
 const deptForm = reactive({ name: '', parentId: null as number | null, leaderId: null as number | null })
 
+// ── 部门 Excel 导入 / 导出 ──
+const importOpen = ref(false)
+const importing = ref(false)
+const exporting = ref(false)
+const tplLoading = ref(false)
+const fileInput = ref<HTMLInputElement>()
+const importResult = ref<DeptImportResult | null>(null)
+
+function openImport(): void {
+  importResult.value = null
+  importOpen.value = true
+}
+
+async function onDownloadTemplate(): Promise<void> {
+  tplLoading.value = true
+  try {
+    const name = await downloadDeptTemplate()
+    ElMessage.success(`已下载「${name}」`)
+  } catch (e) {
+    ElMessage.error((e as Error).message || '模板下载失败')
+  } finally {
+    tplLoading.value = false
+  }
+}
+
+async function onExport(): Promise<void> {
+  exporting.value = true
+  try {
+    const name = await exportDepartments()
+    ElMessage.success(`已导出「${name}」`)
+  } catch (e) {
+    ElMessage.error((e as Error).message || '导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function onPickImportFile(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // 允许重复选择同一个文件
+  if (!file) return
+  importing.value = true
+  try {
+    const r = await importDepartments(file)
+    importResult.value = r
+    if (r.ok) {
+      await loadTree()
+      await loadUsers()
+      ElMessage.success(`导入成功：新增 ${r.created} 个、更新 ${r.updated} 个`)
+    } else {
+      ElMessage.warning(`校验未通过：${r.failed} 行有误，本次未导入任何数据`)
+    }
+  } catch (err) {
+    ElMessage.error((err as Error).message || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+
 /** 部门 id 统一归一为 number：左树与用户对话框（树选择）共用同一份数据。 */
 function normalizeDept(list: Department[]): Department[] {
   return list.map((d) => ({ ...d, id: Number(d.id), children: d.children?.length ? normalizeDept(d.children) : d.children }))
@@ -93,9 +153,19 @@ onMounted(async () => {
 })
 
 // ── 部门树 ──
+/**
+ * 选中部门过滤右表用户。
+ *
+ * 「全部部门」根节点已按用户要求移除，故保留「再次点击当前部门＝取消筛选」的切换动作——
+ * 不额外增加界面元素，但「看全部用户」的能力仍在。
+ */
 function selectDept(dept: Department | null): void {
-  if (dept) {
-    selectedDept.value = Number(dept.id)
+  const clicked = dept ? Number(dept.id) : null
+  if (dept && clicked === selectedDept.value) {
+    selectedDept.value = null
+    selectedName.value = '全部部门'
+  } else if (dept) {
+    selectedDept.value = clicked
     selectedName.value = dept.name ?? ''
   } else {
     selectedDept.value = null
@@ -246,17 +316,14 @@ async function savePwd(): Promise<void> {
     <div class="org-manage__left">
       <header class="org-manage__left-head">
         <h2>部门</h2>
-        <el-button size="small" type="primary" @click="openCreateDept()">新建顶级部门</el-button>
+        <div class="org-manage__left-actions">
+          <el-button size="small" @click="openImport" data-test="dept-import-open">导入</el-button>
+          <el-button size="small" type="primary" :loading="exporting" data-test="dept-export" @click="onExport">
+            导出
+          </el-button>
+        </div>
       </header>
       <div class="org-manage__tree" v-loading="treeLoading">
-        <div
-          class="org-manage__dept-root"
-          :class="{ 'is-active': selectedDept == null }"
-          data-test="dept-root"
-          @click="selectDept(null)"
-        >
-          全部部门
-        </div>
         <el-tree
           :data="tree"
           node-key="id"
@@ -342,6 +409,54 @@ async function savePwd(): Promise<void> {
       <template #footer>
         <el-button @click="deptDialogOpen = false">取消</el-button>
         <el-button type="primary" @click="saveDept">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="importOpen" title="导入部门" width="600px" data-test="dept-import-dialog">
+      <div class="dept-import">
+        <p class="dept-import__tip">
+          ① 先下载模板 → ② 按模板填写（先父后子）→ ③ 选择文件导入。导入为<b>先全量校验、后落库</b>：
+          只要有一行不合格，整份都不会导入。
+        </p>
+        <div class="dept-import__row">
+          <el-button :loading="tplLoading" data-test="dept-import-template" @click="onDownloadTemplate">
+            下载导入模板
+          </el-button>
+          <el-button
+            type="primary"
+            :loading="importing"
+            data-test="dept-import-pick"
+            @click="fileInput?.click()"
+          >
+            选择文件并导入
+          </el-button>
+          <input ref="fileInput" class="dept-import__file" type="file" accept=".xlsx" @change="onPickImportFile" />
+        </div>
+
+        <div v-if="importResult" class="dept-import__result" data-test="dept-import-result">
+          <el-alert
+            v-if="importResult.ok"
+            type="success"
+            :closable="false"
+            show-icon
+            :title="`导入成功：共 ${importResult.total} 行，新增 ${importResult.created} 个、更新 ${importResult.updated} 个部门`"
+          />
+          <template v-else>
+            <el-alert
+              type="error"
+              :closable="false"
+              show-icon
+              :title="`校验未通过，本次未导入任何数据：共 ${importResult.total} 行，${importResult.failed} 行有误`"
+            />
+            <el-table :data="importResult.errors" size="small" border max-height="240" class="dept-import__errors">
+              <el-table-column prop="row" label="行号" width="80" />
+              <el-table-column prop="message" label="原因" />
+            </el-table>
+          </template>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="importOpen = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -431,25 +546,39 @@ async function savePwd(): Promise<void> {
   margin: 0;
   font-size: 15px;
 }
+.org-manage__left-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.org-manage__left-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+.dept-import__tip {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--bb-text-secondary);
+}
+.dept-import__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dept-import__file {
+  display: none;
+}
+.dept-import__result {
+  margin-top: 16px;
+}
+.dept-import__errors {
+  margin-top: 8px;
+}
 .org-manage__tree {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 8px;
-}
-.org-manage__dept-root {
-  padding: 6px 8px;
-  margin-bottom: 4px;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-}
-.org-manage__dept-root:hover {
-  background: var(--bg-hover);
-}
-.org-manage__dept-root.is-active {
-  background: var(--bg-active);
-  font-weight: 700;
 }
 .org-manage__node {
   display: flex;
