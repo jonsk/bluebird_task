@@ -351,6 +351,15 @@ test('#4/#8/#9/#10/#11 详情面板：不重叠 / 添加步骤 / 附件 / 子任
       !stepTitles.some((t) => cards.some((c) => c.includes(t))),
       JSON.stringify(cards.slice(0, 8)),
     )
+    // 用户反馈：添加步骤的区域「只能增加、不展示已增加的步骤」——
+    // 步骤列表必须在「添加步骤」输入框**上方紧邻**处展示
+    const stepsBox = await panel.locator('[data-test="detail-steps"]').boundingBox()
+    const inputBox = await step.boundingBox()
+    check(
+      '#R28 已添加的步骤展示在「添加步骤」输入框正上方',
+      !!stepsBox && !!inputBox && stepsBox.y < inputBox.y && inputBox.y - (stepsBox.y + stepsBox.height) < 40,
+      `steps=${JSON.stringify(stepsBox)} input=${JSON.stringify(inputBox)}`,
+    )
   }
 
   // #11 子任务状态可切换
