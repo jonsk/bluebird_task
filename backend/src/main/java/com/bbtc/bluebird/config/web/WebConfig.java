@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.concurrent.TimeUnit;
@@ -25,6 +26,16 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(repeatSubmitInterceptor).addPathPatterns("/api/v1/**");
+    }
+
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        // SPA history 路由回退（ADR-009，02 §1.7.1）：把页面路径转发到内嵌的 index.html。
+        // 用运行时注册而非 @RequestMapping 注解——注解元素要求编译期常量，无法引用 SpaRoutes 数组，
+        // 于是「页面清单」会分裂成两份；这里与 SecurityConfig 共用同一份 SpaRoutes。
+        for (String page : SpaRoutes.PAGE_PATTERNS) {
+            registry.addViewController(page).setViewName("forward:/index.html");
+        }
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.bbtc.bluebird.config.security;
 
 import com.bbtc.bluebird.common.api.ApiResult;
 import com.bbtc.bluebird.common.exception.ErrorCode;
+import com.bbtc.bluebird.config.web.SpaRoutes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -70,6 +71,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     auth.requestMatchers(WHITELIST).permitAll();
+                    // SPA 页面（history 路由）：浏览器直接访问/刷新深链不带 Authorization 头，
+                    // 必须放行才能拿到前端壳；数据仍全部来自受保护的 /api/v1/**。
+                    auth.requestMatchers(SpaRoutes.PAGE_PATTERNS).permitAll();
                     if (docEnabled) {
                         auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
                     }

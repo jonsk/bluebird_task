@@ -21,7 +21,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ApiResult<Void> biz(BusinessException e) {
-        return ApiResult.fail(e.getCode());
+        // 业务异常自带的**具体原因**必须回传：否则用户只看到枚举兜底文案（如「参数校验失败」），
+        // 不知道到底是「存在子部门」还是「文件格式不对」。异常里的文案本身就是面向用户的，
+        // 不含堆栈/内部细节；未处理的 Throwable 仍只回 SYSTEM_ERROR，不泄漏内部信息。
+        String message = e.getMessage() == null || e.getMessage().isBlank()
+                ? e.getCode().getMsg()
+                : e.getMessage();
+        return ApiResult.fail(e.getCode().getCode(), message);
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class,

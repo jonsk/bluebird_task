@@ -246,10 +246,55 @@ test.describe('真实后端 · API 联调', () => {
     expect(root.status()).toBe(200)
     expect(await root.text()).toContain('<div id="app"')
 
+    // 深链（浏览器直接访问/刷新）必须回退到 SPA 壳：不带 Authorization 头，
+    // 且返回 text/html。曾因「回退清单不全 + Security 未放行」拿到 JSON（刷新即白屏/裸 JSON）。
+    for (const page of ['/index', '/allTask', '/myWeek', '/calendar/2026-10-01', '/admin/org', '/admin/audit']) {
+      const res = await request.get(page, { headers: { Accept: 'text/html' } })
+      const type = res.headers()['content-type'] ?? ''
+      expect(res.status(), page).toBe(200)
+      expect(type, `${page} 应返回 SPA 壳而非 JSON`).toContain('text/html')
+      expect(await res.text(), page).toContain('<div id="app"')
+    }
+
     const spa = await request.get('/some/deep/route', { headers: { Accept: 'text/html' } })
     expect(spa.status()).toBe(200)
 
+    // API 的 404 契约不被回退吞掉
     const missing = await body(await request.get('/api/v1/nope', { headers: auth(ctx) }))
     expect(missing.code).toBe(10004)
+  })
+
+  test('部门导入/导出/模板（ADMIN）', async ({ request }) => {
+    const h = auth(ctx)
+
+    const tpl = await request.get('/api/v1/departments/import-template', { headers: h })
+    expect(tpl.status()).toBe(200)
+    expect(tpl.headers()['content-type']).toContain('spreadsheetml.sheet')
+    expect(tpl.headers()['content-disposition']).toContain('attachment')
+    const tplBuf = await tpl.body()
+    expect(tplBuf.subarray(0, 2).toString('latin1'), 'xlsx 应为 zip 容器').toBe('PK')
+
+    const exp = await request.get('/api/v1/departments/export', { headers: h })
+    expect(exp.status()).toBe(200)
+    const expBuf = await exp.body()
+    expect(expBuf.subarray(0, 2).toString('latin1')).toBe('PK')
+
+    // 导出的文件可原样回填导入（同名同上级＝更新，不重复创建）
+    const imp = await request.post('/api/v1/departments/import', {
+      headers: h,
+      multipart: { file: { name: 'depts.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: expBuf } },
+    })
+    const result = (await body(imp)).data as { ok: boolean; created: number; updated: number }
+    expect(result.ok, JSON.stringify(result)).toBe(true)
+    expect(result.created, '导出再导入不应新建部门').toBe(0)
+
+    // 非 xlsx 内容 → 可操作的原因（曾只剩「参数校验失败」）
+    const bad = await request.post('/api/v1/departments/import', {
+      headers: h,
+      multipart: { file: { name: 'bad.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('not excel') } },
+    })
+    const badBody = await bad.json()
+    expect(badBody.code).toBe(10001)
+    expect(badBody.message).toContain('Excel 解析失败')
   })
 })
