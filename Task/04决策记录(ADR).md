@@ -124,7 +124,7 @@
 - **决策**：
   1. **单制品**：前端 `pnpm build` 的 `dist` 在**打包期**注入 `backend/src/main/resources/static/`，随 jar 发布；对外**只有一个 `bluebird-task.jar`**。
   2. **不使用 Nginx**：页面与 `/api/v1` 由内嵌 Tomcat **同源**提供；TLS/限流等如需，交由外部网关，不在本项目制品内。
-  3. **SPA history 回退**：新增 `SpaForwardController`，对「非 `/api/v1/**`、非静态资源、`Accept: text/html`」的请求回退 `index.html`；**API 的 404 仍返回 JSON `ApiResult`**，不被回退吞掉。
+  3. **SPA history 回退**：页面路径由 `SpaRoutes.PAGE_PATTERNS` 统一定义，`WebConfig.addViewControllers` 逐个转发 `index.html`，且 `SecurityConfig` 放行**同一份清单**——浏览器刷新深链是文档导航、不带 `Authorization` 头，页面若未放行会返回 `10002 未登录` 的 JSON 而非前端壳（修订 R29）。**API 的 404 仍返回 JSON `ApiResult`**，不被回退吞掉。
   4. **静态资源策略**：`/assets/**` 长缓存 `immutable`；`/index.html` `no-cache`；`server.compression.enabled=true` 替代 Nginx gzip。
   5. **构建接线**：Docker 多阶段（node 构建前端 → maven 内嵌打包），Dockerfile 位于 `backend/Dockerfile`、**构建上下文=仓根**；容器外由 CI/本地先构建前端再 `mvn package`（`maven-resources-plugin` 拷贝 dist）。
   6. `frontend/dist`、`backend/src/main/resources/static/` 为构建产物，**不入 git**。
@@ -305,7 +305,7 @@
 - **决策**：
   1. **系统默认顶级部门**：`sys_department` 增 `is_system`（Flyway `V3__dept_system_flag.sql`），
      由 `DefaultDepartmentRunner` 在启动时保证「存在且仅一个受保护的顶级部门」：
-     空库创建「总公司」；旧库把**最早创建的顶级部门**提升为系统部门（幂等，不重复插入）。
+     空库创建「XX公司」（历史种子名「总公司」「部门」在未被改名时自动迁移到当前默认名）；旧库把**最早创建的顶级部门**提升为系统部门（幂等，不重复插入）。
      该部门**可改名、不可删除**——`DepartmentService.delete` 依 `is_system` 拒绝，前端也不渲染删除入口。
   2. **新建用户必须选择部门**：`CreateUserCmd.deptId` 加 `@NotNull`（缺失返回 10001），前端表单同步必填校验。
   3. **无部门用户兜底**：`DefaultDepartmentRunner` 随后把 `dept_id IS NULL` 的用户归入默认部门，
