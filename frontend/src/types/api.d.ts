@@ -433,6 +433,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/departments/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 导出部门（.xlsx，ADMIN/USER_MANAGER）
+         * @description 导出全部部门为 Excel。列：部门名称、上级部门（全路径）、排序、负责人账号；
+         *     上级部门写**全路径**（如 `XX公司/研发中心`），因此「导出 → 修改 → 导入」可闭环。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description xlsx 文件流 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments/import-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 下载部门导入模板（.xlsx）
+         * @description 含表头、示例行与「填写说明」工作表，供用户填写后导入。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description xlsx 文件流 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 导入部门（.xlsx，ADMIN/USER_MANAGER）
+         * @description 先**全量校验**：只要有一行不通过就整份不导入，`data.ok=false` 并给出每行原因（`row` 为 Excel 1-based 行号）。
+         *     同一上级下同名的部门视为**更新**（排序/负责人），不会重复创建；父部门须已存在或在本文件中排在子部门之前。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        file: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["DeptImportResult"];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/departments/{id}": {
         parameters: {
             query?: never;
@@ -1944,6 +2072,21 @@ export interface components {
             /** @description 系统默认顶级部门：可改名，不可删除 */
             system?: boolean;
             children?: components["schemas"]["Department"][];
+        };
+        /** @description 部门导入结果。`ok=false` 表示整份未导入（全量校验未通过） */
+        DeptImportResult: {
+            ok: boolean;
+            /** @description 数据行总数 */
+            total: number;
+            created: number;
+            updated: number;
+            /** @description 校验失败行数 */
+            failed: number;
+            errors: {
+                /** @description Excel 1-based 行号（表头为第 1 行） */
+                row: number;
+                message: string;
+            }[];
         };
         /** @description 操作日志（ADMIN / AUDITOR）。字段对应 `02 §6.2` 表 `audit_operate_log`（module/action/uri/method/user_id/ip/user_agent/duration/status/msg）。 */
         OperateLogVO: {

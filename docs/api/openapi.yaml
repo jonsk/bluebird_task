@@ -168,6 +168,53 @@ paths:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/DeptCreateReq' } } }
       responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /departments/export:
+    get:
+      tags: [org]
+      summary: 导出部门（.xlsx，ADMIN/USER_MANAGER）
+      description: |
+        导出全部部门为 Excel。列：部门名称、上级部门（全路径）、排序、负责人账号；
+        上级部门写**全路径**（如 `XX公司/研发中心`），因此「导出 → 修改 → 导入」可闭环。
+      responses:
+        '200':
+          description: xlsx 文件流
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+  /departments/import-template:
+    get:
+      tags: [org]
+      summary: 下载部门导入模板（.xlsx）
+      description: 含表头、示例行与「填写说明」工作表，供用户填写后导入。
+      responses:
+        '200':
+          description: xlsx 文件流
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+  /departments/import:
+    post:
+      tags: [org]
+      summary: 导入部门（.xlsx，ADMIN/USER_MANAGER）
+      description: |
+        先**全量校验**：只要有一行不通过就整份不导入，`data.ok=false` 并给出每行原因（`row` 为 Excel 1-based 行号）。
+        同一上级下同名的部门视为**更新**（排序/负责人），不会重复创建；父部门须已存在或在本文件中排在子部门之前。
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/DeptImportResult' } } }]
   /departments/{id}:
     put:
       tags: [org]
@@ -744,6 +791,24 @@ components:
         sort: { type: integer }
         system: { type: boolean, description: 系统默认顶级部门：可改名，不可删除 }
         children: { type: array, items: { $ref: '#/components/schemas/Department' } }
+    DeptImportResult:
+      type: object
+      description: 部门导入结果。`ok=false` 表示整份未导入（全量校验未通过）
+      required: [ok, total, created, updated, failed, errors]
+      properties:
+        ok: { type: boolean }
+        total: { type: integer, description: 数据行总数 }
+        created: { type: integer }
+        updated: { type: integer }
+        failed: { type: integer, description: 校验失败行数 }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [row, message]
+            properties:
+              row: { type: integer, description: Excel 1-based 行号（表头为第 1 行） }
+              message: { type: string }
     OperateLogVO:
       type: object
       description: 操作日志（ADMIN / AUDITOR）。字段对应 `02 §6.2` 表 `audit_operate_log`（module/action/uri/method/user_id/ip/user_agent/duration/status/msg）。
