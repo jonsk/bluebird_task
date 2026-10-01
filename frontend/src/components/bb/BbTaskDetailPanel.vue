@@ -286,6 +286,20 @@ async function onAddStep(): Promise<void> {
               @blur="onSaveTitle"
             />
           </div>
+
+          <!-- 已添加的步骤：紧贴「添加步骤」输入框之上（对齐旧站结构：
+               旧 RightBoxDialog 的步骤行就在 .drbbi-one-child 之前，同一区域内既展示又新增） -->
+          <div v-if="(detail.subtasks ?? []).length" class="drbb-subtasks drbbi-one__steps" data-test="detail-steps">
+            <div v-for="sub in detail.subtasks" :key="sub.id" class="drbb-subtask">
+              <el-checkbox
+                :model-value="Boolean(sub.completed)"
+                :disabled="!writable"
+                @change="onToggleSubtask(sub)"
+              />
+              <span :class="{ 'is-done': sub.completed }">{{ sub.title }}</span>
+            </div>
+          </div>
+
           <div class="drbbi-one-child">
             <el-icon class="t-b-i-b-d-icon"><Paperclip /></el-icon>
             <input
@@ -397,20 +411,6 @@ async function onAddStep(): Promise<void> {
             @blur="onSaveNote"
           />
         </div>
-
-        <!-- 子任务 -->
-        <div v-if="(detail.subtasks ?? []).length" class="drbb-item drbb-shadow1 drbbi-two">
-          <div class="drbb-subtasks">
-            <div v-for="sub in detail.subtasks" :key="sub.id" class="drbb-subtask">
-              <el-checkbox
-                :model-value="Boolean(sub.completed)"
-                :disabled="!writable"
-                @change="onToggleSubtask(sub)"
-              />
-              <span :class="{ 'is-done': sub.completed }">{{ sub.title }}</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div class="drb-footer">
@@ -470,6 +470,11 @@ async function onAddStep(): Promise<void> {
   font-size: 15px;
   box-shadow: none;
   padding: 8px;
+}
+.drbbi-one__steps {
+  /* 步骤列表紧贴「添加步骤」输入框：与输入框文本左对齐并留出间距 */
+  margin: 12px 0 4px;
+  padding: 0 8px;
 }
 .drbbi-one-child {
   display: flex;
