@@ -171,7 +171,6 @@ public class TaskQueryService {
         //   `DATE_ADD(task_setup_time, INTERVAL 7 DAY) > task_alarm_time`。
         boolean byCreated = "day".equals(scope);
         boolean byDueWindow = "week".equals(scope);
-        boolean windowed = byCreated || byDueWindow;
         Instant now = Instant.now();
         LocalDate base = StringUtils.hasText(date) ? LocalDate.parse(date) : LocalDate.now(ZONE);
         Instant wStart = null;
@@ -183,7 +182,6 @@ public class TaskQueryService {
             wStart = base.atStartOfDay(ZONE).toInstant();
             wEnd = base.plusDays(7).atStartOfDay(ZONE).toInstant();
         }
-        boolean requireUncompleted = windowed;
 
         var wrapper = Wrappers.<Task>lambdaQuery()
                 .in(Task::getId, candidate)
@@ -196,9 +194,10 @@ public class TaskQueryService {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(Task::getTitle, kw).or().like(Task::getContent, kw));
         }
-        if (requireUncompleted) {
-            wrapper.eq(Task::getCompleted, 0);
-        }
+        // **不过滤 completed**：已完成的任务仍留在列表里，由 TaskSorter 排在最后，
+        // 前端以删除线呈现（用户反馈：完成任务不应「消失」）。
+        // 旧系统同样是「未完成 + 已完成」都在（taskListOne 的未完成区 + 已完成折叠面板，
+        // 两查 completeStatus=0/1），没有把已完成从视图中剔除。
         if (byCreated) {
             // 当天新建：只看建立时间落在所选日期内，与是否设置截止时间无关
             wrapper.ge(Task::getCreatedAt, wStart).lt(Task::getCreatedAt, wEnd);
