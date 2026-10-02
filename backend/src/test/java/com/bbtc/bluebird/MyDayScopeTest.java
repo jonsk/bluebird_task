@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -131,5 +132,44 @@ class MyDayScopeTest {
         // 5) 未来 7 天视图仍按截止时间开窗，且不受建立时间影响（回归保护）
         List<String> week = titles(token, "week", null);
         assertFalse(week.contains("今天新建-无截止"), "无截止时间的任务不应进入「未来7天」：" + week);
+    }
+
+    /**
+     * 用户反馈：完成任务后它**从列表消失**了。
+     *
+     * <p>正确行为：已完成任务仍留在列表里（前端加删除线），并由 {@code TaskSorter}
+     * 排在最后（逾期 &gt; 临期 &gt; 普通 &gt; 已完成）。旧系统同样是「未完成 + 已完成」都在，
+     * 只是分两个查询（completeStatus=0/1）渲染成「未完成区 + 已完成折叠面板」。
+     */
+    @Test
+    void completedTasksRemainVisibleAndSortLast() throws Exception {
+        String token = login();
+        create(token, "未完成-应在前", null);
+        long done = create(token, "已完成-应在后", null);
+
+        JsonNode detail = objectMapper.readTree(mvc.perform(get("/api/v1/tasks/" + done)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        long version = detail.path("data").path("version").asLong();
+
+        mvc.perform(post("/api/v1/tasks/" + done + "/complete")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(("{\"version\":" + version + "}").getBytes(StandardCharsets.UTF_8)))
+                .andExpect(jsonPath("$.code").value(0));
+
+        for (String scope : List.of("day", "all")) {
+            List<String> list = titles(token, scope, null);
+            assertTrue(list.contains("已完成-应在后"), scope + " 视图不应把已完成任务剔除：" + list);
+            assertEquals("已完成-应在后", list.get(list.size() - 1), scope + " 视图应把已完成任务排在最后：" + list);
+        }
+
+        // 计数同样包含已完成（与旧系统 /task/record/count 口径一致）
+        JsonNode counts = objectMapper.readTree(mvc.perform(get("/api/v1/tasks/count")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
+        assertEquals(2, counts.path("day").asInt(), "day 计数应含已完成：" + counts);
     }
 }

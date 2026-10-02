@@ -109,6 +109,51 @@ test('#R26 我的一天＝当天新建的任务（含不设截止时间）+ 日�
   expect(failed()).toBe(0)
 })
 
+test('#R30 勾选完成后任务不消失：加删除线并排到列表最后', async ({ page, request }) => {
+  page.setDefaultTimeout(30_000)
+  const lg = await (await request.post('/api/v1/auth/login', { data: { username: 'admin', password: PASSWORD } })).json()
+  const H = { Authorization: `Bearer ${lg.data.accessToken}` }
+
+  // 造三条今天新建的任务，全部会出现在「我的一天」
+  const t1 = uniq('R30-甲-')
+  const t2 = uniq('R30-乙-')
+  const t3 = uniq('R30-丙-')
+  const ids: number[] = []
+  for (const t of [t1, t2, t3]) {
+    const r = await (await request.post('/api/v1/tasks', { headers: H, data: { title: t, priority: 'NORMAL' } })).json()
+    expect(r.code).toBe(0)
+    ids.push(r.data)
+  }
+
+  await login(page)
+  await expect(page).toHaveURL(/\/index$/)
+  await page.waitForTimeout(1500)
+  const titles = () => page.locator('.bb-task-card__title').allInnerTexts()
+  expect((await titles()).some((t) => t.includes(t2)), '前置：乙应在列表中').toBe(true)
+
+  // 勾选「乙」完成
+  await page.locator('.bb-task-card', { hasText: t2 }).first().locator('.el-checkbox').click()
+  await page.waitForTimeout(2500)
+
+  const after = (await titles()).map((t) => t.trim())
+  check('#R30 完成任务后仍留在列表里（不再消失）', after.some((t) => t.includes(t2)), JSON.stringify(after.slice(0, 8)))
+
+  const target = page.locator('.bb-task-card', { hasText: t2 }).first()
+  const titleEl = target.locator('.bb-task-card__title')
+  check('#R30 已完成任务带 is-done 类', ((await titleEl.getAttribute('class')) ?? '').includes('is-done'), await titleEl.getAttribute('class'))
+  const deco = await titleEl.evaluate((el) => getComputedStyle(el).textDecorationLine)
+  check('#R30 已完成任务标题加删除线', deco.includes('line-through'), deco)
+
+  const last = page.locator('.bb-task-card').last()
+  check('#R30 已完成任务排在列表最下面', (await last.locator('.bb-task-card__title').innerText()).includes(t2), JSON.stringify(after.slice(-3)))
+
+  // 清理（顺带取消完成，避免留下已完成数据）
+  const detail = await (await request.get(`/api/v1/tasks/${ids[1]}`, { headers: H })).json()
+  await request.post(`/api/v1/tasks/${ids[1]}/uncomplete`, { headers: H, data: { version: detail.data.version, dueAt: detail.data.dueAt ?? null } })
+  for (const id of ids) await request.delete(`/api/v1/tasks/${id}`, { headers: H })
+  expect(failed()).toBe(0)
+})
+
 test('#1 分类：个人标签 + 部门分类可建立', async ({ page }) => {
   page.setDefaultTimeout(25_000)
   await login(page)
