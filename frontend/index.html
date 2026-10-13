@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.ico" />
     <title>蓝鸟任务管理系统</title>
+    <script>
+      // 首帧应用持久化主题，避免刷新闪白/FOUC（与 stores/app.ts 的 bb-theme 键一致）。
+      (function () {
+        try {
+          var t = localStorage.getItem('bb-theme');
+          if (['light-classic', 'light-modern', 'teal', 'dark'].indexOf(t) === -1) t = 'light-classic';
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

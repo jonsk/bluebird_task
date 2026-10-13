@@ -37,6 +37,105 @@
   --bb-color-near: #e6a23c;
 }
 
+/* ════════════ 主题：现代浅色 light-modern ════════════
+   默认 :root 即「经典浅色」(light-classic)，故不为它写覆盖块（零回归）。
+   各主题只覆盖与本主题相关的变量，未覆盖项继承默认。 */
+:root[data-theme='light-modern'] {
+  --bb-color-primary: #1677ff;
+  --bg-accent: #1677ff;
+  --bg-secondary: #f6f8fa;
+  --bg-hover: #eef1f5;
+  --bg-active: #e8f1ff;
+  --bg-separator: #e5e7eb;
+  --bb-radius: 10px;
+  --bb-radius-sm: 6px;
+  --bb-shadow-flat: 0 1px 2px rgba(16, 24, 40, 0.06), 0 6px 18px rgba(16, 24, 40, 0.08);
+  /* Element Plus 主色联动 */
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #54a0ff;
+  --el-color-primary-light-5: #7fb8ff;
+  --el-color-primary-light-7: #add3ff;
+  --el-color-primary-light-8: #c6e0ff;
+  --el-color-primary-light-9: #e3f0ff;
+  --el-color-primary-dark-2: #0f5fd4;
+}
+
+/* ════════════ 主题：青绿 teal ════════════ */
+:root[data-theme='teal'] {
+  --bb-color-primary: #0ba5a0;
+  --bg-accent: #0ba5a0;
+  --bg-secondary: #f0fdfa;
+  --bg-hover: #e6f7f4;
+  --bg-active: #ccfbf1;
+  --bg-separator: #d9f2ee;
+  --bb-radius: 8px;
+  --bb-radius-sm: 4px;
+  --el-color-primary: #0ba5a0;
+  --el-color-primary-light-3: #3fc4bf;
+  --el-color-primary-light-5: #6fd6d2;
+  --el-color-primary-light-7: #a2e7e4;
+  --el-color-primary-light-8: #bdeeec;
+  --el-color-primary-light-9: #e0f8f7;
+  --el-color-primary-dark-2: #098481;
+}
+
+/* ════════════ 主题：深色 dark（方案 A：手动覆盖 EP 关键变量）════════ */
+:root[data-theme='dark'] {
+  --bg-primary: #1a1f27;
+  --bg-secondary: #14181f;
+  --bg-hover: #232933;
+  --bg-active: #20324a;
+  --bg-separator: #2a3142;
+  --bg-shadow: rgba(0, 0, 0, 0.5);
+  --bg-accent: #3b82f6;
+  --bb-text: #e5e7eb;
+  --bb-text-secondary: #cbd5e1;
+  --bb-text-muted: #9aa6b6;
+  --bb-text-meta: #8b98a9;
+  --bb-color-primary: #3b82f6;
+  --bb-color-success: #34c77b;
+  --bb-color-warning: #e6a23c;
+  --bb-color-danger: #f2666d;
+  --bb-color-overdue: #f2666d;
+  --bb-color-near: #e6a23c;
+  --bb-shadow-flat: 0 1px 3px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.5);
+  --bb-radius: 10px;
+  --bb-radius-sm: 6px;
+  /* Element Plus 深色适配 */
+  --el-color-primary: #3b82f6;
+  --el-color-primary-light-3: #4f8ef7;
+  --el-color-primary-light-5: #669cf8;
+  --el-color-primary-light-7: #8fb4fa;
+  --el-color-primary-light-8: #a5c2fb;
+  --el-color-primary-light-9: #24415f;
+  --el-color-primary-dark-2: #2f6ad9;
+  --el-bg-color: #1a1f27;
+  --el-bg-color-page: #14181f;
+  --el-bg-color-overlay: #232a36;
+  --el-text-color-primary: #e5e7eb;
+  --el-text-color-regular: #cbd5e1;
+  --el-text-color-secondary: #9aa6b6;
+  --el-text-color-placeholder: #7d8b9c;
+  --el-text-color-disabled: #556278;
+  --el-border-color: #3a4356;
+  --el-border-color-light: #333c4e;
+  --el-border-color-lighter: #2c3546;
+  --el-border-color-extra-light: #263043;
+  --el-border-color-dark: #4a5468;
+  --el-fill-color-blank: #1a1f27;
+  --el-fill-color-light: #232933;
+  --el-fill-color-lighter: #20262f;
+  --el-fill-color-extra-light: #1e242c;
+}
+
+/* 深色主题下登录页（LoginView 自带浅色渐变，覆盖为深色系） */
+[data-theme='dark'] .login {
+  background: linear-gradient(135deg, #10141a 0%, #1a2130 100%);
+}
+[data-theme='dark'] .login-box {
+  background: #1a1f27;
+}
+
 /* preflight 关闭后的最小 reset（R8：不干扰 Element Plus） */
 html,
 body,

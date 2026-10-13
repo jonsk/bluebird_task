@@ -9,6 +9,7 @@ import 'element-plus/es/components/message-box/style/css'
 import App from './App.vue'
 import { router, setupGuard } from './router'
 import { setupDirectives } from './directives/permission'
+import { useAppStore } from '@/stores/app'
 
 /**
  * Element Plus 按需引入（unplugin-vue-components/resolvers 自动装配，03 §3.1/R8）——
@@ -29,7 +30,10 @@ async function enableMocking(): Promise<void> {
 async function bootstrap(): Promise<void> {
   await enableMocking()
   const app = createApp(App)
-  app.use(createPinia())
+  const pinia = createPinia()
+  app.use(pinia)
+  // 应用持久化主题（<html data-theme>）；index.html 内联脚本已预设，此处统一状态兜底。
+  useAppStore()
   app.use(router)
   setupDirectives(app)
   setupGuard()

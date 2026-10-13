@@ -3,6 +3,7 @@ import { computed, nextTick, ref, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  Brush,
   Calendar,
   ChatDotRound,
   Delete,
@@ -17,7 +18,7 @@ import {
   User,
 } from '@element-plus/icons-vue'
 import BbCategoryTree from './BbCategoryTree.vue'
-import { useAppStore } from '@/stores/app'
+import { useAppStore, type ThemeKey } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useTaskStore } from '@/stores/task'
@@ -149,6 +150,18 @@ async function runHandler(command: string): Promise<void> {
   await router.replace('/login')
 }
 
+/** 内置主题清单（key 与 tokens.css data-theme 作用域一致，展示用色块）。 */
+const themeList: ReadonlyArray<{ key: ThemeKey; label: string; color: string }> = [
+  { key: 'light-classic', label: '经典浅色', color: '#0065c0' },
+  { key: 'light-modern', label: '现代浅色', color: '#1677ff' },
+  { key: 'teal', label: '青绿', color: '#0ba5a0' },
+  { key: 'dark', label: '深色', color: '#3b82f6' },
+]
+
+function onThemeCommand(command: string | number | object): void {
+  app.setTheme(command as ThemeKey)
+}
+
 function onSelectCategory(id: number | null): void {
   taskStore.setCategoryFilter(id)
 }
@@ -189,7 +202,7 @@ function onSelectCategory(id: number | null): void {
             <div
               class="tabs-item"
               :data-test="`nav-${item.name}`"
-              :style="item.name === 'allTask' ? { borderBottom: '2px solid #0065c0' } : undefined"
+              :style="item.name === 'allTask' ? { borderBottom: '2px solid var(--bg-accent)' } : undefined"
               :class="{ 'item-active': currentName === item.name }"
               @click="goView(item.name)"
             >
@@ -266,9 +279,33 @@ function onSelectCategory(id: number | null): void {
     </div>
 
     <div class="left-box__bottom">
-      <el-icon class="left-box__bottom-icon" title="日历" data-test="nav-calendar" @click="goView('calendar')"><Calendar /></el-icon>
-      <el-icon v-if="canManageUsers" class="left-box__bottom-icon" title="组织管理" data-test="nav-adminOrg" @click="goView('adminOrg')"><User /></el-icon>
-      <el-icon v-if="canViewAudit" class="left-box__bottom-icon" title="操作/登录日志" data-test="nav-adminAudit" @click="goView('adminAudit')"><List /></el-icon>
+      <el-tooltip content="日历" placement="top" effect="light">
+        <el-icon class="left-box__bottom-icon" title="日历" data-test="nav-calendar" @click="goView('calendar')"><Calendar /></el-icon>
+      </el-tooltip>
+      <el-tooltip v-if="canManageUsers" content="组织管理" placement="top" effect="light">
+        <el-icon class="left-box__bottom-icon" title="组织管理" data-test="nav-adminOrg" @click="goView('adminOrg')"><User /></el-icon>
+      </el-tooltip>
+      <el-tooltip v-if="canViewAudit" content="操作/登录日志" placement="top" effect="light">
+        <el-icon class="left-box__bottom-icon" title="操作/登录日志" data-test="nav-adminAudit" @click="goView('adminAudit')"><List /></el-icon>
+      </el-tooltip>
+      <el-tooltip content="主题" placement="top" effect="light">
+        <el-dropdown trigger="click" @command="onThemeCommand">
+          <el-icon class="left-box__bottom-icon" title="主题" data-test="nav-theme"><Brush /></el-icon>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="t in themeList"
+                :key="t.key"
+                :command="t.key"
+                :class="{ 'theme-item-active': app.theme === t.key }"
+              >
+                <span class="theme-swatch" :style="{ background: t.color }"></span>
+                <span>{{ t.label }}</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </el-tooltip>
     </div>
   </aside>
 </template>
@@ -442,5 +479,18 @@ function onSelectCategory(id: number | null): void {
 }
 .left-box__bottom-icon:hover {
   color: var(--bg-accent);
+}
+.theme-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 3px;
+  vertical-align: -1px;
+  border: 1px solid var(--bg-separator);
+}
+.theme-item-active {
+  font-weight: 700;
+  color: var(--bb-color-primary);
 }
 </style>
