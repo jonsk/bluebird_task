@@ -233,6 +233,11 @@ async function commitDraft(): Promise<void> {
   removeDraft()
   try {
     await createCategory({ name, parentId, scope, deptId })
+    // 若当前范围过滤会隐藏刚建好的分类，切到该范围再刷新——否则「建了却看不到」，
+    // 用户会以为没建成功（例如停在「部门」页签时新建个人分类）。
+    if (scopeFilter.value && scopeFilter.value !== scope) {
+      scopeFilter.value = scope
+    }
     await reload()
     emit('changed')
     ElMessage.success('已新增分类')

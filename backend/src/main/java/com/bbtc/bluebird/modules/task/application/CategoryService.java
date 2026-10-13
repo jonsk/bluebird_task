@@ -144,7 +144,17 @@ public class CategoryService {
             }
             case Category.DEPARTMENT -> {
                 boolean creator = ownerId != null && ownerId.equals(me);
-                if (!creator && !isDeptLeader(deptId, me)) {
+                boolean leader = isDeptLeader(deptId, me);
+                if (ownerId == null) {
+                    // **新建**部门分类：本部门成员即可（且只能建到自己的部门）。
+                    // 原实现按「创建者 / 部门负责人」判定，但新建时创建者尚不存在（ownerId 为空），
+                    // 于是普通成员**永远建不了部门分类**，只有部门负责人或管理员能建（用户反馈）。
+                    // 建好之后，改/删仍限创建者 / 部门负责人 / ADMIN。
+                    boolean ownDept = deptId != null && deptId.equals(currentDeptId(me));
+                    if (!ownDept && !leader) {
+                        throw new BusinessException(ErrorCode.FORBIDDEN, "只能为本部门创建部门分类");
+                    }
+                } else if (!creator && !leader) {
                     throw new BusinessException(ErrorCode.FORBIDDEN, "仅创建者或本部门负责人可写部门分类");
                 }
             }
