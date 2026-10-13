@@ -140,7 +140,8 @@ test('#R30 勾选完成后任务不消失：加删除线并排到列表最后', 
 
   const target = page.locator('.bb-task-card', { hasText: t2 }).first()
   const titleEl = target.locator('.bb-task-card__title')
-  check('#R30 已完成任务带 is-done 类', ((await titleEl.getAttribute('class')) ?? '').includes('is-done'), await titleEl.getAttribute('class'))
+  const titleClass = (await titleEl.getAttribute('class')) ?? ''
+  check('#R30 已完成任务带 is-done 类', titleClass.includes('is-done'), titleClass)
   const deco = await titleEl.evaluate((el) => getComputedStyle(el).textDecorationLine)
   check('#R30 已完成任务标题加删除线', deco.includes('line-through'), deco)
 
