@@ -16,14 +16,13 @@ public record TaskCreateReq(
         Instant remindAt,
         String priority,
         CycleRule cycleRule,
-        Long categoryId,
         List<Long> assigneeIds,
         List<Long> ccIds,
         List<Long> tagIds,
         List<Long> fileIds) {
 
     public TaskCmd toCmd() {
-        return new TaskCmd(title, content, parentId, dueAt, remindAt, priority, cycleRule, categoryId,
+        return new TaskCmd(title, content, parentId, dueAt, remindAt, priority, cycleRule,
                 assigneeIds, ccIds, tagIds, fileIds, version);
     }
 }

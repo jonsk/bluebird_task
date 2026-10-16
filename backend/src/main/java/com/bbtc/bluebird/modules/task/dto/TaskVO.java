@@ -26,7 +26,6 @@ public class TaskVO {
     private List<UserBrief> ccUsers = new ArrayList<>();
     private List<Long> participantIds = new ArrayList<>();
     private Long version;
-    private CategoryBrief category;
     private List<TagVO> tags = new ArrayList<>();
     private int subtaskCompleted;
     private int subtaskTotal;

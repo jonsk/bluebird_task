@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 步骤（子任务）隔离回归测试。
  *
  * <p>用户反馈 BUG：一个任务里加多个「步骤」后，每个步骤都变成了一条独立任务。
- * 根因是六大视图的列表查询没有排除 `parent_id IS NOT NULL` 的行——步骤与父任务同表，
+ * 根因是各视图的列表查询没有排除 `parent_id IS NOT NULL` 的行——步骤与父任务同表，
  * 于是每加一步，视图与计数里就多出一条任务。旧系统步骤存于独立子表，
  * 天然不会混进 `task_record` 的列表查询，故步骤**只应出现在父任务详情的 subtasks 中**。
  */
@@ -102,8 +102,8 @@ class SubtaskScopeTest {
         long stepB = create(token, STEP_B, parent);
         assertTrue(stepA > 0 && stepB > 0);
 
-        // 1) 六大视图都不应出现步骤
-        for (String scope : List.of("day", "week", "joined", "assigned", "collect", "all")) {
+        // 1) 各视图都不应出现步骤
+        for (String scope : List.of("day", "joined", "assigned", "collect", "all")) {
             List<String> list = titles(token, "/api/v1/tasks?scope=" + scope + "&size=100");
             assertFalse(list.contains(STEP_A), scope + " 视图不应包含步骤：" + list);
             assertFalse(list.contains(STEP_B), scope + " 视图不应包含步骤：" + list);

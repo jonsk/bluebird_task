@@ -38,18 +38,17 @@ public class TaskController {
     private final TaskApplicationService taskApp;
     private final TaskQueryService taskQuery;
 
-    @Operation(summary = "任务列表（六大视图）")
+    @Operation(summary = "任务列表（各视图）")
     @GetMapping
     public ApiResult<PageResult<TaskVO>> page(@RequestParam String scope,
                                               @RequestParam(required = false) String keyword,
                                               @RequestParam(defaultValue = "false") boolean subordinate,
                                               @RequestParam(required = false) String date,
-                                              @RequestParam(required = false) Long categoryId,
                                               @RequestParam(required = false) Long menuId,
                                               @RequestParam(defaultValue = "1") long page,
                                               @RequestParam(defaultValue = "20") long size) {
         return ApiResult.ok(taskQuery.page(
-                new TaskQuery(scope, keyword, subordinate, date, categoryId, menuId, page, size)));
+                new TaskQuery(scope, keyword, subordinate, date, menuId, page, size)));
     }
 
     @Operation(summary = "各视图计数")

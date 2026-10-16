@@ -128,10 +128,6 @@ class MyDayScopeTest {
         List<String> dayBefore = titles(token, "day", yesterday);
         assertTrue(dayBefore.contains("昨天建立-今天截止"), "指定日期应返回该日建立的任務：" + dayBefore);
         assertFalse(dayBefore.contains("今天新建-无截止"), "指定昨天不应包含今天建立的任务：" + dayBefore);
-
-        // 5) 未来 7 天视图仍按截止时间开窗，且不受建立时间影响（回归保护）
-        List<String> week = titles(token, "week", null);
-        assertFalse(week.contains("今天新建-无截止"), "无截止时间的任务不应进入「未来7天」：" + week);
     }
 
     /**

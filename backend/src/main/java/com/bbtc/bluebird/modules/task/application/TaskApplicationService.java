@@ -52,7 +52,6 @@ public class TaskApplicationService {
         t.setPriority(StringUtils.hasText(cmd.priority()) ? cmd.priority() : "MEDIUM");
         t.setDueAt(cmd.dueAt());
         t.setRemindAt(cmd.remindAt());
-        t.setCategoryId(cmd.categoryId());
         t.setOwnerId(me);
         t.setParentId(cmd.parentId());
         t.setVersion(0);
@@ -85,7 +84,6 @@ public class TaskApplicationService {
         if (StringUtils.hasText(cmd.priority())) {
             t.setPriority(cmd.priority());
         }
-        t.setCategoryId(cmd.categoryId());
         if (cmd.cycleRule() != null) {
             t.setCycleRule(JsonUtils.toJson(cmd.cycleRule()));
         } else {

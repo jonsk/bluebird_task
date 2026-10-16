@@ -23,7 +23,6 @@ public final class SpaRoutes {
             "/oauth/success",
             "/403",
             "/index",
-            "/myWeek",
             "/myJoin",
             "/myDo",
             "/myCollect",
@@ -35,7 +34,7 @@ public final class SpaRoutes {
 
     /** 供测试遍历的固定页面（把 {@code /calendar/*} 之类的模式换成具体值）。 */
     public static final List<String> SAMPLE_PAGES = List.of(
-            "/login", "/index", "/myWeek", "/myJoin", "/myDo", "/myCollect",
+            "/login", "/index", "/myJoin", "/myDo", "/myCollect",
             "/allTask", "/calendar/2026-10-01", "/admin/org", "/admin/audit", "/403");
 
     private SpaRoutes() {

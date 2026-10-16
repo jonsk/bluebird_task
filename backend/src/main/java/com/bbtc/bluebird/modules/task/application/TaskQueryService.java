@@ -9,7 +9,6 @@ import com.bbtc.bluebird.common.util.JsonUtils;
 import com.bbtc.bluebird.modules.file.domain.Attachment;
 import com.bbtc.bluebird.modules.file.infrastructure.AttachmentMapper;
 import com.bbtc.bluebird.modules.org.application.DepartmentService;
-import com.bbtc.bluebird.modules.task.domain.Category;
 import com.bbtc.bluebird.modules.task.domain.CycleRule;
 import com.bbtc.bluebird.modules.task.domain.Tag;
 import com.bbtc.bluebird.modules.task.domain.Task;
@@ -18,7 +17,6 @@ import com.bbtc.bluebird.modules.task.domain.TaskMenu;
 import com.bbtc.bluebird.modules.task.domain.TaskMenuItem;
 import com.bbtc.bluebird.modules.task.domain.TaskParticipant;
 import com.bbtc.bluebird.modules.task.domain.TaskTag;
-import com.bbtc.bluebird.modules.task.dto.CategoryBrief;
 import com.bbtc.bluebird.modules.task.dto.CountVO;
 import com.bbtc.bluebird.modules.task.dto.FileRef;
 import com.bbtc.bluebird.modules.task.dto.TagVO;
@@ -26,7 +24,6 @@ import com.bbtc.bluebird.modules.task.dto.TaskDetailVO;
 import com.bbtc.bluebird.modules.task.dto.TaskQuery;
 import com.bbtc.bluebird.modules.task.dto.TaskVO;
 import com.bbtc.bluebird.modules.task.dto.UserBrief;
-import com.bbtc.bluebird.modules.task.infrastructure.CategoryMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TagMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TaskCollectMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TaskMapper;
@@ -65,10 +62,8 @@ public class TaskQueryService {
     private final TaskTagMapper taskTagMapper;
     private final TaskCollectMapper collectMapper;
     private final TagMapper tagMapper;
-    private final CategoryMapper categoryMapper;
     private final TaskMenuMapper menuMapper;
     private final TaskMenuItemMapper menuItemMapper;
-    private final CategoryService categoryService;
     private final AttachmentMapper attachmentMapper;
     private final DepartmentService departmentService;
     private final UserLookupService userLookup;
@@ -80,7 +75,7 @@ public class TaskQueryService {
     /* ==================== 列表 / 计数 ==================== */
 
     public PageResult<TaskVO> page(TaskQuery q) {
-        List<TaskVO> list = collect(q.scope(), q.keyword(), q.subordinate(), q.date(), q.categoryId(), q.menuId());
+        List<TaskVO> list = collect(q.scope(), q.keyword(), q.subordinate(), q.date(), q.menuId());
         list.sort(TaskSorter.comparator(Instant.now()));
         long total = list.size();
         long page = Math.max(1, q.page());
@@ -92,12 +87,11 @@ public class TaskQueryService {
 
     public CountVO counts() {
         return new CountVO(
-                collect("day", null, false, null, null, null).size(),
-                collect("week", null, false, null, null, null).size(),
-                collect("joined", null, false, null, null, null).size(),
-                collect("assigned", null, false, null, null, null).size(),
-                collect("collect", null, false, null, null, null).size(),
-                collect("all", null, false, null, null, null).size());
+                collect("day", null, false, null, null).size(),
+                collect("joined", null, false, null, null).size(),
+                collect("assigned", null, false, null, null).size(),
+                collect("collect", null, false, null, null).size(),
+                collect("all", null, false, null, null).size());
     }
 
     public List<TaskVO> calendar(Instant start, Instant end) {
@@ -152,13 +146,9 @@ public class TaskQueryService {
 
     /* ==================== scope 解析 ==================== */
 
-    private List<TaskVO> collect(String scope, String keyword, boolean subordinate, String date,
-                                 Long categoryId, Long menuId) {
+    private List<TaskVO> collect(String scope, String keyword, boolean subordinate, String date, Long menuId) {
         Long me = UserContext.currentUserId();
         Set<Long> candidate = candidateTaskIds(me, scope, subordinate);
-        if (categoryId != null) {
-            candidate.retainAll(categoryTaskIds(categoryId));
-        }
         if (menuId != null) {
             candidate.retainAll(menuTaskIds(menuId, me));
         }
@@ -167,10 +157,7 @@ public class TaskQueryService {
         }
         // 我的一天（day）：按**任务建立时间**取当天 —— 对齐旧系统 getDayTask 的
         //   `task_setup_time LIKE 'yyyy-MM-dd'`（旧库该列注释即「任务建立时间」，非截止时间）。
-        // 未来7天（week）：按**截止时间**开窗 —— 对齐旧系统 getWeekTask 的
-        //   `DATE_ADD(task_setup_time, INTERVAL 7 DAY) > task_alarm_time`。
         boolean byCreated = "day".equals(scope);
-        boolean byDueWindow = "week".equals(scope);
         Instant now = Instant.now();
         LocalDate base = StringUtils.hasText(date) ? LocalDate.parse(date) : LocalDate.now(ZONE);
         Instant wStart = null;
@@ -178,9 +165,6 @@ public class TaskQueryService {
         if (byCreated) {
             wStart = base.atStartOfDay(ZONE).toInstant();
             wEnd = base.plusDays(1).atStartOfDay(ZONE).toInstant();
-        } else if (byDueWindow) {
-            wStart = base.atStartOfDay(ZONE).toInstant();
-            wEnd = base.plusDays(7).atStartOfDay(ZONE).toInstant();
         }
 
         var wrapper = Wrappers.<Task>lambdaQuery()
@@ -201,8 +185,6 @@ public class TaskQueryService {
         if (byCreated) {
             // 当天新建：只看建立时间落在所选日期内，与是否设置截止时间无关
             wrapper.ge(Task::getCreatedAt, wStart).lt(Task::getCreatedAt, wEnd);
-        } else if (byDueWindow) {
-            wrapper.isNotNull(Task::getDueAt).ge(Task::getDueAt, wStart).lt(Task::getDueAt, wEnd);
         }
         // 非周期任务
         wrapper.isNull(Task::getCycleRule);
@@ -233,16 +215,10 @@ public class TaskQueryService {
         List<TaskVO> out = new ArrayList<>(assemble(plainTasks, parts));
         for (Task t : cycleTasks) {
             CycleRule rule = JsonUtils.parse(t.getCycleRule(), CycleRule.class);
-            if (byDueWindow) {
-                for (Instant occ : CycleExpander.expand(rule, t.getCycleLastCompleted(), wStart, wEnd, CYCLE_MAX)) {
-                    out.add(assembleInstance(t, occ, parts));
-                }
-            } else {
-                Instant next = CycleExpander.firstNext(rule, t.getCycleLastCompleted(), now,
-                        now.plusSeconds(3660L * 24 * 365));
-                if (next != null) {
-                    out.add(assembleInstance(t, next, parts));
-                }
+            Instant next = CycleExpander.firstNext(rule, t.getCycleLastCompleted(), now,
+                    now.plusSeconds(3660L * 24 * 365));
+            if (next != null) {
+                out.add(assembleInstance(t, next, parts));
             }
         }
         return out;
@@ -267,7 +243,7 @@ public class TaskQueryService {
                     .forEach(p -> ids.add(p.getTaskId()));
             return ids;
         }
-        // day/week/all: owner=me 或 participant(me)
+        // day/all: owner=me 或 participant(me)
         Set<Long> ownerTasks = new HashSet<>();
         taskMapper.selectList(Wrappers.<Task>lambdaQuery().select(Task::getId).eq(Task::getOwnerId, me))
                 .forEach(t -> ownerTasks.add(t.getId()));
@@ -287,20 +263,7 @@ public class TaskQueryService {
         return ids;
     }
 
-    /* ==================== 分类 / 自定义栏过滤 ==================== */
-
-    /** 分类**子树**下的任务 id（含自身；共享分类 ADR-015）。 */
-    private Set<Long> categoryTaskIds(Long rootId) {
-        Set<Long> catIds = categoryService.descendants(rootId);
-        if (catIds.isEmpty()) {
-            return Set.of();
-        }
-        Set<Long> ids = new HashSet<>();
-        taskMapper.selectList(Wrappers.<Task>lambdaQuery()
-                        .select(Task::getId).in(Task::getCategoryId, catIds))
-                .forEach(t -> ids.add(t.getId()));
-        return ids;
-    }
+    /* ==================== 自定义栏过滤 ==================== */
 
     /** 自定义栏条目对应的任务 id（仅本人自定义栏，否则 404）。 */
     private Set<Long> menuTaskIds(Long menuId, Long me) {
@@ -354,18 +317,6 @@ public class TaskQueryService {
                 .forEach(a -> files.computeIfAbsent(a.getTaskId(), k -> new ArrayList<>())
                         .add(new FileRef(a.getId(), a.getFileName(), a.getSize())));
 
-        Set<Long> catIds = new HashSet<>();
-        tasks.forEach(t -> {
-            if (t.getCategoryId() != null) {
-                catIds.add(t.getCategoryId());
-            }
-        });
-        Map<Long, String> catNames = new HashMap<>();
-        if (!catIds.isEmpty()) {
-            categoryMapper.selectList(Wrappers.<Category>lambdaQuery().in(Category::getId, catIds))
-                    .forEach(c -> catNames.put(c.getId(), c.getName()));
-        }
-
         // 子任务统计
         Map<Long, int[]> subCounts = new HashMap<>();
         taskMapper.selectList(Wrappers.<Task>lambdaQuery().select(Task::getParentId, Task::getCompleted)
@@ -405,9 +356,6 @@ public class TaskQueryService {
             }
             vo.setTags(tags.getOrDefault(t.getId(), new ArrayList<>()));
             vo.setFiles(files.getOrDefault(t.getId(), new ArrayList<>()));
-            if (t.getCategoryId() != null && catNames.containsKey(t.getCategoryId())) {
-                vo.setCategory(new CategoryBrief(t.getCategoryId(), catNames.get(t.getCategoryId())));
-            }
             int[] sc = subCounts.get(t.getId());
             if (sc != null) {
                 vo.setSubtaskTotal(sc[0]);
@@ -462,7 +410,6 @@ public class TaskQueryService {
         d.setCcUsers(vo.getCcUsers());
         d.setParticipantIds(vo.getParticipantIds());
         d.setVersion(vo.getVersion());
-        d.setCategory(vo.getCategory());
         d.setTags(vo.getTags());
         d.setSubtaskCompleted(vo.getSubtaskCompleted());
         d.setSubtaskTotal(vo.getSubtaskTotal());

@@ -32,7 +32,6 @@ public class Task extends BaseEntity {
     private Instant remindAt;
     private String cycleRule;
     private Instant cycleLastCompleted;
-    private Long categoryId;
     private Long ownerId;
 
     @Version

@@ -14,7 +14,6 @@ public record TaskCmd(
         Instant remindAt,
         String priority,
         CycleRule cycleRule,
-        Long categoryId,
         List<Long> assigneeIds,
         List<Long> ccIds,
         List<Long> tagIds,
