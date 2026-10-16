@@ -27,11 +27,6 @@ fixtures/
 │   ├── users/GET.index.json · GET.me.json · POST.create.json · PUT.password.json
 │   ├── departments/GET.tree.json   # 部门树（GET /departments）
 │   ├── tags/GET.list.json · POST.create.json · PUT.update.json · DELETE.remove.json
-│   ├── categories/
-│   │   ├── GET.tree.json           # 分类树（全字段 + 3 级嵌套）
-│   │   ├── GET.detail.json         # 单节点「详情态」对象
-│   │   ├── GET.tree.empty.json     # 空态：无分类
-│   │   └── POST.create.json · PUT.update.json · DELETE.remove.json
 │   ├── menus/
 │   │   ├── GET.list.json           # 自定义栏（全字段 + 条目含任务摘要）
 │   │   ├── GET.detail.json         # 单栏「详情态」对象（含 items）
@@ -62,18 +57,17 @@ fixtures/
 
 ## 1.2 详情态 / 空态 fixture 口径（2026-09-29）
 
-对 **`categories` / `menus`** 两类资源，设计文档（`02 §3.x` 接口表）**无独立 `GET /{id}` 详情接口**（分类编辑复用树节点、自定义栏数据来自 `GET /menus`）。因此：
+对 **`menus`** 资源，设计文档（`02 §3.x` 接口表）**无独立 `GET /{id}` 详情接口**（自定义栏数据来自 `GET /menus`）。因此：
 
 | 文件 | 含义 | 消费方用法 |
 |---|---|---|
-| `categories/GET.tree.json` | 分类树，**每节点为完整详情对象**（`sort/taskCount/createdAt/updatedAt/children`，含 3 级嵌套） | `GET /categories` 直接返回 |
-| `categories/GET.detail.json` | **单个分类节点**的完整对象（取自树内节点形态） | MSW 对「单节点」场景（编辑表单/详情面板）按 id 从树 handler 中**取出该节点**返回；**不新增后端接口** |
-| `categories/GET.tree.empty.json` | 空树 | 空态场景（配合 `BbEmpty`） |
 | `menus/GET.list.json` | 自定义栏列表，**每栏含完整 `items[]`**，条目内嵌 `task` 摘要（`TaskBrief`） | `GET /menus?userId=` 直接返回 |
-| `menus/GET.detail.json` | **单个自定义栏**完整对象（含 `items[]`） | 同 `categories/GET.detail.json` 口径，按 id 从列表 handler 取出；**不新增后端接口** |
+| `menus/GET.detail.json` | **单个自定义栏**完整对象（含 `items[]`） | 按 id 从列表 handler 取出；**不新增后端接口** |
 | `menus/GET.list.empty.json` | 无自定义栏 | 空态场景 |
 
-> **契约支撑**：本次同步在 `../../api/openapi.yaml` 补齐了此前缺失的 `Category` / `Menu` / `MenuItem` / `TaskBrief` 四个 schema（原 fixtures 无契约可依）。若后续确需「按 id 取单分类/单栏」的**独立接口**，需先改 `02 §3.x` 接口表与 openapi，再新增对应 `GET /{id}`——当前**刻意保守**，不擅自新增端点。
+> **契约支撑**：本次同步在 `../../api/openapi.yaml` 补齐了此前缺失的 `Menu` / `MenuItem` / `TaskBrief` 三个 schema（原 fixtures 无契约可依）。若后续确需「按 id 取单栏」的**独立接口**，需先改 `02 §3.x` 接口表与 openapi，再新增对应 `GET /{id}`——当前**刻意保守**，不擅自新增端点。
+
+> **分类已移除（2026-10-14）**：分类功能整体下线（前端左栏分类树、后端分类模块、`category` 表与历史数据、openapi `/categories` 端点与 `Category`/`CategoryBrief`/`CategoryReq` schema、MSW 分类 fixtures/契约文档 `BbCategoryTree.md`）。标签 `tag`/`task_tag` 保留。
 
 ## 1.3 写操作 / 错误态 fixtures（修订 0302/P3、P5；0303/N5 修正计数）
 
@@ -88,7 +82,6 @@ fixtures/
 | `POST /tasks/{id}/complete`、`/uncomplete` | `tasks/POST.complete.json`、`tasks/POST.uncomplete.json` |
 | `POST|DELETE /tasks/{id}/collect` | `tasks/POST.collect.json`、`tasks/DELETE.collect.json` |
 | `POST /tags`、`/tags/{id}` PUT/DELETE | `tags/POST.create.json`、`PUT.update.json`、`DELETE.remove.json` |
-| `POST /categories`、`/categories/{id}` PUT/DELETE | `categories/POST.create.json`、`PUT.update.json`、`DELETE.remove.json` |
 | `POST /menus`、`/menus/{id}` PUT/DELETE、`/menus/{id}/items` POST、`/items/{itemId}` DELETE | `menus/POST.create.json`、`PUT.update.json`、`DELETE.remove.json`、`POST.items.json`、`DELETE.items.json` |
 | `POST /files` | `files/POST.upload.json`（`FileVO`） |
 | `POST /users`、`PUT /users/{id}/password` | `users/POST.create.json`、`PUT.password.json` |
@@ -110,16 +103,15 @@ fixtures/
 
 | DTO | 关键字段 | 说明 |
 |---|---|---|
-| `TaskVO` | `id,title,content,status(ACTIVE/DISABLED/ARCHIVED),completed,dueAt,remindAt,priority(priority),cycleRule,cycleLastCompleted,owner:{id,name},assignees[],ccUsers[],participantIds[],category:{id,name},tags[],subtasks[],files[]` | `owner.id` 映射旧 `belongUserId`（02 §4.5） |
+| `TaskVO` | `id,title,content,status(ACTIVE/DISABLED/ARCHIVED),completed,dueAt,remindAt,priority(priority),cycleRule,cycleLastCompleted,owner:{id,name},assignees[],ccUsers[],participantIds[],tags[],subtasks[],files[]` | `owner.id` 映射旧 `belongUserId`（02 §4.5） |
 | `UserVO` | `id,username,name,mobile(脱敏),deptId,deptName,roleCode` | `GET /users?deptId=&keyword=` |
 | `CycleRule` | `freq,interval,dtstart,byDay,count,until,tz` | 02 §4.3；`dueAt=dtstart` |
 | `TagVO` | `id,name,color(owner)` | 标签着色 |
-| `Category` | `id,name,parentId,scope(PERSONAL/DEPARTMENT/ORG),deptId,ownerId,sort,taskCount,createdAt,updatedAt,children[]` | 分类树节点（含子）；`GET /categories`（`scope` 共享范围，ADR-015） |
 | `Menu` | `id,userId,name,sort,createdAt,items[]` | 自定义栏（用户私有）；`GET /menus?userId=` |
 | `MenuItem` | `id,menuId,taskId,sort,task:TaskBrief` | 栏内条目，内嵌任务摘要供直接渲染 |
 | `TaskBrief` | `id,title,completed,dueAt,priority` | 栏内/轻量引用任务的摘要 |
 | `Department` | `id,name,parentId,leaderId,sort,children[]` | 部门树节点；`GET /departments`（`leaderId`=负责人，组织级可见性 ADR-012；guides：部门筛选/人员选择数据源；原 `BbOrgTree` 已于 0307 废弃） |
-| `CountVO` | `{day,week,joined,assigned,collect,all}` | 六大视图计数（recurring 按展开实例） |
+| `CountVO` | `{day,joined,assigned,collect,all}` | 各视图计数（recurring 按展开实例） |
 
 > **身份 / 命名空间（0304/G1）**：当前用户 = `admin`（新形态 `id=1`；旧形态 `id="1"` 字符串），任务归属人 = `1`。两形态**样例值不逐字节对应**（id 命名空间各自独立），仅字段与语义对齐；比对以「同视图、同过滤结果」为准。
 
@@ -145,4 +137,5 @@ fixtures/
 - ✅ **企业级审核（0306）修订**（2026-09-29）：① **Q4 乐观锁**——`tasks/*` fixtures 增 `"version": 0`，openapi `TaskVO.version` / `TaskCreateReq.version`；② **Q1/Q2 角色与写权**——openapi `roleCode` 枚举扩为 `ADMIN/AUDITOR/USER_MANAGER/COMMON`；③ **错误态**——`_errors/` 19 → **22**（新增 `10006/10007/20006`）。
 - ✅ **覆盖率缺口补齐**（2026-09-29，修订 0303/N2）：补 `users/GET.me.json`（`GET /users/me`）、`departments/GET.tree.json`（`GET /departments`）；`BbOrgTree` 数据源明确为后者（不再复用 users 树）。
 - ✅ **旧接口形态**（`legacy-api/`，2026-09-28）：线上抓包结构 + 合成数据，驱动 `../screenshots/` 黄金截图；真实密钥/口令已脱敏（见 `legacy-api/README.md`）。
-- ⏳ 待办：`users/GET.index.json` 按 `deptId/scope` 过滤子集（MSW handler 内过滤）；若确认需要「按 id 取单分类/单栏」独立接口，同步改 `02 §3.x` + openapi。
+- ⏳ 待办：`users/GET.index.json` 按 `deptId/scope` 过滤子集（MSW handler 内过滤）；若确认需要「按 id 取单栏」独立接口，同步改 `02 §3.x` + openapi。
+- 🗑️ **分类 fixtures 已移除（2026-10-14）**：`api/categories/` 目录与其读写/错误态 fixture 全部删除（分类功能整体下线，见 §1.2 说明）。`legacy-api/dataset.json` 中保留旧系统分类证据字段仅为历史参照，不再驱动新前端。

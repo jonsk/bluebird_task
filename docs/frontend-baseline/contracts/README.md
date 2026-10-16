@@ -23,7 +23,7 @@
 
 | 类别 | 组件 | 契约形态 | 依据 |
 |---|---|---|---|
-| **业务组件（15）** | `BbTaskCard / BbTaskComposer / BbSubtaskList / BbCalendarCard / BbDatePicker / BbRemindSelect / BbRepeatSelect / BbUserSelect / BbCategoryTree / BbTagConfig / BbTaskList / BbTaskDetailPanel / BbTaskMetaLine / BbAttachmentList / BbParticipantList` | **行为契约**（本文模板 7 字段，基于**旧源码**导出） | 03 §2.3.1 |
+| **业务组件（14）** | `BbTaskCard / BbTaskComposer / BbSubtaskList / BbCalendarCard / BbDatePicker / BbRemindSelect / BbRepeatSelect / BbUserSelect / BbTagConfig / BbTaskList / BbTaskDetailPanel / BbTaskMetaLine / BbAttachmentList / BbParticipantList` | **行为契约**（本文模板 7 字段，基于**旧源码**导出） | 03 §2.3.1 |
 | **原子组件（14）** | `BbButton / BbInput / BbSelect / BbModal / BbDrawer / BbTag / BbIcon / BbTree / BbTable / BbPagination / BbEmpty / BbTooltip / BbLoading / BbConfirm`（03 §3.4.1 列表） | **设计/样式契约**（Element Plus 薄封装，**无旧源可派生行为**）：props/emits 透传约定、Design Token 映射、间距/色/态（hover/disabled）、无障碍基准 | 03 §3.4.1（设计系统），非 §2.3.1 |
 
 > 即：**15 份行为契约**走 §2.3 三步法（旧源导出 + 截图证据）；**14 份原子契约**走设计系统规格（Design Token/主题），同样入库 `contracts/` 但以「风格契约」形态，天然无旧源与截图比对需求。M0 验收按此两口径分别核验。
@@ -58,7 +58,6 @@
 | `todolistModule/components/dropdownSetTips.vue` | `BbRemindSelect` | `BbRemindSelect.md` | ✅ |
 | `todolistModule/components/dropdownSetEach.vue` | `BbRepeatSelect` | `BbRepeatSelect.md` | ✅ |
 | `todolistModule/components/selectUser.vue` | `BbUserSelect` | `BbUserSelect.md` | ✅ |
-| `layoutNew/components/LeftBox/categoryTree.vue` | `BbCategoryTree` | `BbCategoryTree.md` | ✅ |
 | `layoutNew/components/TagConfig/index.vue` | `BbTagConfig` | `BbTagConfig.md` | ✅ |
 | `todolistModule/components/taskListOne.vue` / `taskListTwo.vue` | `BbTaskList` | `BbTaskList.md` | ✅ |
 | `todolistModule/components/RightBoxDialog` / 详情 | `BbTaskDetailPanel`（原 `BbTaskDetailDrawer`，2026-09-30 更名为内联面板） | `BbTaskDetailDrawer.md` | ✅ |
@@ -122,17 +121,13 @@
 | `POST /task/subrecord/update`（L222） | `PUT /tasks/{id}` | |
 | `GET /task/subrecord/complete`（L230） | `POST /tasks/{id}/complete` | 旧为 GET |
 
-### 自定义栏 / 分类 / 标签 / 人员 / 附件（其余模块 · 0304/D6 补全）
+### 自定义栏 / 标签 / 人员 / 附件（其余模块 · 0304/D6 补全）
 
 | 旧接口（方法 路径） | 新接口 | 备注 |
 |---|---|---|
 | `POST /task/menu/add`（`record.js` L161） | `POST /menus` | 新增自定义栏 |
 | `GET /task/menu/getmenulist`（L169） | `GET /menus` | |
 | `POST /task/menu/doCollect`（L21） | `POST /menus/{id}/items` | 移动任务到栏 |
-| `GET /sys/category/tree` | `GET /categories` | 分类树 |
-| `POST /sys/category/add` | `POST /categories` | 新增分类 |
-| `POST /sys/category/update` | `PUT /categories/{id}` | |
-| `GET /sys/category/del` | `DELETE /categories/{id}` | 旧为 GET |
 | `GET /sysTag/page`（`api/sysTag.js` L15） | `GET /tags` | 标签列表 |
 | `POST /sysTag/add`（L41） | `POST /tags` | |
 | `POST /sysTag/update`（L54） | `PUT /tags/{id}` | |

@@ -10,7 +10,6 @@
 | 缺陷 | 现象 | MSW 为何测不出 |
 |---|---|---|
 | 主键超 JS 安全整数 | 雪花 id ≈2.1e18 > 2⁵³，浏览器 `JSON.parse` 静默改写末位 → 按 id 的操作全废（详情打不开、无法编辑/完成/删除） | fixture 用小 id（101/1201），永不超界 |
-| 分类树 NPE | 任一「无分类任务」触发 `select(单可空列)` 返回 null 元素 → `GET /categories` 10000，左栏崩 | mock 直接返回 JSON，不走 MyBatis |
 | 附件上传 10000 | `@MapperScan` 裸包扫描把 `FileStorage` 当 mapper → `BindingException` | mock 的 `POST /files` 恒成功 |
 | 连续上传误判重复提交 | multipart 不进防重 key → 3 秒内第 2 个文件被 10005 拒绝 | mock 无防重拦截器 |
 

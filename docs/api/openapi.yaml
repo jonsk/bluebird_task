@@ -17,7 +17,6 @@ tags:
   - name: org
   - name: task
   - name: tag
-  - name: category
   - name: menu
   - name: file
   - name: audit
@@ -320,13 +319,12 @@ paths:
   /tasks:
     get:
       tags: [task]
-      summary: 任务列表（六大视图）
+      summary: 任务列表（各视图）
       parameters:
         - { name: scope, in: query, required: true, schema: { $ref: '#/components/schemas/Scope' } }
         - { name: keyword, in: query, schema: { type: string }, description: 匹配 title/content（大小写不敏感子串） }
         - { name: subordinate, in: query, schema: { type: boolean, default: false }, description: 仅 scope=all 生效；主管筛选其（含递归子部门）下属相关任务，只读（ADR-012） }
         - { name: date, in: query, schema: { type: string, format: date } }
-        - { name: categoryId, in: query, schema: { type: integer, format: int64 }, description: 按分类过滤（含子树，ADR-015 共享分类） }
         - { name: menuId, in: query, schema: { type: integer, format: int64 }, description: 按自定义栏条目过滤（仅本人栏） }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
@@ -455,32 +453,6 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TagReq' } } } }
       responses: { '200': { $ref: '#/components/responses/Ok' } }
     delete: { tags: [tag], summary: 删标签, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
-  /categories:
-    get:
-      tags: [category]
-      summary: 可见分类树（个人 + 部门 + 组织）
-      parameters:
-        - { name: scope, in: query, schema: { type: string, enum: [PERSONAL, DEPARTMENT, ORG] }, description: 可选过滤共享范围 }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/Category' } } } }]
-    post:
-      tags: [category]
-      summary: 新增分类（body 含 `scope`/`deptId`，ADR-015）
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CategoryReq' } } } }
-      responses: { '200': { $ref: '#/components/responses/Ok' } }
-  /categories/{id}:
-    put:
-      tags: [category]
-      summary: 改分类
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CategoryReq' } } } }
-      responses: { '200': { $ref: '#/components/responses/Ok' } }
-    delete: { tags: [category], summary: 删分类, parameters: [{ $ref: '#/components/parameters/Id' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /menus:
     get:
       tags: [menu]
@@ -623,7 +595,7 @@ components:
         mustChangePassword: { type: boolean }
     Scope:
       type: string
-      enum: [day, week, assigned, joined, collect, all]
+      enum: [day, assigned, joined, collect, all]
     Priority:
       type: string
       description: 任务优先级（4 值，与 01 §8.1 / 02 DDL 对齐）。
@@ -633,10 +605,9 @@ components:
       enum: [ACTIVE, DISABLED, ARCHIVED]
     CountVO:
       type: object
-      description: 六大视图计数。**键名映射旧系统**：`joined`=旧 `join`、`assigned`=旧 `do`（0304/S5）；其余同。
+      description: 各视图计数。**键名映射旧系统**：`joined`=旧 `join`、`assigned`=旧 `do`（0304/S5）；其余同。
       properties:
         day: { type: integer }
-        week: { type: integer }
         joined: { type: integer }
         assigned: { type: integer }
         collect: { type: integer }
@@ -674,11 +645,6 @@ components:
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
-    CategoryBrief:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        name: { type: string }
     FileVO:
       type: object
       properties:
@@ -703,7 +669,6 @@ components:
         ccUsers: { type: array, items: { $ref: '#/components/schemas/UserBrief' } }
         participantIds: { type: array, items: { type: integer, format: int64 } }
         version: { type: integer, format: int64, description: 乐观锁版本号（更新须回传；失配 code=10006，ADR-013） }
-        category: { allOf: [{ $ref: '#/components/schemas/CategoryBrief' }], nullable: true }
         tags: { type: array, items: { $ref: '#/components/schemas/TagVO' } }
         subtaskCompleted: { type: integer }
         subtaskTotal: { type: integer }
@@ -726,7 +691,6 @@ components:
         remindAt: { type: string, format: date-time, nullable: true }
         priority: { $ref: '#/components/schemas/Priority' }
         cycleRule: { allOf: [{ $ref: '#/components/schemas/CycleRule' }], nullable: true }
-        categoryId: { type: integer, format: int64, nullable: true }
         assigneeIds: { type: array, items: { type: integer, format: int64 } }
         ccIds: { type: array, items: { type: integer, format: int64 } }
         tagIds: { type: array, items: { type: integer, format: int64 } }
@@ -746,21 +710,6 @@ components:
         completed: { type: boolean }
         dueAt: { type: string, format: date-time, nullable: true }
         priority: { $ref: '#/components/schemas/Priority' }
-    Category:
-      type: object
-      description: 分类树节点（GET /categories 返回，嵌套 children）
-      properties:
-        id: { type: integer, format: int64 }
-        name: { type: string }
-        parentId: { type: integer, format: int64, nullable: true }
-        scope: { type: string, enum: [PERSONAL, DEPARTMENT, ORG], description: 共享范围（ADR-015） }
-        deptId: { type: integer, format: int64, nullable: true, description: DEPARTMENT 范围所属部门 }
-        ownerId: { type: integer, format: int64, description: 创建者 }
-        sort: { type: integer, description: 同级排序（升序） }
-        taskCount: { type: integer, description: 该分类下任务数（含子分类） }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-        children: { type: array, items: { $ref: '#/components/schemas/Category' } }
     MenuItem:
       type: object
       description: 自定义栏条目（引用任务）
@@ -902,14 +851,6 @@ components:
         name: { type: string }
         parentId: { type: integer, format: int64, nullable: true }
         leaderId: { type: integer, format: int64, nullable: true }
-    CategoryReq:
-      type: object
-      required: [name]
-      properties:
-        name: { type: string }
-        parentId: { type: integer, format: int64, nullable: true }
-        scope: { type: string, enum: [PERSONAL, DEPARTMENT, ORG], default: PERSONAL }
-        deptId: { type: integer, format: int64, nullable: true, description: scope=DEPARTMENT 时必填 }
     TagReq:
       type: object
       required: [name]
