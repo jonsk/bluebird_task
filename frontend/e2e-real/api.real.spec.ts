@@ -128,7 +128,7 @@ test.describe('真实后端 · API 联调', () => {
     expect(counts.data.assigned).toBe((assigned.data.list ?? []).length)
 
     // 参数类型错误 → 10001（不是 10000 系统异常）
-    const badParam = await body(await request.get('/api/v1/tasks?scope=all&categoryId=NaN', { headers: auth(ctx) }))
+    const badParam = await body(await request.get('/api/v1/tasks?scope=all&menuId=NaN', { headers: auth(ctx) }))
     expect(badParam.code).toBe(10001)
 
     await request.delete(`/api/v1/tasks/${pid}`, { headers: auth(ctx) })
@@ -197,46 +197,6 @@ test.describe('真实后端 · API 联调', () => {
     await request.delete(`/api/v1/users/${uid}`, { headers: auth(ctx) })
   })
 
-  test('分类：个人/部门分类可建（部门分类按本部门兜底）', async ({ request }) => {
-    const tree0 = await body(await request.get('/api/v1/departments', { headers: auth(ctx) }))
-    const deptId = (tree0.data ?? [])[0]?.id
-    expect(deptId).toBeTruthy()
-
-    // 省略 deptId 时的契约：调用者**有**部门 → 回落到该部门；调用者**无**部门 → 10001。
-    // （默认部门兜底后 admin 也有部门，故这里按当前调用者状态分别断言。）
-    const me = await body(await request.get('/api/v1/users/me', { headers: auth(ctx) }))
-    const myDept = me.data.deptId ?? null
-    const omitted = await body(await request.post('/api/v1/categories', { headers: auth(ctx), data: { name: uniq('省略部门-'), scope: 'DEPARTMENT' } }))
-    if (myDept == null) {
-      expect(omitted.code, '调用者无部门时必须显式指定 deptId').toBe(10001)
-    } else {
-      expect(omitted.code, '省略 deptId 应回落到调用者所在部门').toBe(0)
-      await request.delete(`/api/v1/categories/${omitted.data}`, { headers: auth(ctx) })
-    }
-
-    const name = uniq('API-部门分类')
-    const created = await body(
-      await request.post('/api/v1/categories', { headers: auth(ctx), data: { name, scope: 'DEPARTMENT', deptId } }),
-    )
-    expect(created.code, '指定部门的部门分类必须可建立（用户反馈 #1）').toBe(0)
-
-    // 个人分类：前端据此显示「个人」标签（用户反馈 #1）
-    const pName = uniq('API-个人分类')
-    const personal = await body(await request.post('/api/v1/categories', { headers: auth(ctx), data: { name: pName, scope: 'PERSONAL' } }))
-    expect(personal.code).toBe(0)
-
-    const flat: any[] = []
-    const walk = (ns: any[]) => (ns ?? []).forEach((n) => { flat.push(n); walk(n.children) })
-    walk((await body(await request.get('/api/v1/categories', { headers: auth(ctx) }))).data)
-    const node = flat.find((c) => c.name === name)
-    expect(node, 'ADMIN 必须能看到部门分类（曾因只按 myDept 判定而不可见）').toBeTruthy()
-    expect(node.scope).toBe('DEPARTMENT')
-    expect(flat.find((c) => c.name === pName)?.scope, '分类须返回 scope，前端据此显示「个人」标签').toBe('PERSONAL')
-
-    await request.delete(`/api/v1/categories/${created.data}`, { headers: auth(ctx) })
-    await request.delete(`/api/v1/categories/${personal.data}`, { headers: auth(ctx) })
-  })
-
   test('健康检查与 SPA 静态资源', async ({ request }) => {
     const health = await request.get('/actuator/health')
     expect(health.status()).toBe(200)
@@ -248,7 +208,7 @@ test.describe('真实后端 · API 联调', () => {
 
     // 深链（浏览器直接访问/刷新）必须回退到 SPA 壳：不带 Authorization 头，
     // 且返回 text/html。曾因「回退清单不全 + Security 未放行」拿到 JSON（刷新即白屏/裸 JSON）。
-    for (const page of ['/index', '/allTask', '/myWeek', '/calendar/2026-10-01', '/admin/org', '/admin/audit']) {
+    for (const page of ['/index', '/allTask', '/calendar/2026-10-01', '/admin/org', '/admin/audit']) {
       const res = await request.get(page, { headers: { Accept: 'text/html' } })
       const type = res.headers()['content-type'] ?? ''
       expect(res.status(), page).toBe(200)

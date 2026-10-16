@@ -25,7 +25,6 @@ export interface TaskUpsertPayload {
   remindAt?: string | null
   priority?: Priority
   cycleRule?: CycleRule | null
-  categoryId?: number | null
   assigneeIds?: number[]
   ccIds?: number[]
   tagIds?: number[]
@@ -38,8 +37,6 @@ export interface TaskListQuery {
   keyword?: string
   subordinate?: boolean
   date?: string
-  /** 按分类过滤（含子树，ADR-015 共享分类）。 */
-  categoryId?: number
   /** 按自定义栏条目过滤（仅本人栏）。 */
   menuId?: number
   page?: number

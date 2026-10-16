@@ -12,7 +12,7 @@ declare module 'vue-router' {
 const DefaultLayout = () => import('@/layouts/DefaultLayout.vue')
 const TaskView = () => import('@/views/task/TaskView.vue')
 
-/** 声明式路由（03 §4.3）。六大视图统一 TaskView，按 route.name 经 ROUTE_SCOPE_MAP 取 scope。 */
+/** 声明式路由（03 §4.3）。五大任务视图统一 TaskView，按 route.name 经 ROUTE_SCOPE_MAP 取 scope。 */
 export const routes: RouteRecordRaw[] = [
   {
     path: '/login',
@@ -33,7 +33,6 @@ export const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
     children: [
       { path: 'index', name: 'index', component: TaskView, meta: { title: '我的一天' } },
-      { path: 'myWeek', name: 'myWeek', component: TaskView, meta: { title: '未来7天任务' } },
       { path: 'myJoin', name: 'myJoin', component: TaskView, meta: { title: '我@Ta的任务' } },
       { path: 'myDo', name: 'myDo', component: TaskView, meta: { title: '分配给我的任务' } },
       { path: 'myCollect', name: 'myCollect', component: TaskView, meta: { title: '我的收藏' } },

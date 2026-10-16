@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Bell, Calendar, Flag, FolderOpened, Plus, PriceTag, RefreshRight } from '@element-plus/icons-vue'
+import { Bell, Calendar, Flag, Plus, PriceTag, RefreshRight } from '@element-plus/icons-vue'
 import { createTask, type CycleRule, type TaskUpsertPayload } from '@/api/task'
 import BbUserPicker from './BbUserPicker.vue'
 import { PRIORITY, PRIORITY_LABEL, type Priority } from '@/utils/constants'
 import { toOffsetIso } from '@/utils/date'
-import type { CategoryNode } from '@/api/category'
 import type { TagVO } from '@/api/tag'
 import type { UserVO } from '@/api/user'
 
@@ -15,16 +14,14 @@ import type { UserVO } from '@/api/user'
  * 聚焦后展开配置行 +「添加」。
  *
  * 交互对齐旧 `addTaskBlock.vue`（item 1）：配置行一律为**「图标（+ 已选值文字）→ 点击弹出选择层」**，
- * **不使用可见的下拉框**；截止/提醒/重复为日期/提醒/周期，优先级/指派/标签/分类为各自的选择层。
+ * **不使用可见的下拉框**；截止/提醒/重复为日期/提醒/周期，优先级/指派/标签为各自的选择层。
  */
 const props = withDefaults(
   defineProps<{
-    categories?: CategoryNode[]
     tags?: TagVO[]
     users?: UserVO[]
-    defaultCategoryId?: number | null
   }>(),
-  { categories: () => [], tags: () => [], users: () => [], defaultCategoryId: null },
+  { tags: () => [], users: () => [] },
 )
 
 const emit = defineEmits<{ (e: 'saved'): void }>()
@@ -38,30 +35,24 @@ const form = reactive({
   remindAt: '',
   freq: '' as '' | 'DAILY' | 'WEEKLY' | 'MONTHLY',
   priority: 'MEDIUM' as Priority,
-  categoryId: null as number | null,
   assigneeIds: [] as number[],
   tagIds: [] as number[],
 })
 
 const canSubmit = computed(() => form.title.trim().length > 0 && !submitting.value)
 
-// ── 优先级/指派/标签/分类：只保留图标，点图标弹出选择层（无下拉框） ──
+// ── 优先级/指派/标签：只保留图标，点图标弹出选择层（无下拉框） ──
 // 旧 addTaskBlock.vue 的配置行即「图标 + 已选值文字」，没有 el-select 框（用户反馈 #3）。
 /** 指派：@ 图标打开人员选择弹窗（左机构树 + 右人员表 + 搜索，见 BbUserPicker）。 */
 const pickerOpen = ref(false)
 const pickedUsers = ref<UserVO[]>([])
 
-/** 单选类弹层（优先级/分类）选中后需主动关闭：菜单项是自定义 div，不适用 el-dropdown 的 hide-on-click。 */
+/** 单选类弹层（优先级）选中后需主动关闭：菜单项是自定义 div，不适用 el-dropdown 的 hide-on-click。 */
 const priorityDd = ref<{ handleClose: () => void }>()
-const categoryDd = ref<{ handleClose: () => void }>()
 
 function pickPriority(p: Priority): void {
   form.priority = p
   priorityDd.value?.handleClose()
-}
-function pickCategory(id: number | null): void {
-  form.categoryId = id
-  categoryDd.value?.handleClose()
 }
 
 /** 指派：@ 图标 → 打开人员选择弹窗；确认后回填。 */
@@ -76,20 +67,6 @@ function onUsersConfirm(users: UserVO[]): void {
 const selectedTags = computed(() => props.tags.filter((t) => form.tagIds.includes(Number(t.id))))
 const assigneeLabel = computed(() => pickedUsers.value.map((u) => u.name ?? '').join('、'))
 const tagLabel = computed(() => selectedTags.value.map((t) => t.name ?? '').join('、'))
-
-/** 分类树按层级拍平：弹层内做缩进列表，同时用于展示已选分类名。 */
-const flatCategories = computed(() => {
-  const out: Array<{ id: number; name: string; depth: number }> = []
-  const walk = (nodes: CategoryNode[], depth: number): void => {
-    for (const n of nodes) {
-      out.push({ id: Number(n.id), name: n.name ?? '', depth })
-      if (n.children?.length) walk(n.children, depth + 1)
-    }
-  }
-  walk(props.categories ?? [], 0)
-  return out
-})
-const categoryLabel = computed(() => flatCategories.value.find((c) => c.id === form.categoryId)?.name ?? '')
 
 function toggleTag(id: number): void {
   const i = form.tagIds.indexOf(id)
@@ -215,7 +192,6 @@ function reset(): void {
   form.remindAt = ''
   form.freq = ''
   form.priority = 'MEDIUM'
-  form.categoryId = props.defaultCategoryId
   form.assigneeIds = []
   form.tagIds = []
   pickedUsers.value = []
@@ -234,7 +210,6 @@ async function onSubmit(): Promise<void> {
     priority: form.priority,
     dueAt: form.dueAt ? toOffsetIso(form.dueAt) : null,
     remindAt: form.remindAt ? toOffsetIso(form.remindAt) : null,
-    categoryId: form.categoryId,
     assigneeIds: form.assigneeIds,
     ccIds: [],
     tagIds: form.tagIds,
@@ -421,41 +396,7 @@ async function onSubmit(): Promise<void> {
             </template>
           </el-dropdown>
         </div>
-
-        <!-- 分类：点图标弹出（取消下拉框） -->
-        <div class="t-b-i-b-c-l-d-item" :class="{ 'is-set': form.categoryId != null }">
-          <el-dropdown ref="categoryDd" trigger="click" popper-class="bb-cfg-popper">
-            <div class="bb-cfg-trigger" data-test="composer-category">
-              <el-icon class="t-b-i-b-c-l-d-item-icon"><FolderOpened /></el-icon>
-              <span v-if="categoryLabel" class="bb-cfg-text">{{ categoryLabel }}</span>
-            </div>
-            <template #dropdown>
-              <div class="bb-cfg-menu bb-cfg-menu--scroll">
-                <div
-                  v-for="c in flatCategories"
-                  :key="c.id"
-                  class="bb-cfg-menu__item"
-                  :class="{ 'is-active': form.categoryId === c.id }"
-                  :style="{ paddingLeft: `${16 + c.depth * 14}px` }"
-                  @click="pickCategory(c.id)"
-                >
-                  {{ c.name }}
-                </div>
-                <div v-if="!flatCategories.length" class="bb-cfg-menu__item bb-cfg-menu__item--empty">暂无分类</div>
-                <div
-                  v-if="form.categoryId != null"
-                  class="bb-cfg-menu__item bb-cfg-menu__item--divider bb-cfg-menu__item--danger"
-                  @click="pickCategory(null)"
-                >
-                  清除分类
-                </div>
-              </div>
-            </template>
-          </el-dropdown>
-        </div>
-      </div>
-
-      <div class="t-b-i-b-c-right-div">
+      </div>      <div class="t-b-i-b-c-right-div">
         <el-button :disabled="!canSubmit" :loading="submitting" @click="onSubmit"><span>添加</span></el-button>
       </div>
     </div>

@@ -17,7 +17,6 @@ import {
   SwitchButton,
   User,
 } from '@element-plus/icons-vue'
-import BbCategoryTree from './BbCategoryTree.vue'
 import { useAppStore, type ThemeKey } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
@@ -28,9 +27,9 @@ import type { Menu } from '@/api/menu'
  * BbFilterRail — 左栏（旧 `.left-box`）。逐项对齐旧系统：
  * ① 无顶部 header，用户块（姓名16/账号14）+ 折叠 Fold 在左栏顶部（`.left-title`，h64）；
  * ② 视图行 50px：18px 图标 + 14px 文案 + 右侧计数（`.tabs-item`）；
- * ③ 自定义栏与六视图**同一列表内联**（Notebook 图标，hover 显改/删）；
- * ④ 「新增自定义任务栏」行在列表末尾；⑤ 全部任务行带 2px `#0065c0` 底边线；
- * ⑥ 分类树（设计 §5.2 要求）置于旧 `.main-tabs-content` 位置（列表下方）。
+ * ③ 自定义栏与各视图**同一列表内联**（Notebook 图标，hover 显改/删）；
+ * ④ 「新增自定义任务栏」行在列表末尾；⑤ 全部任务行带 2px 底边线；
+ * ⑥ 分类树已移除（2026-10-13，左栏下方不再有分类区块）。
  */
 const app = useAppStore()
 const auth = useAuthStore()
@@ -41,7 +40,6 @@ const router = useRouter()
 
 const navItems = [
   { name: 'index', label: '我的一天', countKey: 'day', icon: Sunny },
-  { name: 'myWeek', label: '未来7天任务', countKey: 'week', icon: Calendar },
   { name: 'myJoin', label: '我@Ta的任务', countKey: 'joined', icon: ChatDotRound },
   { name: 'myDo', label: '分配给我的任务', countKey: 'assigned', icon: User },
   { name: 'myCollect', label: '我的收藏', countKey: 'collect', icon: Star },
@@ -69,7 +67,6 @@ function countOf(key: string): number | null {
 
 function goView(name: string): void {
   taskStore.setMenuFilter(null)
-  taskStore.setCategoryFilter(null)
   if (route.name !== name) void router.push({ name })
 }
 
@@ -160,10 +157,6 @@ const themeList: ReadonlyArray<{ key: ThemeKey; label: string; color: string }> 
 
 function onThemeCommand(command: string | number | object): void {
   app.setTheme(command as ThemeKey)
-}
-
-function onSelectCategory(id: number | null): void {
-  taskStore.setCategoryFilter(id)
 }
 </script>
 
@@ -271,10 +264,6 @@ function onSelectCategory(id: number | null): void {
             </div>
           </div>
         </ul>
-      </div>
-
-      <div class="main-tabs-content">
-        <BbCategoryTree @select="onSelectCategory" />
       </div>
     </div>
 
@@ -458,9 +447,6 @@ function onSelectCategory(id: number | null): void {
   padding: 0 7px 0 20px;
   font-size: 14px;
   cursor: pointer;
-}
-.main-tabs-content {
-  padding: 0 20px 12px;
 }
 .left-box__bottom {
   display: flex;

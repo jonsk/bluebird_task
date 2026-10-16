@@ -18,7 +18,6 @@ describe('MSW 契约 fixtures 直连', () => {
       'users/GET.me',
       'users/GET.index',
       'departments/GET.tree',
-      'categories/GET.tree',
       'menus/GET.list',
       'tags/GET.list',
       'audit/GET.operates',

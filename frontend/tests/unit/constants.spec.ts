@@ -7,10 +7,9 @@ describe('constants（契约一致性）', () => {
     expect(Object.keys(PRIORITY_LABEL).sort()).toEqual([...PRIORITY].sort())
   })
 
-  it('路由名映射六大视图 scope（R9-契约）', () => {
+  it('路由名映射各视图 scope（R9-契约）', () => {
     expect(ROUTE_SCOPE_MAP).toEqual({
       index: TASK_SCOPE.day,
-      myWeek: TASK_SCOPE.week,
       myJoin: TASK_SCOPE.joined,
       myDo: TASK_SCOPE.assigned,
       myCollect: TASK_SCOPE.collect,

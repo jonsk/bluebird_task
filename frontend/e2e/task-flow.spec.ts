@@ -43,11 +43,10 @@ test('E-02b 登录页品牌为「蓝鸟任务管理系统」', async ({ page }) 
   await expect(page).toHaveTitle('蓝鸟任务管理系统')
 })
 
-test('E-03 六大视图切换：计数（fixtures count）与列表（fixtures list 过滤）一致', async ({ page }) => {
+test('E-03 各视图切换：计数（fixtures count）与列表（fixtures list 过滤）一致', async ({ page }) => {
   await login(page)
   const views = [
     { href: '/index', url: /\/index$/, count: 4, cards: 6 },
-    { href: '/myWeek', url: /\/myWeek$/, count: 5, cards: 6 },
     { href: '/myJoin', url: /\/myJoin$/, count: 2, cards: 2 },
     { href: '/myDo', url: /\/myDo$/, count: 3, cards: 3 },
     { href: '/myCollect', url: /\/myCollect$/, count: 1, cards: 1 },

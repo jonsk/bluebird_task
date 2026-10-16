@@ -58,7 +58,7 @@ async function seedTask(request: APIRequestContext, token: string, userId: numbe
 
 test.describe.configure({ mode: 'default' })
 
-test('登录 + 六大视图计数渲染（真实后端）', async ({ page }) => {
+test('登录 + 各视图计数渲染（真实后端）', async ({ page }) => {
   page.setDefaultTimeout(25_000)
   await login(page)
   check('登录后左栏 6 个视图计数渲染', (await page.locator('.layout__count').count()) === 6, '')
@@ -155,40 +155,6 @@ test('#R30 勾选完成后任务不消失：加删除线并排到列表最后', 
   expect(failed()).toBe(0)
 })
 
-test('#1 分类：个人标签 + 部门分类可建立', async ({ page }) => {
-  page.setDefaultTimeout(25_000)
-  await login(page)
-  const pName = uniq('个人-')
-  await page.locator('.bb-cat__add').first().click()
-  await page.locator('.el-dropdown-menu__item:visible', { hasText: '新增个人分类' }).first().click()
-  const input = page.getByPlaceholder('分类名称，回车保存')
-  await expect(input).toBeVisible()
-  await input.fill(pName)
-  await input.press('Enter')
-  await page.waitForTimeout(1800)
-  const node = page.locator('.cat-node').filter({ hasText: pName }).first()
-  check('#1 新建的个人分类显示「个人」标签', (await node.innerText().catch(() => '')).includes('个人'), await node.innerText().catch(() => 'n/a'))
-
-  const dName = uniq('部门-')
-  await page.locator('.bb-cat__add').first().click()
-  await page.locator('.el-dropdown-menu__item:visible', { hasText: '新增部门分类' }).first().click()
-  // 部门分类不再要求用户选择部门：只输入分类名即可（所属部门由系统按本部门判定）
-  check(
-    '#1 部门分类不再出现「选择部门」下拉',
-    (await page.locator('[data-test="category-dept-select"]').count()) === 0,
-    'dept select still rendered',
-  )
-  const deptInput = page.getByPlaceholder('分类名称，回车保存')
-  await expect(deptInput).toBeVisible()
-  await deptInput.fill(dName)
-  await deptInput.press('Enter')
-  await page.waitForTimeout(2200)
-  const deptNode = page.locator('.cat-node').filter({ hasText: dName }).first()
-  check('#1 只输入名称即可建立部门分类', (await deptNode.count()) > 0, 'dept category missing')
-  check('#1 部门分类标签使用独立颜色（success）', (await deptNode.locator('.el-tag--success').count()) > 0, await deptNode.innerText().catch(() => 'n/a'))
-  expect(failed()).toBe(0)
-})
-
 test('#2 自定义栏可删除且确认框居中', async ({ page }) => {
   page.setDefaultTimeout(25_000)
   await login(page)
@@ -227,7 +193,7 @@ test('#3 编辑器：优先级/指派/标签/分类「只保留图标，点图�
     `selects=${await composer.locator('.t-b-i-box-config .el-select').count()}`,
   )
 
-  for (const [key, label] of [['composer-priority', '优先级'], ['composer-tags', '标签'], ['composer-category', '分类']] as const) {
+  for (const [key, label] of [['composer-priority', '优先级'], ['composer-tags', '标签']] as const) {
     const trigger = composer.locator(`[data-test="${key}"]`)
     check(`#3 ${label}：存在图标触发器`, (await trigger.count()) === 1, `count=${await trigger.count()}`)
     await trigger.click()

@@ -132,7 +132,6 @@ async function toggleExpand(): Promise<void> {
       </div>
 
       <div class="bb-task-card__side">
-        <span v-if="task.category" class="bb-task-card__cat">{{ task.category.name }}</span>
         <span class="bb-task-card__op" :title="collected ? '取消收藏' : '收藏'" @click.stop="emit('collect', task)">
           <el-icon :size="20"><StarFilled v-if="collected" /><Star v-else /></el-icon>
         </span>
@@ -252,11 +251,6 @@ async function toggleExpand(): Promise<void> {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-}
-.bb-task-card__cat {
-  margin-right: 10px;
-  font-size: 12px;
-  color: var(--bb-text-muted);
 }
 .bb-task-card__op {
   display: inline-flex;

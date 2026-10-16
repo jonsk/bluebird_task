@@ -1,27 +1,20 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { listDepartments, type Department } from '@/api/dept'
-import { listCategories, type CategoryNode, type CategoryScope } from '@/api/category'
 import { listTags, type TagVO } from '@/api/tag'
 import { listUsers, type UserVO } from '@/api/user'
 
 /**
- * 元数据 store（部门/分类/标签/人员选择器）。按需懒加载并缓存。
+ * 元数据 store（部门/标签/人员选择器）。按需懒加载并缓存。
  */
 export const useMetaStore = defineStore('meta', () => {
   const departments = ref<Department[]>([])
-  const categories = ref<CategoryNode[]>([])
   const tags = ref<TagVO[]>([])
   const users = ref<UserVO[]>([])
 
   async function loadDepartments(force = false): Promise<void> {
     if (!force && departments.value.length) return
     departments.value = await listDepartments()
-  }
-
-  async function loadCategories(scope?: CategoryScope, force = false): Promise<void> {
-    if (!force && categories.value.length) return
-    categories.value = await listCategories(scope)
   }
 
   async function loadTags(force = false): Promise<void> {
@@ -50,11 +43,9 @@ export const useMetaStore = defineStore('meta', () => {
 
   return {
     departments,
-    categories,
     tags,
     users,
     loadDepartments,
-    loadCategories,
     loadTags,
     searchUsers,
     flatDepartments,

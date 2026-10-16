@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Calendar, ChatDotRound, List, Star, Sunny, User } from '@element-plus/icons-vue'
+import { ChatDotRound, List, Star, Sunny, User } from '@element-plus/icons-vue'
 import BbTaskList from '@/components/bb/BbTaskList.vue'
 import BbTaskComposer from '@/components/bb/BbTaskComposer.vue'
 import BbTaskDetailPanel from '@/components/bb/BbTaskDetailPanel.vue'
@@ -15,11 +15,10 @@ import { useAuthStore } from '@/stores/auth'
 import { ROUTE_SCOPE_MAP, type TaskScope } from '@/utils/constants'
 import { formatHeaderDate } from '@/utils/date'
 import type { TaskDetailVO, TaskVO } from '@/api/task'
-import type { CategoryNode } from '@/api/category'
 
 /**
  * 统一任务视图（旧 `.right-box`）：主区（标题/日期 + 搜索 + 标签 + 内联编辑器 + 列表）
- * + 右栏 360px（日历 + 内联任务详情面板）。六大视图按 route.name → scope（R9-契约）。
+ * + 右栏 360px（日历 + 内联任务详情面板）。各任务视图按 route.name → scope（R9-契约）。
  */
 const route = useRoute()
 const taskStore = useTaskStore()
@@ -32,14 +31,14 @@ const title = computed(() => (route.meta.title as string) ?? '任务')
 const headerDate = computed(() => formatHeaderDate())
 
 const scopeIcon = computed(() => {
-  const map: Record<TaskScope, unknown> = { day: Sunny, week: Calendar, joined: ChatDotRound, assigned: User, collect: Star, all: List }
+  const map: Record<TaskScope, unknown> = { day: Sunny, joined: ChatDotRound, assigned: User, collect: Star, all: List }
   return map[scope.value]
 })
 
 const keyword = ref('')
 const activeId = ref<number | null>(null)
-/** 日历日期筛选只在按时间开窗的视图生效（day/week），其余视图不展示该筛选项。 */
-const scopeUsesDate = computed(() => scope.value === 'day' || scope.value === 'week')
+/** 日历日期筛选只在按时间开窗的视图生效（day），其余视图不展示该筛选项。 */
+const scopeUsesDate = computed(() => scope.value === 'day')
 
 const currentUserId = computed(() => (auth.user?.id != null ? Number(auth.user.id) : null))
 
@@ -50,36 +49,22 @@ async function reload(): Promise<void> {
 
 watch(scope, () => {
   keyword.value = ''
-  // 切视图回到「默认」：我的一天即当天，未来 7 天即从今天起
+  // 切视图回到「默认」：我的一天即当天
   taskStore.date = null
   activeId.value = null
   void reload()
 })
 
 watch(
-  () => [taskStore.categoryId, taskStore.menuId, taskStore.date],
+  () => [taskStore.menuId, taskStore.date],
   () => {
     void reload()
   },
 )
 
-const activeCategoryName = computed(() => {
-  const id = taskStore.categoryId
-  if (id == null) return ''
-  const find = (nodes: CategoryNode[]): string => {
-    for (const n of nodes) {
-      if (Number(n.id) === id) return n.name ?? ''
-      const hit = find(n.children ?? [])
-      if (hit) return hit
-    }
-    return ''
-  }
-  return find(metaStore.categories)
-})
-
 const activeMenuName = computed(() => menuStore.menus.find((m) => Number(m.id) === taskStore.menuId)?.name ?? '')
 const hasFilter = computed(
-  () => taskStore.categoryId != null || taskStore.menuId != null || (scopeUsesDate.value && taskStore.date != null),
+  () => taskStore.menuId != null || (scopeUsesDate.value && taskStore.date != null),
 )
 
 function clearAllFilters(): void {
@@ -88,7 +73,7 @@ function clearAllFilters(): void {
 }
 
 onMounted(async () => {
-  await Promise.all([reload(), metaStore.loadTags(), metaStore.loadCategories(), menuStore.load()])
+  await Promise.all([reload(), metaStore.loadTags(), menuStore.load()])
   await metaStore.searchUsers('')
 })
 
@@ -166,24 +151,14 @@ async function onRemove(task: TaskVO): Promise<void> {
           <div class="todo-box">
             <div class="todo-list">
               <BbTaskComposer
-                :categories="metaStore.categories"
                 :tags="metaStore.tags"
                 :users="metaStore.users"
-                :default-category-id="taskStore.categoryId"
                 @saved="reload"
               />
 
               <h2 class="h2">任务</h2>
 
               <div v-if="hasFilter" class="todo-list__filters">
-                <el-tag
-                  v-if="taskStore.categoryId != null"
-                  closable
-                  data-test="filter-category"
-                  @close="taskStore.setCategoryFilter(null)"
-                >
-                  分类：{{ activeCategoryName || taskStore.categoryId }}
-                </el-tag>
                 <el-tag
                   v-if="taskStore.menuId != null"
                   type="warning"

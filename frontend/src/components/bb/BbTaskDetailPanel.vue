@@ -90,7 +90,6 @@ function payloadOf(over: Partial<TaskUpsertPayload> = {}): (TaskUpsertPayload & 
     priority: ((t.priority as Priority) ?? 'MEDIUM'),
     dueAt: t.dueAt ?? null,
     remindAt: t.remindAt ?? null,
-    categoryId: t.category?.id ?? null,
     assigneeIds: (t.assignees ?? []).map((a) => Number(a.id)),
     ccIds: (t.ccUsers ?? []).map((a) => Number(a.id)),
     tagIds: (t.tags ?? []).map((x) => Number(x.id)),

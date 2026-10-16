@@ -33,14 +33,13 @@ export async function login(page: Page, username = 'admin', password = 'admin123
 /**
  * 等到左栏计数与任务列表渲染完成（数据到达后布局稳定）。
  *
- * 左栏「分类树 / 自定义栏」为**异步拉取**（`GET /categories`、`GET /menus`），
- * 若不等其渲染完成就截图/断言，会与 MSW 响应竞态（曾导致视觉基线半数不含分类树）。
+ * 左栏「自定义栏」为**异步拉取**（`GET /menus`），
+ * 若不等其渲染完成就截图/断言，会与 MSW 响应竞态。
  * 故此处统一等待 rail 数据落地。
  */
 export async function settle(page: Page): Promise<void> {
-  await expect(page.locator('.layout__count')).toHaveCount(6)
+  await expect(page.locator('.layout__count')).toHaveCount(5)
   await expect(page.locator('.bb-task-list')).toBeVisible()
-  await expect(page.locator('.bb-cat .cat-node')).toHaveCount(7)
   await expect(page.locator('[data-test="menu-row"]')).toHaveCount(3)
 }
 

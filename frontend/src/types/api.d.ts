@@ -923,7 +923,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 任务列表（六大视图） */
+        /** 任务列表（各视图） */
         get: {
             parameters: {
                 query: {
@@ -933,8 +933,6 @@ export interface paths {
                     /** @description 仅 scope=all 生效；主管筛选其（含递归子部门）下属相关任务，只读（ADR-012） */
                     subordinate?: boolean;
                     date?: string;
-                    /** @description 按分类过滤（含子树，ADR-015 共享分类） */
-                    categoryId?: number;
                     /** @description 按自定义栏条目过滤（仅本人栏） */
                     menuId?: number;
                     page?: number;
@@ -1358,111 +1356,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/categories": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 可见分类树（个人 + 部门 + 组织） */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description 可选过滤共享范围 */
-                    scope?: "PERSONAL" | "DEPARTMENT" | "ORG";
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiResult"] & {
-                            data?: components["schemas"]["Category"][];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        /** 新增分类（body 含 `scope`/`deptId`，ADR-015） */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["CategoryReq"];
-                };
-            };
-            responses: {
-                200: components["responses"]["Ok"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/categories/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 改分类 */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["CategoryReq"];
-                };
-            };
-            responses: {
-                200: components["responses"]["Ok"];
-            };
-        };
-        post?: never;
-        /** 删分类 */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["Ok"];
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/menus": {
         parameters: {
             query?: never;
@@ -1855,7 +1748,7 @@ export interface components {
             mustChangePassword?: boolean;
         };
         /** @enum {string} */
-        Scope: "day" | "week" | "assigned" | "joined" | "collect" | "all";
+        Scope: "day" | "assigned" | "joined" | "collect" | "all";
         /**
          * @description 任务优先级（4 值，与 01 §8.1 / 02 DDL 对齐）。
          * @enum {string}
@@ -1863,10 +1756,9 @@ export interface components {
         Priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
         /** @enum {string} */
         TaskStatus: "ACTIVE" | "DISABLED" | "ARCHIVED";
-        /** @description 六大视图计数。**键名映射旧系统**：`joined`=旧 `join`、`assigned`=旧 `do`（0304/S5）；其余同。 */
+        /** @description 各视图计数。**键名映射旧系统**：`joined`=旧 `join`、`assigned`=旧 `do`（0304/S5）；其余同。 */
         CountVO: {
             day?: number;
-            week?: number;
             joined?: number;
             assigned?: number;
             collect?: number;
@@ -1914,11 +1806,6 @@ export interface components {
             id?: number;
             name?: string;
         };
-        CategoryBrief: {
-            /** Format: int64 */
-            id?: number;
-            name?: string;
-        };
         FileVO: {
             /** Format: int64 */
             id?: number;
@@ -1950,7 +1837,6 @@ export interface components {
              * @description 乐观锁版本号（更新须回传；失配 code=10006，ADR-013）
              */
             version?: number;
-            category?: components["schemas"]["CategoryBrief"] | null;
             tags?: components["schemas"]["TagVO"][];
             subtaskCompleted?: number;
             subtaskTotal?: number;
@@ -1975,8 +1861,6 @@ export interface components {
             remindAt?: string | null;
             priority?: components["schemas"]["Priority"];
             cycleRule?: components["schemas"]["CycleRule"] | null;
-            /** Format: int64 */
-            categoryId?: number | null;
             assigneeIds?: number[];
             ccIds?: number[];
             tagIds?: number[];
@@ -1996,38 +1880,6 @@ export interface components {
             /** Format: date-time */
             dueAt?: string | null;
             priority?: components["schemas"]["Priority"];
-        };
-        /** @description 分类树节点（GET /categories 返回，嵌套 children） */
-        Category: {
-            /** Format: int64 */
-            id?: number;
-            name?: string;
-            /** Format: int64 */
-            parentId?: number | null;
-            /**
-             * @description 共享范围（ADR-015）
-             * @enum {string}
-             */
-            scope?: "PERSONAL" | "DEPARTMENT" | "ORG";
-            /**
-             * Format: int64
-             * @description DEPARTMENT 范围所属部门
-             */
-            deptId?: number | null;
-            /**
-             * Format: int64
-             * @description 创建者
-             */
-            ownerId?: number;
-            /** @description 同级排序（升序） */
-            sort?: number;
-            /** @description 该分类下任务数（含子分类） */
-            taskCount?: number;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            updatedAt?: string;
-            children?: components["schemas"]["Category"][];
         };
         /** @description 自定义栏条目（引用任务） */
         MenuItem: {
@@ -2216,21 +2068,6 @@ export interface components {
             parentId?: number | null;
             /** Format: int64 */
             leaderId?: number | null;
-        };
-        CategoryReq: {
-            name: string;
-            /** Format: int64 */
-            parentId?: number | null;
-            /**
-             * @default PERSONAL
-             * @enum {string}
-             */
-            scope: "PERSONAL" | "DEPARTMENT" | "ORG";
-            /**
-             * Format: int64
-             * @description scope=DEPARTMENT 时必填
-             */
-            deptId?: number | null;
         };
         TagReq: {
             name: string;

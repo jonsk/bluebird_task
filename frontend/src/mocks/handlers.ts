@@ -34,7 +34,6 @@ interface TaskLike {
   assignees?: Named[]
   ccUsers?: Named[]
   participantIds?: number[]
-  category?: Named | null
   tags?: Named[]
   subtaskCompleted?: number
   subtaskTotal?: number
@@ -55,17 +54,6 @@ interface UserLike {
   deptId?: number | null
   deptName?: string | null
   roleCode: string
-}
-interface CategoryLike extends Named {
-  parentId?: number | null
-  scope?: string
-  deptId?: number | null
-  ownerId?: number | null
-  sort?: number
-  taskCount?: number
-  createdAt?: string
-  updatedAt?: string
-  children?: CategoryLike[]
 }
 interface TagLike extends Named {
   color?: string | null
@@ -111,7 +99,6 @@ const tasks: TaskLike[] = structuredClone(taskPage.list)
 const defaultSize = taskPage.size
 
 const departments = dataOf<unknown[]>('departments/GET.tree')
-const categoryTree: CategoryLike[] = structuredClone(dataOf<CategoryLike[]>('categories/GET.tree'))
 const tags: TagLike[] = structuredClone(dataOf<TagLike[]>('tags/GET.list'))
 const menus: MenuLike[] = structuredClone(dataOf<MenuLike[]>('menus/GET.list'))
 const detail = dataOf<TaskLike & { subtasks?: TaskLike[] }>('tasks/GET.detail')
@@ -141,57 +128,6 @@ function mergeFiles(base: unknown[]): FileLike[] {
 }
 
 /* ---------- 分类树：内存 CRUD + 子树/范围 ---------- */
-
-function findCategory(id: number): CategoryLike | null {
-  let hit: CategoryLike | null = null
-  const walk = (nodes: CategoryLike[]): void => {
-    for (const n of nodes) {
-      if (hit) return
-      if (n.id === id) {
-        hit = n
-        return
-      }
-      walk(n.children ?? [])
-    }
-  }
-  walk(categoryTree)
-  return hit
-}
-
-/** 分类 id 及其后代（与后端 CategoryService.descendants 对齐）。 */
-function categorySubtreeIds(id: number): Set<number> {
-  const ids = new Set<number>()
-  const root = findCategory(id)
-  if (!root) return ids
-  const walk = (n: CategoryLike): void => {
-    ids.add(n.id)
-    ;(n.children ?? []).forEach(walk)
-  }
-  walk(root)
-  return ids
-}
-
-function removeCategory(id: number): boolean {
-  const walk = (nodes: CategoryLike[]): boolean => {
-    const i = nodes.findIndex((c) => c.id === id)
-    if (i >= 0) {
-      nodes.splice(i, 1)
-      return true
-    }
-    return nodes.some((n) => walk(n.children ?? []))
-  }
-  return walk(categoryTree)
-}
-
-/** 按范围过滤：保留命中节点及其祖先（维持层级）。 */
-function filterCategoriesByScope(nodes: CategoryLike[], scope: string): CategoryLike[] {
-  const out: CategoryLike[] = []
-  for (const n of nodes) {
-    const children = filterCategoriesByScope(n.children ?? [], scope)
-    if (n.scope === scope || children.length) out.push({ ...n, children })
-  }
-  return out
-}
 
 /** 收藏集：与计数 fixture（collect=1）一致，预置首个任务。 */
 const collected = new Set<number>(tasks.length ? [tasks[0].id] : [])
@@ -268,54 +204,6 @@ export const handlers = [
   http.delete(`${AUTH}/departments/:id`, () => ok(null)),
   http.get(`${AUTH}/org/sync/status`, () => ok({ running: false, lastSyncAt: null, lastResult: null, mode: 'NONE' })),
   http.post(`${AUTH}/org/sync`, () => ok('空操作')),
-
-  // ---- categories ----
-  http.get(`${AUTH}/categories`, ({ request }) => {
-    const scope = new URL(request.url).searchParams.get('scope')
-    return ok(scope ? filterCategoriesByScope(categoryTree, scope) : categoryTree)
-  }),
-  http.post(`${AUTH}/categories`, async ({ request }) => {
-    const body = (await request.json()) as { name?: string; parentId?: number | null; scope?: string; deptId?: number | null }
-    const created = dataOf<{ id: number }>('categories/POST.create')
-    if (!findCategory(created.id)) {
-      const node: CategoryLike = {
-        id: created.id,
-        name: body.name ?? '新分类',
-        parentId: body.parentId ?? null,
-        scope: body.scope ?? 'PERSONAL',
-        deptId: body.deptId ?? null,
-        ownerId: ME_ID,
-        sort: 0,
-        taskCount: 0,
-        createdAt: new Date().toISOString(),
-        children: [],
-      }
-      const parent = body.parentId != null ? findCategory(body.parentId) : null
-      const siblings = parent ? (parent.children ??= []) : categoryTree
-      siblings.push(node)
-    }
-    return raw('categories/POST.create')
-  }),
-  http.put(`${AUTH}/categories/:id`, async ({ request, params }) => {
-    const node = findCategory(Number(params.id))
-    const body = (await request.json()) as { name?: string; parentId?: number | null }
-    if (node) {
-      if (body.name) node.name = body.name
-      const nextParent = body.parentId ?? null
-      if (nextParent !== (node.parentId ?? null)) {
-        removeCategory(node.id)
-        node.parentId = nextParent
-        const parent = nextParent != null ? findCategory(nextParent) : null
-        const siblings = parent ? (parent.children ??= []) : categoryTree
-        siblings.push(node)
-      }
-    }
-    return raw('categories/PUT.update')
-  }),
-  http.delete(`${AUTH}/categories/:id`, ({ params }) => {
-    removeCategory(Number(params.id))
-    return raw('categories/DELETE.remove')
-  }),
 
   // ---- tags ----
   http.get(`${AUTH}/tags`, () => ok(tags)),
@@ -402,12 +290,6 @@ export const handlers = [
         (t) => t.title.toLowerCase().includes(kw) || (t.content ?? '').toLowerCase().includes(kw),
       )
     }
-    // 分类子树过滤（与后端 GET /tasks?categoryId= 对齐）
-    const categoryId = url.searchParams.get('categoryId')
-    if (categoryId) {
-      const ids = categorySubtreeIds(Number(categoryId))
-      list = list.filter((t) => t.category?.id != null && ids.has(Number(t.category.id)))
-    }
     // 自定义栏过滤
     const menuId = url.searchParams.get('menuId')
     if (menuId) {
@@ -437,7 +319,6 @@ export const handlers = [
         assignees: [],
         ccUsers: [],
         participantIds: [ME_ID],
-        category: null,
         tags: [],
         subtaskCompleted: 0,
         subtaskTotal: 0,
@@ -456,7 +337,7 @@ export const handlers = [
   http.get(`${AUTH}/tasks/:id`, ({ params }) => {
     const task = tasks.find((t) => String(t.id) === params.id)
     const isDetail = String(detail.id) === params.id
-    // 详情 fixture 含 files/category/tags/subtasks，列表 fixture 不含 → 以详情为基座，
+    // 详情 fixture 含 files/tags/subtasks，列表 fixture 不含 → 以详情为基座，
     // 仅叠加内存中可变字段（避免列表 fixture 的空 files 覆盖详情）。
     const base = isDetail ? detail : task
     if (!base) return raw('tasks/GET.detail')
