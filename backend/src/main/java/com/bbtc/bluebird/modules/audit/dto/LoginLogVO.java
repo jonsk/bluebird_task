@@ -9,5 +9,8 @@ public record LoginLogVO(
         boolean success,
         String ip,
         String userAgent,
+        String provider,
+        String eventType,
+        String externalId,
         Instant createdAt) {
 }

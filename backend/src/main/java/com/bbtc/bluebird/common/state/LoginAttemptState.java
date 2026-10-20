@@ -1,6 +1,7 @@
 package com.bbtc.bluebird.common.state;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.bbtc.bluebird.modules.config.application.ConfigService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -9,21 +10,18 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 进程内登录失败计数 / 锁定（替代 Redis，ADR-016；02 §2.7）。
  *
- * <p>临时状态，进程重启即清零（单实例可接受）。
+ * <p>临时状态，进程重启即清零（单实例可接受）。阈值与锁定时长取自配置中心
+ * （{@code security.*}），后台改完即时生效，无需重启。
  */
 @Component
+@RequiredArgsConstructor
 public class LoginAttemptState {
 
     private record Attempt(int failures, long lockedUntil) {
     }
 
     private final Map<String, Attempt> attempts = new ConcurrentHashMap<>();
-
-    @Value("${app.security.login-max-fail:5}")
-    private int maxFail;
-
-    @Value("${app.security.login-lock-seconds:900}")
-    private long lockSeconds;
+    private final ConfigService config;
 
     /** 是否处于锁定态。 */
     public boolean isLocked(String key) {
@@ -40,6 +38,8 @@ public class LoginAttemptState {
 
     /** 记录一次失败；达阈值则锁定。 */
     public void recordFailure(String key) {
+        int maxFail = config.getInt("security", "login-max-fail", 5);
+        long lockSeconds = config.getInt("security", "login-lock-seconds", 900);
         attempts.compute(key, (k, a) -> {
             int failures = (a == null ? 0 : a.failures()) + 1;
             long lockedUntil = 0L;

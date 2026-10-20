@@ -9,6 +9,9 @@ import java.time.Instant;
 
 /**
  * 登录日志（02 §6.2）。物理追加，无 deleted 列。
+ *
+ * <p>V5 扩展：{@code provider}（LOCAL/CASDOOR）、{@code eventType}（LOGIN/LOGOUT）、
+ * {@code externalId}（外部身份源唯一标识）。
  */
 @Data
 @TableName("audit_login_log")
@@ -21,5 +24,8 @@ public class LoginLog {
     private Integer success;
     private String ip;
     private String userAgent;
+    private String provider;
+    private String eventType;
+    private String externalId;
     private Instant createdAt;
 }

@@ -29,13 +29,17 @@ public final class SpaRoutes {
             "/allTask",
             "/calendar",
             "/calendar/*",
-            "/admin/*",
+            // 后台：/admin 本身 + 全部子页（* 只匹配一层，故必须用 **）
+            "/admin",
+            "/admin/**",
     };
 
     /** 供测试遍历的固定页面（把 {@code /calendar/*} 之类的模式换成具体值）。 */
     public static final List<String> SAMPLE_PAGES = List.of(
             "/login", "/index", "/myJoin", "/myDo", "/myCollect",
-            "/allTask", "/calendar/2026-10-01", "/admin/org", "/admin/audit", "/403");
+            "/allTask", "/calendar/2026-10-01",
+            "/admin", "/admin/users", "/admin/casdoor", "/admin/logs", "/admin/settings",
+            "/403");
 
     private SpaRoutes() {
     }

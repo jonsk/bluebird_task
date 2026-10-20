@@ -33,11 +33,13 @@ public class AuditController {
         return ApiResult.ok(operateLogService.page(page, size));
     }
 
-    @Operation(summary = "登录日志分页")
+    @Operation(summary = "登录/退出日志分页")
     @PreAuthorize("hasAnyRole('ADMIN','AUDITOR')")
     @GetMapping("/logins")
     public ApiResult<PageResult<LoginLogVO>> logins(@RequestParam(defaultValue = "1") long page,
-                                                    @RequestParam(defaultValue = "20") long size) {
-        return ApiResult.ok(loginLogService.page(page, size));
+                                                    @RequestParam(defaultValue = "20") long size,
+                                                    @RequestParam(required = false) String provider,
+                                                    @RequestParam(required = false) String eventType) {
+        return ApiResult.ok(loginLogService.page(page, size, provider, eventType));
     }
 }
