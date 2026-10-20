@@ -22,6 +22,8 @@ public class Department {
     private String name;
     private Integer sort;
     private String corpId;
+    /** 外部身份源标识（V5）：casdoor 等；本地部门为 null。 */
+    private String externalSource;
     private Long leaderUserId;
     /** 系统默认顶级部门标记：1 = 可改名、不可删除（用户反馈 #5）。 */
     private Integer isSystem;

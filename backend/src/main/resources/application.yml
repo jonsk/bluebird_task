@@ -47,6 +47,11 @@ jwt:
   refresh-ttl: ${JWT_REFRESH_TTL:604800}      # 秒（7 天）
 
 app:
+  config:
+    # 配置密文主密钥：优先环境变量（Base64 32 字节，或任意口令经 SHA-256 派生）；
+    # 留空则首次启动生成 ./data/.config-key（不入库、不进 git）。
+    secret: ${BB_CONFIG_SECRET:}
+    key-file: ${BB_CONFIG_KEY_FILE:./data/.config-key}
   log:
     # 运行日志目录：留空则默认 <jar 所在目录>/log（目录自动创建，每天一个文件 bluebird-task-YYYY-MM-dd.log）。
     # 可用环境变量 LOG_DIR 覆盖；相对路径按启动工作目录解析。
@@ -73,7 +78,8 @@ app:
   audit:
     retention-days: 180
   job:
-    org-sync-cron: ${ORGSYNC_CRON:0 0 1 * * *}
+    # 键名与 OrgSyncJob 读取的 ${app.job.orgsync-cron} 保持一致（此前 org-sync-cron 对不上，会静默回退默认值）
+    orgsync-cron: ${ORGSYNC_CRON:0 0 1 * * *}
     cleanup-cron: ${CLEANUP_CRON:0 30 2 * * *}
   bootstrap:
     admin-username: ${BOOTSTRAP_ADMIN_USERNAME:admin}

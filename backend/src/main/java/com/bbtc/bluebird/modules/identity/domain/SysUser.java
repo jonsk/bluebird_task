@@ -21,6 +21,8 @@ public class SysUser extends BaseEntity {
 
     private String username;
     private String externalId;
+    /** 外部身份源标识（V5）：casdoor 等；本地用户为 null。 */
+    private String externalSource;
     private String password;
     private String name;
     private String mobile;
