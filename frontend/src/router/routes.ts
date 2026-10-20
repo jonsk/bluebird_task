@@ -10,6 +10,7 @@ declare module 'vue-router' {
 }
 
 const DefaultLayout = () => import('@/layouts/DefaultLayout.vue')
+const AdminLayout = () => import('@/layouts/AdminLayout.vue')
 const TaskView = () => import('@/views/task/TaskView.vue')
 
 /** 声明式路由（03 §4.3）。五大任务视图统一 TaskView，按 route.name 经 ROUTE_SCOPE_MAP 取 scope。 */
@@ -43,20 +44,53 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/task/CalendarView.vue'),
         meta: { title: '日历' },
       },
+    ],
+  },
+  /**
+   * 后台（独立布局，2026-10-18 用户拍板）：不带任务左栏，左侧固定导航。
+   * 可见范围按角色收窄：概览=三者皆可，用户与机构=ADMIN/USER_MANAGER，
+   * Casdoor 与常规设置=仅 ADMIN，日志=ADMIN/AUDITOR。
+   */
+  {
+    path: '/admin',
+    component: AdminLayout,
+    meta: { requiresAuth: true, roles: ['ADMIN', 'AUDITOR', 'USER_MANAGER'] },
+    children: [
       {
-        path: 'admin/org',
-        name: 'adminOrg',
-        component: () => import('@/views/admin/OrgManage.vue'),
-        meta: { title: '组织管理', roles: ['ADMIN', 'USER_MANAGER'] },
+        path: '',
+        name: 'adminOverview',
+        component: () => import('@/views/admin/AdminOverview.vue'),
+        meta: { title: '概览' },
       },
       {
-        path: 'admin/audit',
-        name: 'adminAudit',
-        component: () => import('@/views/admin/AuditLog.vue'),
-        meta: { title: '操作/登录日志', roles: ['ADMIN', 'AUDITOR'] },
+        path: 'users',
+        name: 'adminUsers',
+        component: () => import('@/views/admin/OrgManage.vue'),
+        meta: { title: '用户与机构', roles: ['ADMIN', 'USER_MANAGER'] },
+      },
+      {
+        path: 'casdoor',
+        name: 'adminCasdoor',
+        component: () => import('@/views/admin/CasdoorConfig.vue'),
+        meta: { title: 'Casdoor 对接', roles: ['ADMIN'] },
+      },
+      {
+        path: 'logs',
+        name: 'adminLogs',
+        component: () => import('@/views/admin/AdminLogs.vue'),
+        meta: { title: '日志', roles: ['ADMIN', 'AUDITOR'] },
+      },
+      {
+        path: 'settings',
+        name: 'adminSettings',
+        component: () => import('@/views/admin/AdminSettings.vue'),
+        meta: { title: '常规设置', roles: ['ADMIN'] },
       },
     ],
   },
+  /* 旧路径兼容：/admin/org → /admin/users，/admin/audit → /admin/logs */
+  { path: '/admin/org', redirect: '/admin/users' },
+  { path: '/admin/audit', redirect: '/admin/logs' },
   {
     path: '/403',
     name: 'forbidden',

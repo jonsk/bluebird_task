@@ -12,6 +12,7 @@ import {
   List,
   Notebook,
   Plus,
+  Setting,
   Star,
   Sunny,
   SwitchButton,
@@ -22,6 +23,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useTaskStore } from '@/stores/task'
 import type { Menu } from '@/api/menu'
+import { logoutEverywhere } from '@/utils/logout'
 
 /**
  * BbFilterRail — 左栏（旧 `.left-box`）。逐项对齐旧系统：
@@ -47,8 +49,8 @@ const navItems = [
 ] as const
 
 const currentName = computed(() => String(route.name ?? ''))
-const canManageUsers = computed(() => auth.hasRole('ADMIN', 'USER_MANAGER'))
-const canViewAudit = computed(() => auth.hasRole('ADMIN', 'AUDITOR'))
+/** 后台入口（独立布局）：ADMIN/AUDITOR/USER_MANAGER 三者任一即可进入，页面级再按角色收窄。 */
+const canEnterAdmin = computed(() => auth.hasRole('ADMIN', 'AUDITOR', 'USER_MANAGER'))
 const displayName = computed(() => auth.user?.name ?? auth.user?.username ?? '未登录')
 const userName = computed(() => auth.user?.username ?? '')
 const menus = computed(() => menuStore.menus)
@@ -143,8 +145,7 @@ async function onDelete(menu: Menu): Promise<void> {
 
 async function runHandler(command: string): Promise<void> {
   if (command !== 'logout') return
-  await auth.logout()
-  await router.replace('/login')
+  await logoutEverywhere(router)
 }
 
 /** 内置主题清单（key 与 tokens.css data-theme 作用域一致，展示用色块）。 */
@@ -271,11 +272,8 @@ function onThemeCommand(command: string | number | object): void {
       <el-tooltip content="日历" placement="top" effect="light">
         <el-icon class="left-box__bottom-icon" title="日历" data-test="nav-calendar" @click="goView('calendar')"><Calendar /></el-icon>
       </el-tooltip>
-      <el-tooltip v-if="canManageUsers" content="组织管理" placement="top" effect="light">
-        <el-icon class="left-box__bottom-icon" title="组织管理" data-test="nav-adminOrg" @click="goView('adminOrg')"><User /></el-icon>
-      </el-tooltip>
-      <el-tooltip v-if="canViewAudit" content="操作/登录日志" placement="top" effect="light">
-        <el-icon class="left-box__bottom-icon" title="操作/登录日志" data-test="nav-adminAudit" @click="goView('adminAudit')"><List /></el-icon>
+      <el-tooltip v-if="canEnterAdmin" content="后台管理" placement="top" effect="light">
+        <el-icon class="left-box__bottom-icon" title="后台管理" data-test="nav-admin" @click="router.push('/admin')"><Setting /></el-icon>
       </el-tooltip>
       <el-tooltip content="主题" placement="top" effect="light">
         <el-dropdown trigger="click" @command="onThemeCommand">

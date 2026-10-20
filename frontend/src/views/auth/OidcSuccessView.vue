@@ -17,6 +17,8 @@ onMounted(async () => {
   const access = params.get('access_token')
   const refresh = params.get('refresh_token')
   const error = params.get('error')
+  // 后端在 state 中携带了用户原本要去的页面，登录后原路返回
+  const redirect = params.get('redirect') || '/index'
 
   history.replaceState(null, '', window.location.pathname)
 
@@ -34,7 +36,7 @@ onMounted(async () => {
   if (refresh) setRefreshToken(refresh)
   try {
     await auth.fetchMe()
-    await router.replace('/index')
+    await router.replace(redirect.startsWith('/') ? redirect : '/index')
   } catch {
     await router.replace('/login')
   }

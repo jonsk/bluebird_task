@@ -19,13 +19,19 @@ const form = reactive({ username: '', password: '' })
 const loading = ref(false)
 const provider = ref<ExternalConfig['provider']>('LOCAL')
 const activeTab = ref('local')
+/** 后端下发的 OIDC 配置：入口地址与按钮文案均由配置中心决定，前端不硬编码。 */
+const externalCfg = ref<ExternalConfig | null>(null)
 
 const hasExternal = computed(() => provider.value !== 'LOCAL')
-const externalLabel = computed(() => (provider.value === 'WECHAT' ? '企业微信' : '统一认证'))
+const externalLabel = computed(() => {
+  if (provider.value === 'WECHAT') return '企业微信'
+  return externalCfg.value?.displayName || '统一认证'
+})
 
 onMounted(async () => {
   try {
     const cfg = await externalConfig()
+    externalCfg.value = cfg
     provider.value = cfg.provider
     if (cfg.provider !== 'LOCAL') activeTab.value = 'external'
   } catch {
@@ -51,8 +57,12 @@ async function onSubmit(): Promise<void> {
   }
 }
 
+/** 整页跳转到后端 OIDC 入口；`redirect` 让登录成功后回到用户原本想去的页面。 */
 function loginOidc(): void {
-  window.location.assign('/oauth2/authorization/oidc')
+  const base = externalCfg.value?.authorizeUrl || '/api/v1/auth/oidc/redirect'
+  const redirect = (route.query.redirect as string) || '/index'
+  const sep = base.includes('?') ? '&' : '?'
+  window.location.assign(`${base}${sep}redirect=${encodeURIComponent(redirect)}`)
 }
 </script>
 
@@ -70,6 +80,9 @@ function loginOidc(): void {
         </el-tab-pane>
         <el-tab-pane label="账号密码" name="local">
           <form class="login-form" @submit.prevent="onSubmit">
+            <p v-if="provider === 'OIDC'" class="login-form__tip">
+              已启用统一认证，账号密码仅供管理员应急登录。
+            </p>
             <el-form label-width="0">
               <el-form-item>
                 <el-input v-model="form.username" size="large" placeholder="用户名" />
@@ -143,5 +156,11 @@ function loginOidc(): void {
 .login-external__tip {
   color: var(--bb-text-muted);
   font-size: 13px;
+}
+.login-form__tip {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--bb-text-muted);
 }
 </style>

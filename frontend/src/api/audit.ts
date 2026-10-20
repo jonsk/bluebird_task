@@ -22,6 +22,16 @@ export function listOperateLogs(page = 1, size = 20): Promise<OperateLogPage> {
   return get<OperateLogPage>('/audit/operates', { page, size })
 }
 
-export function listLoginLogs(page = 1, size = 20): Promise<LoginLogPage> {
-  return get<LoginLogPage>('/audit/logins', { page, size })
+/** 登录/退出日志分页；provider/eventType 为空时不作为筛选条件。 */
+export function listLoginLogs(
+  page = 1,
+  size = 20,
+  filter?: { provider?: string; eventType?: string },
+): Promise<LoginLogPage> {
+  return get<LoginLogPage>('/audit/logins', {
+    page,
+    size,
+    provider: filter?.provider || undefined,
+    eventType: filter?.eventType || undefined,
+  })
 }

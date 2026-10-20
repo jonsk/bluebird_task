@@ -520,9 +520,11 @@ async function savePwd(): Promise<void> {
 <style scoped>
 .org-manage {
   display: flex;
+  flex: 1;
   gap: 16px;
-  height: calc(100vh - 80px);
-  padding: 16px 20px;
+  min-height: 0;
+  /* 页面自身不再留白：外距由 AdminLayout 的 .admin__main 统一提供 */
+  padding: 0;
   box-sizing: border-box;
 }
 .org-manage__left {

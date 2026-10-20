@@ -129,9 +129,96 @@ export interface paths {
                                 provider?: "LOCAL" | "OIDC" | "WECHAT";
                                 corpId?: string | null;
                                 agentId?: string | null;
+                                /** @description OIDC 时返回，前端整页跳转的登录入口（`/api/v1/auth/oidc/redirect`） */
+                                authorizeUrl?: string | null;
+                                /** @description 登录按钮文案（如 Casdoor） */
+                                displayName?: string | null;
+                                /** @description 上游统一登出地址，前端登出后可整页跳转 */
+                                logoutUrl?: string | null;
                             };
                         };
                     };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/redirect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 发起 Casdoor 单点登录（302 跳转上游 authorize）
+         * @description 生成随机 `state` 并写入 httpOnly cookie（`bb_oidc_state`，10 分钟），随后 302 到 Casdoor `/login/oauth/authorize`。`target` 为登录成功后回跳的前端路径（默认 `/index`）。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 登录成功后的前端回跳路径 */
+                    target?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 重定向到 Casdoor 授权页 */
+                302: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Casdoor 回调（浏览器整页跳转，非 XHR）
+         * @description 校验 `state` → 用 `code` 换 token → 拉 `userinfo` → 本地用户 upsert（角色/部门映射）→ 签发本地 token， 最后 302 到 `/oauth/success#access_token=..&refresh_token=..&redirect=..`（hash 传参，不进服务端日志）。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    code?: string;
+                    state?: string;
+                    error?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 重定向回前端（成功带 token，失败带 error） */
+                302: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -150,7 +237,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** OIDC 回调（Spring Security 接管，浏览器整页跳转，非 XHR） */
+        /** OIDC 回调（Spring Security 接管，浏览器整页跳转，非 XHR；已由 /auth/oidc/callback 取代） */
         get: {
             parameters: {
                 query?: never;
@@ -675,6 +762,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/org/sync/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 组织同步日志分页（ADMIN / AUDITOR） */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    size?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["OrgSyncLogPage"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/org/sync/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 最近一次同步记录（ADMIN / AUDITOR / USER_MANAGER） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["OrgSyncLogVO"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/org/push": {
         parameters: {
             query?: never;
@@ -908,6 +1074,191 @@ export interface paths {
             requestBody?: never;
             responses: {
                 200: components["responses"]["Ok"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 调度任务日志分页（ADMIN） */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    size?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["JobLogPage"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 全部配置分组（ADMIN；密文只返回掩码） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["ConfigGroupVO"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/{group}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 单个配置分组（ADMIN） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    group: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["ConfigGroupVO"];
+                        };
+                    };
+                };
+            };
+        };
+        /** 保存配置分组（ADMIN；值为 null/掩码视为不修改，空串表示清空） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    group: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfigSaveReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["ConfigGroupVO"];
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/config/casdoor/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 测试 Casdoor 连通性（ADMIN；拉 .well-known/openid-configuration） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["ConfigTestResult"];
+                        };
+                    };
+                };
             };
         };
         delete?: never;
@@ -1696,12 +2047,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 登录日志分页（ADMIN / AUDITOR） */
+        /** 登录/退出日志分页（ADMIN / AUDITOR） */
         get: {
             parameters: {
                 query?: {
                     page?: number;
                     size?: number;
+                    /** @description 认证来源筛选 */
+                    provider?: "LOCAL" | "CASDOOR";
+                    /** @description 事件类型筛选 */
+                    eventType?: "LOGIN" | "LOGOUT";
                 };
                 header?: never;
                 path?: never;
@@ -1976,7 +2331,7 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
-        /** @description 登录日志（ADMIN / AUDITOR）。字段对应 `02 §6.2` 表 `audit_login_log`（success/ip/user_agent）。 */
+        /** @description 登录/退出日志（ADMIN / AUDITOR）。字段对应 `02 §6.2` 表 `audit_login_log`。 */
         LoginLogVO: {
             /** Format: int64 */
             id?: number;
@@ -1986,6 +2341,18 @@ export interface components {
             ip?: string;
             /** @description 对应表 user_agent */
             userAgent?: string;
+            /**
+             * @description 认证来源；历史数据为 null
+             * @enum {string|null}
+             */
+            provider?: "LOCAL" | "CASDOOR" | null;
+            /**
+             * @description 事件类型；历史数据为 null（按 LOGIN 处理）
+             * @enum {string|null}
+             */
+            eventType?: "LOGIN" | "LOGOUT" | null;
+            /** @description 外部身份源用户 id（Casdoor sub） */
+            externalId?: string | null;
             /** Format: date-time */
             createdAt?: string;
         };
@@ -2009,6 +2376,103 @@ export interface components {
             lastResult?: string | null;
             /** @enum {string} */
             mode?: "NONE" | "SCIM" | "PULL" | "PUSH";
+        };
+        /** @description 组织同步日志（后台日志页） */
+        OrgSyncLogVO: {
+            /** Format: int64 */
+            id?: number;
+            /** @description 数据源（casdoor / idm / scim） */
+            source?: string;
+            /** @description PULL / PUSH / SCIM / MANUAL */
+            syncType?: string;
+            /** @enum {string} */
+            status?: "RUNNING" | "SUCCESS" | "FAILURE";
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            finishedAt?: string | null;
+            /** @description 拉取到的用户总数 */
+            total?: number | null;
+            inserted?: number | null;
+            updated?: number | null;
+            skipped?: number | null;
+            errorMessage?: string | null;
+        };
+        OrgSyncLogPage: {
+            list?: components["schemas"]["OrgSyncLogVO"][];
+            total?: number;
+            page?: number;
+            size?: number;
+        };
+        /** @description 调度任务执行日志 */
+        JobLogVO: {
+            /** Format: int64 */
+            id?: number;
+            /** @description 任务名（org-sync / field-cleanup） */
+            job?: string;
+            success?: boolean;
+            /**
+             * Format: int64
+             * @description 耗时 ms
+             */
+            duration?: number;
+            message?: string | null;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            finishedAt?: string | null;
+        };
+        JobLogPage: {
+            list?: components["schemas"]["JobLogVO"][];
+            total?: number;
+            page?: number;
+            size?: number;
+        };
+        /** @description 单个配置项（前端按 type 渲染控件） */
+        ConfigItemVO: {
+            key?: string;
+            label?: string;
+            /** @description 密文为掩码 `******`，永不返回明文 */
+            value?: string | null;
+            /** @enum {string} */
+            type?: "STRING" | "INT" | "BOOL" | "SELECT" | "JSON";
+            /** @description 是否密文项 */
+            secret?: boolean;
+            /** @description 库中是否已存在密文值 */
+            hasSecret?: boolean;
+            /**
+             * @description 当前值的实际来源
+             * @enum {string}
+             */
+            source?: "DB" | "YML" | "DEFAULT";
+            description?: string | null;
+            /** @description type=SELECT 时的候选项 */
+            options?: string[];
+            /** @description 修改后需重启生效 */
+            requiresRestart?: boolean;
+        };
+        /** @description 配置分组（前端渲染为一张卡片） */
+        ConfigGroupVO: {
+            group?: string;
+            label?: string;
+            description?: string | null;
+            items?: components["schemas"]["ConfigItemVO"][];
+        };
+        /** @description key → 新值；值为 null 或掩码表示不修改，空串表示清空 */
+        ConfigSaveReq: {
+            values: {
+                [key: string]: string | null;
+            };
+        };
+        /** @description Casdoor 连通性测试结果 */
+        ConfigTestResult: {
+            ok?: boolean;
+            message?: string;
+            /** Format: int64 */
+            latencyMs?: number;
+            issuer?: string | null;
+            authorizationEndpoint?: string | null;
+            tokenEndpoint?: string | null;
         };
         RefreshReq: {
             refreshToken: string;

@@ -13,6 +13,12 @@ export interface ExternalConfig {
   provider: 'LOCAL' | 'OIDC' | 'WECHAT'
   corpId?: string | null
   agentId?: string | null
+  /** OIDC：前端整页跳转的登录入口（`/api/v1/auth/oidc/redirect`）。 */
+  authorizeUrl?: string | null
+  /** OIDC：登录按钮文案（如 Casdoor）。 */
+  displayName?: string | null
+  /** OIDC：上游统一登出地址，登出后可整页跳转。 */
+  logoutUrl?: string | null
 }
 
 export function login(data: LoginReq): Promise<TokenVO> {

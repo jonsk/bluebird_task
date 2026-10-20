@@ -166,6 +166,164 @@ function pageOf(list: TaskLike[], url: URL): Response {
   return ok({ list: list.slice(start, start + size), total: list.length, page, size })
 }
 
+// ==================== 后台（配置中心 / 同步日志）mock ====================
+
+interface LoginLogLike {
+  id: number
+  username: string
+  success: boolean
+  ip?: string
+  userAgent?: string
+  provider?: string | null
+  eventType?: string | null
+  externalId?: string | null
+  createdAt?: string
+}
+
+interface MockConfigItem {
+  key: string
+  label: string
+  value: string
+  type: 'STRING' | 'INT' | 'BOOL' | 'SELECT' | 'JSON'
+  secret: boolean
+  hasSecret: boolean
+  source: 'DB' | 'YML' | 'DEFAULT'
+  description: string
+  options: string[]
+  requiresRestart: boolean
+}
+
+interface MockConfigGroup {
+  group: string
+  label: string
+  description: string
+  items: MockConfigItem[]
+}
+
+function item(
+  key: string,
+  label: string,
+  value: string,
+  type: MockConfigItem['type'] = 'STRING',
+  extra: Partial<MockConfigItem> = {},
+): MockConfigItem {
+  return {
+    key,
+    label,
+    value,
+    type,
+    secret: false,
+    hasSecret: false,
+    source: 'DEFAULT',
+    description: '',
+    options: [],
+    requiresRestart: false,
+    ...extra,
+  }
+}
+
+/**
+ * 与后端 `ConfigDefinition` 对齐的 mock 配置（`docs/api/openapi.yaml` 契约）。
+ * 保持可变：`PUT /admin/config/{group}` 在内存中改值，供后台页面联调与视觉回归。
+ */
+const configState: MockConfigGroup[] = [
+  {
+    group: 'casdoor',
+    label: 'Casdoor 对接',
+    description: '统一身份源连接参数；client-secret 加密存储，读取时只返回掩码',
+    items: [
+      item('endpoint', '服务地址', 'https://casdoor.example.com'),
+      item('client-id', 'Client ID', 'bluebird-client'),
+      item('client-secret', 'Client Secret', '******', 'STRING', { secret: true, hasSecret: true }),
+      item('organization', '组织名', 'bluebird'),
+      item('application-name', '应用名', 'bluebird-task'),
+      item('redirect-uri', '回调地址', 'http://localhost:8080/api/v1/auth/oidc/callback'),
+      item('scopes', '授权范围', 'openid profile email phone'),
+      item('role-map', '角色映射', '{"bluebird-admin":"ADMIN","bluebird-common":"COMMON"}', 'JSON'),
+      item('dept-source', '部门来源', 'groups', 'SELECT', { options: ['groups', 'organizations'] }),
+    ],
+  },
+  {
+    group: 'identity',
+    label: '登录方式',
+    description: '决定登录页展示与账密登录是否对普通用户开放',
+    items: [
+      item('provider', '认证方式', 'LOCAL', 'SELECT', { options: ['LOCAL', 'OIDC'] }),
+      item('auto-create-user', '自动建用户', 'true', 'BOOL'),
+    ],
+  },
+  {
+    group: 'orgsync',
+    label: '组织同步',
+    description: 'Casdoor → 本地用户/部门/角色 的拉取策略',
+    items: [
+      item('mode', '同步模式', 'PULL', 'SELECT', { options: ['NONE', 'PULL', 'PUSH', 'SCIM'] }),
+      item('adapter', '适配器', 'casdoor', 'SELECT', { options: ['casdoor'] }),
+      item('cron', '同步时间（cron）', '0 0 1 * * *'),
+      item('batch-size', '分页大小', '100', 'INT'),
+    ],
+  },
+  {
+    group: 'security',
+    label: '登录安全',
+    description: '账密登录防暴破参数，修改后即时生效',
+    items: [
+      item('login-max-fail', '最大失败次数', '5', 'INT'),
+      item('login-lock-seconds', '锁定时长（秒）', '900', 'INT'),
+    ],
+  },
+  {
+    group: 'audit',
+    label: '审计',
+    description: '日志留存策略',
+    items: [item('retention-days', '日志保留天数', '180', 'INT')],
+  },
+  {
+    group: 'storage',
+    label: '文件存储',
+    description: '上传限制；修改后需重启',
+    items: [
+      item('max-size', '单文件上限', '50MB', 'STRING', { requiresRestart: true }),
+      item('allowed-ext', '允许的扩展名', '', 'STRING', { requiresRestart: true }),
+    ],
+  },
+]
+
+function configGroups(): MockConfigGroup[] {
+  return configState
+}
+
+function orgSyncLogs() {
+  return [
+    {
+      id: 2,
+      source: 'casdoor',
+      syncType: 'PULL',
+      status: 'SUCCESS',
+      startedAt: '2026-09-28T01:00:00+08:00',
+      finishedAt: '2026-09-28T01:00:02+08:00',
+      total: 4,
+      inserted: 0,
+      updated: 4,
+      skipped: 0,
+      errorMessage: null,
+    },
+    {
+      id: 1,
+      source: 'casdoor',
+      syncType: 'PULL',
+      status: 'FAILURE',
+      startedAt: '2026-09-27T01:00:00+08:00',
+      finishedAt: '2026-09-27T01:00:05+08:00',
+      total: 0,
+      inserted: 0,
+      updated: 0,
+      skipped: 0,
+      errorMessage: 'connect timed out',
+    },
+  ]
+}
+
 export const handlers = [
   // ---- auth ----
   http.post(`${AUTH}/auth/login`, async ({ request }) => {
@@ -420,5 +578,64 @@ export const handlers = [
 
   // ---- audit ----
   http.get(`${AUTH}/audit/operates`, () => raw('audit/GET.operates')),
-  http.get(`${AUTH}/audit/logins`, () => raw('audit/GET.logins')),
+  http.get(`${AUTH}/audit/logins`, ({ request }) => {
+    const url = new URL(request.url)
+    const provider = url.searchParams.get('provider')
+    const eventType = url.searchParams.get('eventType')
+    const base = dataOf<PageLike<LoginLogLike>>('audit/GET.logins')
+    let list = base.list ?? []
+    if (provider) list = list.filter((r) => (r.provider ?? 'LOCAL') === provider)
+    if (eventType) list = list.filter((r) => (r.eventType ?? 'LOGIN') === eventType)
+    return ok({ ...base, list, total: list.length })
+  }),
+
+  // ---- admin（配置中心 / 同步与任务日志）----
+  http.get(`${AUTH}/admin/config`, () => ok(configGroups())),
+  http.get(`${AUTH}/admin/config/:group`, ({ params }) => {
+    const g = configGroups().find((x) => x.group === params.group)
+    return g ? ok(g) : fail(10004, '配置分组不存在')
+  }),
+  http.put(`${AUTH}/admin/config/:group`, async ({ request, params }) => {
+    const body = (await request.json()) as { values?: Record<string, string | null> }
+    const group = configGroups().find((x) => x.group === params.group)
+    if (!group) return fail(10004, '配置分组不存在')
+    for (const item of group.items) {
+      const v = body.values?.[item.key]
+      if (v === undefined || v === null || v === '******') continue
+      item.value = v
+      item.source = v === '' ? 'DEFAULT' : 'DB'
+      if (item.secret && v) item.hasSecret = true
+    }
+    return ok(group)
+  }),
+  http.post(`${AUTH}/admin/config/casdoor/test`, () =>
+    ok({
+      ok: true,
+      message: '连接正常',
+      latencyMs: 42,
+      issuer: 'https://casdoor.example.com',
+      authorizationEndpoint: 'https://casdoor.example.com/login/oauth/authorize',
+      tokenEndpoint: 'https://casdoor.example.com/api/login/oauth/access_token',
+    }),
+  ),
+  http.get(`${AUTH}/org/sync/logs`, () => ok({ list: orgSyncLogs(), total: orgSyncLogs().length, page: 1, size: 20 })),
+  http.get(`${AUTH}/org/sync/latest`, () => ok(orgSyncLogs()[0] ?? null)),
+  http.get(`${AUTH}/jobs/logs`, () =>
+    ok({
+      list: [
+        {
+          id: 1,
+          job: 'org-sync',
+          success: true,
+          duration: 1280,
+          message: '拉取 4 名用户、3 个部门',
+          startedAt: '2026-09-28T01:00:00+08:00',
+          finishedAt: '2026-09-28T01:00:02+08:00',
+        },
+      ],
+      total: 1,
+      page: 1,
+      size: 20,
+    }),
+  ),
 ]
