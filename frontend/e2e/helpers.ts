@@ -45,15 +45,21 @@ export async function settle(page: Page): Promise<void> {
 
 /** 路由路径 → 左栏 data-test 键（管理页路径含斜杠，需显式映射）。 */
 const NAV_KEY: Record<string, string> = {
-  '/admin/org': 'adminOrg',
-  '/admin/users': 'adminOrg',
-  '/admin/depts': 'adminOrg',
-  '/admin/audit': 'adminAudit',
+  // 后台已迁至独立布局：左栏只保留单一「后台管理」入口（/admin）
+  '/admin': 'admin',
+}
+
+/** 后台子页路径 → AdminLayout 左侧导航 data-test 键。 */
+const ADMIN_NAV: Record<string, string> = {
+  '/admin/users': 'adminUsers',
+  '/admin/casdoor': 'adminCasdoor',
+  '/admin/logs': 'adminLogs',
+  '/admin/settings': 'adminSettings',
 }
 
 /**
  * 左栏导航项。接受路由名或路径（`/allTask` 与 `allTask` 等价），
- * 亦可用于左栏底部的「日历 / 用户管理 / 部门管理 / 日志」图标项。
+ * 亦可用于左栏底部的「日历 / 后台管理」图标项。
  */
 export function nav(page: Page, key: string) {
   const k = NAV_KEY[key] ?? key.replace(/^\//, '')
@@ -64,6 +70,20 @@ export function nav(page: Page, key: string) {
 export async function goView(page: Page, key: string, urlPattern: RegExp): Promise<void> {
   await nav(page, key).click()
   await expect(page).toHaveURL(urlPattern)
+}
+
+/**
+ * 进入后台子页（独立布局）：先点左栏「后台管理」到 `/admin`，
+ * 再点 AdminLayout 左侧对应导航项。`/admin` 本身直接断言概览。
+ */
+export async function goAdmin(page: Page, path: string): Promise<void> {
+  await nav(page, '/admin').click()
+  await expect(page).toHaveURL(/\/admin$/)
+  const key = ADMIN_NAV[path]
+  if (key) {
+    await page.locator(`[data-test="admin-nav-${key}"]`).click()
+  }
+  await expect(page).toHaveURL(new RegExp(`${path.replace(/\//g, '\\/')}$`))
 }
 
 /** 任务卡片（按标题）。 */

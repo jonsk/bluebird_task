@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { card, cardTitles, composer, detailPanel, freezeTime, goView, gotoLogin, login, nav } from './helpers'
+import { card, cardTitles, composer, detailPanel, freezeTime, goAdmin, goView, gotoLogin, login, nav } from './helpers'
 
 /**
  * E2E 验收（新前端 · MSW 直连 `docs/frontend-baseline/fixtures/api/**`）。
@@ -149,7 +149,7 @@ test('E-13 附件上传（详情面板）', async ({ page }) => {
 
 test('E-14 组织管理（用户 + 部门 左树右表）', async ({ page }) => {
   await login(page)
-  await goView(page, '/admin/org', /\/admin\/org$/)
+  await goAdmin(page, '/admin/users')
   await expect(page.locator('.el-table__row')).toHaveCount(4)
   // 「全部部门」根节点已按用户要求移除；部门面板提供导入/导出
   await expect(page.locator('.org-manage__dept-root')).toHaveCount(0)
@@ -157,15 +157,25 @@ test('E-14 组织管理（用户 + 部门 左树右表）', async ({ page }) => 
   await expect(page.locator('[data-test="dept-export"]')).toHaveText('导出')
 })
 
-test('E-15 审计日志（操作 + 登录）', async ({ page }) => {
+test('E-15 审计日志（登录/退出 + 操作）', async ({ page }) => {
   await login(page)
-  await goView(page, '/admin/audit', /\/admin\/audit$/)
+  await goAdmin(page, '/admin/logs')
+  // 默认落在「登录 / 退出」页签：可筛认证来源与事件类型
+  await expect(page.locator('[data-test="login-filter-provider"]')).toBeVisible()
   const rows = page.locator('.el-tab-pane:visible .el-table__row')
-  await expect(rows).toHaveCount(2)
-  await expect(rows.first()).toContainText('complete')
-  await page.getByRole('tab', { name: '登录日志' }).click()
-  await expect(rows).toHaveCount(2)
   await expect(rows.first()).toContainText('lisi')
+  await page.getByRole('tab', { name: '操作日志' }).click()
+  await expect(rows.first()).toContainText('complete')
+})
+
+test('E-15b 后台概览（独立布局 + 快捷入口）', async ({ page }) => {
+  await login(page)
+  await goAdmin(page, '/admin')
+  await expect(page.locator('.overview__card')).toHaveCount(4)
+  await expect(page.locator('[data-test="overview-/admin/casdoor"]')).toBeVisible()
+  // 旧路径重定向到新路径
+  await page.goto('/admin/org')
+  await expect(page).toHaveURL(/\/admin\/users$/)
 })
 
 test('E-16 周期任务（列表标记 + 日历按实例展开）', async ({ page }) => {

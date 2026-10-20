@@ -208,7 +208,16 @@ test.describe('真实后端 · API 联调', () => {
 
     // 深链（浏览器直接访问/刷新）必须回退到 SPA 壳：不带 Authorization 头，
     // 且返回 text/html。曾因「回退清单不全 + Security 未放行」拿到 JSON（刷新即白屏/裸 JSON）。
-    for (const page of ['/index', '/allTask', '/calendar/2026-10-01', '/admin/org', '/admin/audit']) {
+    for (const page of [
+      '/index',
+      '/allTask',
+      '/calendar/2026-10-01',
+      '/admin',
+      '/admin/users',
+      '/admin/casdoor',
+      '/admin/logs',
+      '/admin/settings',
+    ]) {
       const res = await request.get(page, { headers: { Accept: 'text/html' } })
       const type = res.headers()['content-type'] ?? ''
       expect(res.status(), page).toBe(200)

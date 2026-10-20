@@ -139,3 +139,18 @@ fixtures/
 - ✅ **旧接口形态**（`legacy-api/`，2026-09-28）：线上抓包结构 + 合成数据，驱动 `../screenshots/` 黄金截图；真实密钥/口令已脱敏（见 `legacy-api/README.md`）。
 - ⏳ 待办：`users/GET.index.json` 按 `deptId/scope` 过滤子集（MSW handler 内过滤）；若确认需要「按 id 取单栏」独立接口，同步改 `02 §3.x` + openapi。
 - 🗑️ **分类 fixtures 已移除（2026-10-14）**：`api/categories/` 目录与其读写/错误态 fixture 全部删除（分类功能整体下线，见 §1.2 说明）。`legacy-api/dataset.json` 中保留旧系统分类证据字段仅为历史参照，不再驱动新前端。
+
+## 7. Casdoor 接入期新增端点（2026-10-18）
+
+`/admin` 独立后台与 Casdoor 接入引入的端点**未落 JSON fixture**，由 `frontend/src/mocks/handlers.ts` 内的 `configState` 内存对象直接响应。原因：配置中心是**可变 KG 表单**，六个分组 × 数十项若做成静态 JSON 会与 `ConfigDefinition` 注册表迅速漂移，反而失去基线意义。
+
+| 端点 | Method | Mock 行为 | 契约位置 |
+|---|---|---|---|
+| `/admin/config` | GET | 返回六个分组全量（`casdoor/identity/orgsync/security/audit/storage`） | `openapi.yaml#/components/schemas/ConfigGroupVO` |
+| `/admin/config/{group}` | GET / PUT | GET 单组；PUT 在内存合并 `values`，`secret` 项回掩码 `******` | 同上 + `ConfigSaveReq` |
+| `/admin/config/casdoor/test` | POST | 固定返回连通性失败结果（无真实 Casdoor） | `ConfigTestResult` |
+| `/org/sync/logs` · `/org/sync/latest` | GET | 分页空列表 / 无记录 | `OrgSyncLogPage` · `OrgSyncLogVO` |
+| `/jobs/logs` | GET | 分页空列表 | `JobLogPage` |
+| `/audit/logins` | GET | 支持 `provider` · `eventType` 过滤 | `LoginLogVO`（含 `provider/eventType/externalId`） |
+
+> 唯一新增 JSON fixture 是 `api/audit/GET.logins.json`——它加了 `provider` / `eventType` / `externalId` 三个字段，并保留三条不同来源（LOCAL 登录、CASDOOR 登录、LOGOUT）的记录，让「登录/退出」页签的筛选在 MSW 下可验证。

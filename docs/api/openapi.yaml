@@ -22,6 +22,7 @@ tags:
   - name: audit
   - name: job
   - name: scim
+  - name: admin
 
 security:
   - bearerAuth: []
@@ -80,10 +81,48 @@ paths:
                           provider: { type: string, enum: [LOCAL, OIDC, WECHAT] }
                           corpId: { type: string, nullable: true }
                           agentId: { type: string, nullable: true }
+                          authorizeUrl:
+                            type: string
+                            nullable: true
+                            description: OIDC 时返回，前端整页跳转的登录入口（`/api/v1/auth/oidc/redirect`）
+                          displayName:
+                            type: string
+                            nullable: true
+                            description: 登录按钮文案（如 Casdoor）
+                          logoutUrl:
+                            type: string
+                            nullable: true
+                            description: 上游统一登出地址，前端登出后可整页跳转
+  /auth/oidc/redirect:
+    get:
+      tags: [auth]
+      summary: 发起 Casdoor 单点登录（302 跳转上游 authorize）
+      description: >
+        生成随机 `state` 并写入 httpOnly cookie（`bb_oidc_state`，10 分钟），随后 302 到 Casdoor
+        `/login/oauth/authorize`。`redirect` 为登录成功后回跳的前端路径（默认 `/index`，仅接受站内绝对路径）。
+      security: []
+      parameters:
+        - { name: redirect, in: query, schema: { type: string }, description: 登录成功后的前端回跳路径 }
+      responses:
+        '302': { description: 重定向到 Casdoor 授权页 }
+  /auth/oidc/callback:
+    get:
+      tags: [auth]
+      summary: Casdoor 回调（浏览器整页跳转，非 XHR）
+      description: >
+        校验 `state` → 用 `code` 换 token → 拉 `userinfo` → 本地用户 upsert（角色/部门映射）→ 签发本地 token，
+        最后 302 到 `/oauth/success#access_token=..&refresh_token=..&redirect=..`（hash 传参，不进服务端日志）。
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        '302': { description: 重定向回前端（成功带 token，失败带 error） }
   /auth/external/callback:
     get:
       tags: [auth]
-      summary: OIDC 回调（Spring Security 接管，浏览器整页跳转，非 XHR）
+      summary: OIDC 回调（Spring Security 接管，浏览器整页跳转，非 XHR；已由 /auth/oidc/callback 取代）
       security: []
       responses:
         '302': { description: 重定向回前端（成功/失败） }
@@ -237,6 +276,31 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/SyncStatus' } } }]
+  /org/sync/logs:
+    get:
+      tags: [org]
+      summary: 组织同步日志分页（ADMIN / AUDITOR）
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/OrgSyncLogPage' } } }]
+  /org/sync/latest:
+    get:
+      tags: [org]
+      summary: 最近一次同步记录（ADMIN / AUDITOR / USER_MANAGER）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/OrgSyncLogVO' } } }]
   /org/push:
     post:
       tags: [org]
@@ -315,6 +379,69 @@ paths:
       summary: 手动重跑调度任务（ADMIN；`sys_job_log` 记录，0306/Q6）
       parameters: [{ name: name, in: path, required: true, schema: { type: string } }]
       responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /jobs/logs:
+    get:
+      tags: [job]
+      summary: 调度任务日志分页（ADMIN）
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/JobLogPage' } } }]
+
+  /admin/config:
+    get:
+      tags: [admin]
+      summary: 全部配置分组（ADMIN；密文只返回掩码）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/ConfigGroupVO' } } } }]
+  /admin/config/{group}:
+    get:
+      tags: [admin]
+      summary: 单个配置分组（ADMIN）
+      parameters: [{ name: group, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/ConfigGroupVO' } } }]
+    put:
+      tags: [admin]
+      summary: 保存配置分组（ADMIN；值为 null/掩码视为不修改，空串表示清空）
+      parameters: [{ name: group, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ConfigSaveReq' } } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/ConfigGroupVO' } } }]
+  /admin/config/casdoor/test:
+    post:
+      tags: [admin]
+      summary: 测试 Casdoor 连通性（ADMIN；拉 .well-known/openid-configuration）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/ConfigTestResult' } } }]
 
   /tasks:
     get:
@@ -530,10 +657,12 @@ paths:
   /audit/logins:
     get:
       tags: [audit]
-      summary: 登录日志分页（ADMIN / AUDITOR）
+      summary: 登录/退出日志分页（ADMIN / AUDITOR）
       parameters:
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: provider, in: query, schema: { type: string, enum: [LOCAL, CASDOOR] }, description: 认证来源筛选 }
+        - { name: eventType, in: query, schema: { type: string, enum: [LOGIN, LOGOUT] }, description: 事件类型筛选 }
       responses:
         '200':
           description: OK
@@ -777,13 +906,24 @@ components:
         createdAt: { type: string, format: date-time }
     LoginLogVO:
       type: object
-      description: 登录日志（ADMIN / AUDITOR）。字段对应 `02 §6.2` 表 `audit_login_log`（success/ip/user_agent）。
+      description: 登录/退出日志（ADMIN / AUDITOR）。字段对应 `02 §6.2` 表 `audit_login_log`。
       properties:
         id: { type: integer, format: int64 }
         username: { type: string }
         success: { type: boolean, description: 是否成功（对应表 success；1 成功 0 失败） }
         ip: { type: string }
         userAgent: { type: string, description: 对应表 user_agent }
+        provider:
+          type: string
+          nullable: true
+          enum: [LOCAL, CASDOOR]
+          description: 认证来源；历史数据为 null
+        eventType:
+          type: string
+          nullable: true
+          enum: [LOGIN, LOGOUT]
+          description: 事件类型；历史数据为 null（按 LOGIN 处理）
+        externalId: { type: string, nullable: true, description: 外部身份源用户 id（Casdoor sub） }
         createdAt: { type: string, format: date-time }
     OperateLogPage:
       type: object
@@ -807,6 +947,84 @@ components:
         lastSyncAt: { type: string, format: date-time, nullable: true }
         lastResult: { type: string, nullable: true }
         mode: { type: string, enum: [NONE, SCIM, PULL, PUSH] }
+    OrgSyncLogVO:
+      type: object
+      description: 组织同步日志（后台日志页）
+      properties:
+        id: { type: integer, format: int64 }
+        source: { type: string, description: 数据源（casdoor / idm / scim） }
+        syncType: { type: string, description: PULL / PUSH / SCIM / MANUAL }
+        status: { type: string, enum: [RUNNING, SUCCESS, FAILURE] }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time, nullable: true }
+        total: { type: integer, nullable: true, description: 拉取到的用户总数 }
+        inserted: { type: integer, nullable: true }
+        updated: { type: integer, nullable: true }
+        skipped: { type: integer, nullable: true }
+        errorMessage: { type: string, nullable: true }
+    OrgSyncLogPage:
+      type: object
+      properties:
+        list: { type: array, items: { $ref: '#/components/schemas/OrgSyncLogVO' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    JobLogVO:
+      type: object
+      description: 调度任务执行日志
+      properties:
+        id: { type: integer, format: int64 }
+        job: { type: string, description: 任务名（org-sync / field-cleanup） }
+        success: { type: boolean }
+        duration: { type: integer, format: int64, description: 耗时 ms }
+        message: { type: string, nullable: true }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time, nullable: true }
+    JobLogPage:
+      type: object
+      properties:
+        list: { type: array, items: { $ref: '#/components/schemas/JobLogVO' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    ConfigItemVO:
+      type: object
+      description: 单个配置项（前端按 type 渲染控件）
+      properties:
+        key: { type: string }
+        label: { type: string }
+        value: { type: string, nullable: true, description: 密文为掩码 `******`，永不返回明文 }
+        type: { type: string, enum: [STRING, INT, BOOL, SELECT, JSON] }
+        secret: { type: boolean, description: 是否密文项 }
+        hasSecret: { type: boolean, description: 库中是否已存在密文值 }
+        source: { type: string, enum: [DB, YML, DEFAULT], description: 当前值的实际来源 }
+        description: { type: string, nullable: true }
+        options: { type: array, items: { type: string }, description: type=SELECT 时的候选项 }
+        requiresRestart: { type: boolean, description: 修改后需重启生效 }
+    ConfigGroupVO:
+      type: object
+      description: 配置分组（前端渲染为一张卡片）
+      properties:
+        group: { type: string }
+        label: { type: string }
+        description: { type: string, nullable: true }
+        items: { type: array, items: { $ref: '#/components/schemas/ConfigItemVO' } }
+    ConfigSaveReq:
+      type: object
+      required: [values]
+      description: key → 新值；值为 null 或掩码表示不修改，空串表示清空
+      properties:
+        values: { type: object, additionalProperties: { type: string, nullable: true } }
+    ConfigTestResult:
+      type: object
+      description: Casdoor 连通性测试结果
+      properties:
+        ok: { type: boolean }
+        message: { type: string }
+        latencyMs: { type: integer, format: int64 }
+        issuer: { type: string, nullable: true }
+        authorizationEndpoint: { type: string, nullable: true }
+        tokenEndpoint: { type: string, nullable: true }
     RefreshReq:
       type: object
       required: [refreshToken]

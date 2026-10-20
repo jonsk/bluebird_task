@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { card, composer, freezeTime, goView, gotoLogin, login } from './helpers'
+import { card, composer, freezeTime, goAdmin, goView, gotoLogin, login } from './helpers'
 
 /**
  * 视觉回归基线（03 §2.5.1，1440×900 / 固定 MSW fixtures / 冻结时间 → 确定性）。
@@ -61,17 +61,31 @@ test.describe('视觉回归基线（1440×900）', () => {
     await expect(page).toHaveScreenshot('calendar-1440x900.png')
   })
 
-  test('组织管理', async ({ page }) => {
+  test('后台概览（独立布局）', async ({ page }) => {
     await login(page)
-    await goView(page, '/admin/org', /\/admin\/org$/)
-    await expect(page.locator('.el-table__row')).toHaveCount(4)
-    await expect(page).toHaveScreenshot('admin-org-1440x900.png')
+    await goAdmin(page, '/admin')
+    await expect(page.locator('.overview__card')).toHaveCount(4)
+    await expect(page).toHaveScreenshot('admin-overview-1440x900.png')
   })
 
-  test('审计日志', async ({ page }) => {
+  test('用户与机构', async ({ page }) => {
     await login(page)
-    await goView(page, '/admin/audit', /\/admin\/audit$/)
-    await expect(page.locator('.el-tab-pane:visible .el-table__row')).toHaveCount(2)
-    await expect(page).toHaveScreenshot('admin-audit-1440x900.png')
+    await goAdmin(page, '/admin/users')
+    await expect(page.locator('.el-table__row')).toHaveCount(4)
+    await expect(page).toHaveScreenshot('admin-users-1440x900.png')
+  })
+
+  test('Casdoor 对接（配置表单）', async ({ page }) => {
+    await login(page)
+    await goAdmin(page, '/admin/casdoor')
+    await expect(page.locator('[data-test="cfg-endpoint"]')).toBeVisible()
+    await expect(page).toHaveScreenshot('admin-casdoor-1440x900.png')
+  })
+
+  test('日志（登录/退出 + 操作 + 组织同步 + 调度）', async ({ page }) => {
+    await login(page)
+    await goAdmin(page, '/admin/logs')
+    await expect(page.locator('.el-tab-pane:visible .el-table__row')).toHaveCount(3)
+    await expect(page).toHaveScreenshot('admin-logs-1440x900.png')
   })
 })

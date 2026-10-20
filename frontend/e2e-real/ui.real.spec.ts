@@ -11,6 +11,15 @@ const BASE = process.env.E2E_REAL_BASE_URL ?? 'http://127.0.0.1:8080'
 const PASSWORD = process.env.E2E_REAL_PASSWORD ?? 'Admin123!'
 const uniq = (p: string) => `${p}${String(Date.now()).slice(-7)}`
 
+/**
+ * 左栏视图项数量，即 `BbFilterRail.vue` 里 `navItems` 的长度
+ * （我的一天 / 我@Ta的任务 / 分配给我的任务 / 我的收藏 / 全部任务）。
+ *
+ * <p>历史上这里硬编码 6，`d48d8c5` 移除「未来7天任务」视图后没人同步，
+ * 导致 8 个真实联调用例全部卡在登录后的计数断言上。改视图清单时**必须**同步本常量。
+ */
+const VIEW_COUNT = 5
+
 test.use({ baseURL: BASE })
 
 const results: { name: string; ok: boolean; detail: string }[] = []
@@ -26,7 +35,7 @@ async function login(page: Page): Promise<void> {
   await page.getByPlaceholder('密码').fill(PASSWORD)
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/\/index$/, { timeout: 20_000 })
-  await expect(page.locator('.layout__count')).toHaveCount(6, { timeout: 20_000 })
+  await expect(page.locator('.layout__count')).toHaveCount(VIEW_COUNT, { timeout: 20_000 })
 }
 
 /** 确认框必须居中且有样式（用户反馈 #2/#9：曾因缺命令式组件 CSS 落到页面左上/左下角）。 */
@@ -61,7 +70,8 @@ test.describe.configure({ mode: 'default' })
 test('登录 + 各视图计数渲染（真实后端）', async ({ page }) => {
   page.setDefaultTimeout(25_000)
   await login(page)
-  check('登录后左栏 6 个视图计数渲染', (await page.locator('.layout__count').count()) === 6, '')
+  check(`登录后左栏 ${VIEW_COUNT} 个视图计数渲染`,
+    (await page.locator('.layout__count').count()) === VIEW_COUNT, '')
   const titles = (await page.locator('.bb-task-card__title').allInnerTexts()).map((t) => t.trim())
   check('我的一天能渲染任务卡', titles.length >= 0, '')
   await expect(page).toHaveURL(/\/index$/)
@@ -382,7 +392,14 @@ test('#4/#8/#9/#10/#11 详情面板：不重叠 / 添加步骤 / 附件 / 子任
     await page.waitForTimeout(2200)
     const after = panel.locator('.drbb-subtask').first()
     const doneAfter = await after.locator('.is-done').count()
-    check('#11 子任务状态可切换（用户反馈 #11）', doneAfter > doneBefore || /is-done/.test((await after.getAttribute('class')) ?? ''), `${doneBefore} -> ${doneAfter}`)
+    // 这是**切换**语义，不是「只能变完成」：真实库会被上一次运行写脏，
+    // 首次跑把子任务标完成、再次跑同一库就变成取消完成（1 -> 0）。
+    // 断言「状态确实翻转」才既验证交互、又对初始状态免疫。
+    check(
+      '#11 子任务状态可切换（用户反馈 #11）',
+      doneAfter !== doneBefore,
+      `${doneBefore} -> ${doneAfter}（应翻转）`,
+    )
   }
 
   // #10 附件：真实文件名 + 可上传 + 可删除
@@ -405,8 +422,10 @@ test('#4/#8/#9/#10/#11 详情面板：不重叠 / 添加步骤 / 附件 / 子任
 test('#5/#6/#7/#8/#9 组织管理：默认部门 / 部门树选择 / 角色说明 / 邮箱 / 禁用确认框', async ({ page }) => {
   page.setDefaultTimeout(25_000)
   await login(page)
-  await page.locator('[data-test="nav-adminOrg"]').click()
-  await expect(page).toHaveURL(/\/admin\/org$/, { timeout: 15_000 })
+  await page.locator('[data-test="nav-admin"]').click()
+  await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 })
+  await page.locator('[data-test="admin-nav-adminUsers"]').click()
+  await expect(page).toHaveURL(/\/admin\/users$/, { timeout: 15_000 })
   await page.waitForTimeout(2000)
 
   const root = page.locator('.org-manage__node').first()

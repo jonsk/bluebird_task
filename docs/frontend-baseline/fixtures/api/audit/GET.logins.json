@@ -4,9 +4,10 @@
   "traceId": "fix-audit-login-0001",
   "data": {
     "list": [
-      { "id": 5001, "username": "lisi", "success": true, "ip": "10.0.0.21", "userAgent": "Mozilla/5.0", "createdAt": "2026-09-28T09:00:00+08:00" },
-      { "id": 5002, "username": "zhangsan", "success": false, "ip": "10.0.0.22", "userAgent": "Mozilla/5.0", "createdAt": "2026-09-28T09:05:00+08:00" }
+      { "id": 5001, "username": "lisi", "success": true, "ip": "10.0.0.21", "userAgent": "Mozilla/5.0", "provider": "CASDOOR", "eventType": "LOGIN", "externalId": "casdoor-u-1001", "createdAt": "2026-09-28T09:00:00+08:00" },
+      { "id": 5002, "username": "zhangsan", "success": false, "ip": "10.0.0.22", "userAgent": "Mozilla/5.0", "provider": "LOCAL", "eventType": "LOGIN", "externalId": null, "createdAt": "2026-09-28T09:05:00+08:00" },
+      { "id": 5003, "username": "lisi", "success": true, "ip": "10.0.0.21", "userAgent": "Mozilla/5.0", "provider": "CASDOOR", "eventType": "LOGOUT", "externalId": "casdoor-u-1001", "createdAt": "2026-09-28T09:30:00+08:00" }
     ],
-    "total": 2, "page": 1, "size": 20
+    "total": 3, "page": 1, "size": 20
   }
 }
