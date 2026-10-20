@@ -24,6 +24,8 @@ public enum ErrorCode {
     NO_PERMISSION_EXTERNAL(20004, "外部身份源无权限"),
     TOKEN_INVALID(20005, "token 无效或过期"),
     ACCOUNT_LOCKED(20006, "账号已锁定"),
+    LOCAL_LOGIN_DISABLED(20007, "当前已启用统一认证，请使用单点登录（仅管理员可账密登录）"),
+    EXTERNAL_LOGIN_FAILED(20008, "统一认证登录失败"),
 
     TASK_NOT_FOUND(30001, "任务不存在"),
     TASK_DELETED(30002, "任务已删除"),
