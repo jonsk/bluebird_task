@@ -3,18 +3,20 @@ package com.bbtc.bluebird.modules.org.application;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
+import com.bbtc.bluebird.modules.config.application.ConfigService;
 import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.domain.UserDepartment;
+import com.bbtc.bluebird.modules.org.dto.OrgPullData;
 import com.bbtc.bluebird.modules.org.dto.OrgPushPayload;
 import com.bbtc.bluebird.modules.org.dto.OrgSyncState;
 import com.bbtc.bluebird.modules.org.dto.SyncStatusVO;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import com.bbtc.bluebird.modules.org.infrastructure.UserDepartmentMapper;
+import com.bbtc.bluebird.modules.org.infrastructure.adapter.OrgSyncAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -27,6 +29,9 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 组织同步（02 §3.3，四模式）。单实例进程内锁（ADR-016），幂等 upsert，不删实体仅置 DISABLED。
+ *
+ * <p>PULL：由 {@link OrgSyncAdapter} 拉取外部数据（当前为 Casdoor），本类负责落库与统计；
+ * PUSH / SCIM 由外部系统主动推送，逻辑保持原样。
  */
 @Slf4j
 @Service
@@ -36,18 +41,20 @@ public class OrgSyncService {
     private final DepartmentMapper departmentMapper;
     private final SysUserMapper userMapper;
     private final UserDepartmentMapper userDepartmentMapper;
+    private final ConfigService config;
+    private final OrgSyncLogService syncLogService;
+    private final OrgSyncApplier applier;
+    private final List<OrgSyncAdapter> adapters;
 
     private final ReentrantLock lock = new ReentrantLock();
 
-    @Value("${app.orgsync.mode:NONE}")
-    private String mode;
-
     public String mode() {
-        return mode;
+        return config.orgSyncMode();
     }
 
-    /** PULL 模式手动/定时同步。无 Adapter 时为空操作。 */
+    /** PULL 模式手动/定时同步。 */
     public String sync() {
+        String mode = mode();
         if (!"PULL".equalsIgnoreCase(mode)) {
             return "当前模式 " + mode + " 不支持 PULL 同步";
         }
@@ -55,11 +62,37 @@ public class OrgSyncService {
             throw new BusinessException(ErrorCode.SYNC_IN_PROGRESS);
         }
         OrgSyncState.setRunning(true);
+        String source = StringUtils.hasText(config.orgSyncAdapter())
+                ? config.orgSyncAdapter().toUpperCase() : "PULL";
+        Long logId = syncLogService.start(source, "FULL");
         try {
-            // 未配置厂商 Adapter：留空操作（PULL 需按厂商实现 OrgSyncAdapter）
-            String result = "PULL 同步完成（未配置厂商 Adapter，空操作）";
+            OrgSyncAdapter adapter = resolveAdapter();
+            if (adapter == null) {
+                String msg = "PULL 同步完成（未找到适配器：" + config.orgSyncAdapter() + "，空操作）";
+                OrgSyncState.record(Instant.now(), msg);
+                syncLogService.finish(logId, OrgSyncLogService.STATUS_SUCCESS, 0, 0, 0, 0, null);
+                return msg;
+            }
+            OrgPullData data = adapter.pull();
+            OrgSyncApplier.Result r = applier.apply(data);
+            String result = String.format(
+                    "PULL 同步完成：部门 %d（新增 %d / 更新 %d），用户 %d（新增 %d / 更新 %d / 跳过 %d）",
+                    r.deptTotal(), r.deptInserted(), r.deptUpdated(),
+                    r.userTotal(), r.userInserted(), r.userUpdated(), r.userSkipped());
             OrgSyncState.record(Instant.now(), result);
+            syncLogService.finish(logId, OrgSyncLogService.STATUS_SUCCESS, r.deptTotal() + r.userTotal(),
+                    r.deptInserted() + r.userInserted(), r.deptUpdated() + r.userUpdated(), r.userSkipped(), null);
+            log.info(result);
             return result;
+        } catch (Exception e) {
+            String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            OrgSyncState.record(Instant.now(), "同步失败：" + msg);
+            syncLogService.finish(logId, OrgSyncLogService.STATUS_FAILURE, 0, 0, 0, 0, msg);
+            log.warn("PULL 同步失败：{}", msg);
+            if (e instanceof BusinessException be) {
+                throw be;
+            }
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "同步失败：" + msg);
         } finally {
             OrgSyncState.setRunning(false);
             lock.unlock();
@@ -67,8 +100,22 @@ public class OrgSyncService {
     }
 
     public SyncStatusVO status() {
-        return new SyncStatusVO(OrgSyncState.running(), OrgSyncState.lastSyncAt(), OrgSyncState.lastResult(), mode);
+        return new SyncStatusVO(OrgSyncState.running(), OrgSyncState.lastSyncAt(), OrgSyncState.lastResult(), mode());
     }
+
+    // ==================== PULL ====================
+
+    private OrgSyncAdapter resolveAdapter() {
+        String wanted = config.orgSyncAdapter();
+        if (!StringUtils.hasText(wanted)) {
+            return null;
+        }
+        return adapters.stream()
+                .filter(a -> a.source().equalsIgnoreCase(wanted))
+                .findFirst()
+                .orElse(null);
+    }
+
 
     /* ================= PUSH 模式 ================= */
 
@@ -154,6 +201,7 @@ public class OrgSyncService {
             row.setName(d.name());
             row.setCorpId(d.externalId());
             row.setSort(d.sort());
+            row.setIsSystem(0);
             row.setCreatedAt(Instant.now());
             departmentMapper.insert(row);
             return row.getId();
@@ -256,6 +304,7 @@ public class OrgSyncService {
             row.setName(displayName);
             row.setCorpId(externalId);
             row.setSort(0);
+            row.setIsSystem(0);
             row.setCreatedAt(Instant.now());
             departmentMapper.insert(row);
             deptId = row.getId();
@@ -289,6 +338,7 @@ public class OrgSyncService {
     /* ================= helpers ================= */
 
     private void requireMode(String expected) {
+        String mode = mode();
         if (!expected.equalsIgnoreCase(mode)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "组织同步模式未启用：" + expected);
         }
