@@ -33,8 +33,14 @@ dist/
 # ---- 前端 ----
 node_modules/
 frontend/dist/
+# 构建前临时改名的旧产物（沙箱下无法原地清空 dist 时的绕行做法）
+frontend/dist-old-*/
 *.tsbuildinfo
 coverage/
+# Playwright 运行产物（截图 / trace / video；--output 指定的临时目录也要挡）
+frontend/test-results*/
+playwright-report/
+frontend/playwright-report/
 
 # 前端基线：黄金截图 / 录屏证据不入库（二进制体量大；仅 README 说明入库，见 docs/frontend-baseline/screenshots/README.md）
 # 复现方式：scripts/golden-capture/（Playwright harness）
@@ -47,6 +53,9 @@ docs/frontend-baseline/screenshots/generated/
 
 # ---- 后端内嵌前端产物目录（ADR-009，构建期注入）----
 backend/src/main/resources/static/
+
+# ---- WorkBuddy 会话数据（不入库）----
+.workbuddy/
 
 # ---- IDE / 系统 ----
 .idea/
