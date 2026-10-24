@@ -69,7 +69,7 @@ class CasdoorIntegrationTest {
     @Order(1)
     void configRequiresAdmin() throws Exception {
         mvc.perform(get("/api/v1/admin/config"))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(10002));
     }
 

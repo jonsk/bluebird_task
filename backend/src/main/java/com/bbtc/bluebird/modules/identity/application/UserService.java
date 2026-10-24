@@ -42,6 +42,9 @@ public class UserService {
     private final DepartmentService departmentService;
     private final PasswordEncoder passwordEncoder;
 
+    @org.springframework.beans.factory.annotation.Value("${app.security.manager-can-read-subordinate:false}")
+    private boolean managerCanReadSubordinate;
+
     public UserDTO me() {
         SysUser u = userMapper.selectById(UserContext.currentUserId());
         if (u == null) {
@@ -78,9 +81,30 @@ public class UserService {
                 p.getTotal(), p.getCurrent(), p.getSize());
     }
 
+    /**
+     * 下属用户列表（{@code GET /users?scope=subordinate}）：仅直接下属所在部门子树内的用户。
+     *
+     * <p>开关关闭时返回空列表（非 403）——该端点是用户选择器数据源，空列表表示「无下属可选」。
+     */
+    public PageResult<UserDTO> subordinatePage(long page, long size) {
+        long p = Math.max(1, page);
+        long s = size < 1 ? 20 : Math.min(size, 100);
+        if (!managerCanReadSubordinate) {
+            return PageResult.of(List.of(), 0, p, s);
+        }
+        Set<Long> subs = departmentService.subordinates(UserContext.currentUserId());
+        if (subs.isEmpty()) {
+            return PageResult.of(List.of(), 0, p, s);
+        }
+        IPage<SysUser> result = userMapper.selectPage(new Page<>(p, s),
+                Wrappers.<SysUser>lambdaQuery().in(SysUser::getId, subs).orderByAsc(SysUser::getId));
+        Map<Long, String> names = deptNames(result.getRecords());
+        return PageResult.of(result.getRecords().stream().map(u -> toDto(u, names)).toList(),
+                result.getTotal(), result.getCurrent(), result.getSize());
+    }
+
     @Transactional
-    public Long create(CreateUserCmd cmd) {
-        Long exists = userMapper.selectCount(Wrappers.<SysUser>lambdaQuery().eq(SysUser::getUsername, cmd.username()));
+    public Long create(CreateUserCmd cmd) {        Long exists = userMapper.selectCount(Wrappers.<SysUser>lambdaQuery().eq(SysUser::getUsername, cmd.username()));
         if (exists != null && exists > 0) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "用户名已存在");
         }
@@ -209,7 +233,7 @@ public class UserService {
         return new UserDTO(u.getId(), u.getUsername(), u.getName(), visibleMobile(u),
                 u.getEmail(), u.getAvatarUrl(), u.getDeptId(),
                 u.getDeptId() == null ? null : deptNames.get(u.getDeptId()),
-                u.getRoleCode(), u.getStatus());
+                u.getRoleCode(), u.getStatus(), managerCanReadSubordinate);
     }
 
     /**

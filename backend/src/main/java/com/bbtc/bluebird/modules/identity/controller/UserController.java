@@ -39,13 +39,17 @@ public class UserController {
         return ApiResult.ok(userService.me());
     }
 
-    @Operation(summary = "用户列表")
+    @Operation(summary = "用户列表（scope=subordinate 返回下属）")
     @GetMapping
-    public ApiResult<PageResult<UserDTO>> page(@RequestParam(required = false) Long deptId,
+    public ApiResult<PageResult<UserDTO>> page(@RequestParam(required = false) String scope,
+                                               @RequestParam(required = false) Long deptId,
                                                @RequestParam(required = false) String keyword,
                                                @RequestParam(defaultValue = "false") boolean includeSubDept,
                                                @RequestParam(defaultValue = "1") long page,
                                                @RequestParam(defaultValue = "20") long size) {
+        if ("subordinate".equals(scope)) {
+            return ApiResult.ok(userService.subordinatePage(page, size));
+        }
         return ApiResult.ok(userService.page(deptId, keyword, includeSubDept, page, size));
     }
 

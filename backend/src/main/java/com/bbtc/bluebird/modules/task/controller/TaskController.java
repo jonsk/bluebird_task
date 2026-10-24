@@ -51,6 +51,15 @@ public class TaskController {
                 new TaskQuery(scope, keyword, subordinate, date, menuId, page, size)));
     }
 
+    @Operation(summary = "任务引用选择器搜索（仅可见任务）")
+    @GetMapping("/search")
+    public ApiResult<PageResult<com.bbtc.bluebird.modules.task.dto.TaskSearchItem>> search(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "20") long size) {
+        return ApiResult.ok(taskQuery.search(keyword, page, size));
+    }
+
     @Operation(summary = "各视图计数")
     @GetMapping("/count")
     public ApiResult<CountVO> count() {

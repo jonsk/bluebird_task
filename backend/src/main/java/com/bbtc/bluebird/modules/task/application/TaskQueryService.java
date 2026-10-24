@@ -22,6 +22,7 @@ import com.bbtc.bluebird.modules.task.dto.FileRef;
 import com.bbtc.bluebird.modules.task.dto.TagVO;
 import com.bbtc.bluebird.modules.task.dto.TaskDetailVO;
 import com.bbtc.bluebird.modules.task.dto.TaskQuery;
+import com.bbtc.bluebird.modules.task.dto.TaskSearchItem;
 import com.bbtc.bluebird.modules.task.dto.TaskVO;
 import com.bbtc.bluebird.modules.task.dto.UserBrief;
 import com.bbtc.bluebird.modules.task.infrastructure.TagMapper;
@@ -121,11 +122,36 @@ public class TaskQueryService {
         return out;
     }
 
-    public List<TaskVO> subtasks(Long parentId) {
-        authService.assertVisible(parentId, UserContext.currentUserId());
+    public List<TaskVO> subtasks(Long parentId) {        authService.assertVisible(parentId, UserContext.currentUserId());
         List<Task> list = taskMapper.selectList(Wrappers.<Task>lambdaQuery()
                 .eq(Task::getParentId, parentId).orderByAsc(Task::getId));
         return assemble(list, participantsOf(list.stream().map(Task::getId).toList()));
+    }
+
+    /**
+     * 任务引用选择器搜索（{@code GET /tasks/search}）：仅返回当前用户可见的任务。
+     *
+     * <p>keyword 少于 2 字符返回空列表（便于选择器空态）；匹配标题（大小写不敏感）。
+     */
+    public PageResult<TaskSearchItem> search(String keyword, long page, long size) {
+        long p = Math.max(1, page);
+        long s = size < 1 ? 20 : Math.min(size, 20);
+        if (!StringUtils.hasText(keyword) || keyword.trim().length() < 2) {
+            return PageResult.of(List.of(), 0, p, s);
+        }
+        Long me = UserContext.currentUserId();
+        List<Task> candidates = taskMapper.selectList(Wrappers.<Task>lambdaQuery()
+                .like(Task::getTitle, keyword.trim())
+                .isNull(Task::getParentId)
+                .orderByDesc(Task::getCreatedAt)
+                .last("LIMIT 200"));
+        List<TaskSearchItem> visible = candidates.stream()
+                .filter(t -> authService.isVisible(t, me))
+                .map(t -> new TaskSearchItem(t.getId(), t.getTitle(), t.getStatus(), t.getDueAt()))
+                .toList();
+        int from = (int) Math.min((p - 1) * s, visible.size());
+        int to = (int) Math.min(from + s, visible.size());
+        return PageResult.of(new ArrayList<>(visible.subList(from, to)), visible.size(), p, s);
     }
 
     public TaskDetailVO detail(Long id) {
@@ -313,9 +339,21 @@ public class TaskQueryService {
         });
 
         Map<Long, List<FileRef>> files = new HashMap<>();
+        Long me = UserContext.currentUserId();
+        boolean admin = UserContext.isAdmin();
+        Map<Long, Boolean> writable = new HashMap<>();
+        tasks.forEach(t -> writable.put(t.getId(), authService.isWritable(t, me)));
         attachmentMapper.selectList(Wrappers.<Attachment>lambdaQuery().in(Attachment::getTaskId, ids))
-                .forEach(a -> files.computeIfAbsent(a.getTaskId(), k -> new ArrayList<>())
-                        .add(new FileRef(a.getId(), a.getFileName(), a.getSize())));
+                .forEach(a -> {
+                    boolean mine = a.getCreatedBy() != null && a.getCreatedBy().equals(me);
+                    boolean taskWritable = Boolean.TRUE.equals(writable.get(a.getTaskId()));
+                    files.computeIfAbsent(a.getTaskId(), k -> new ArrayList<>())
+                            .add(new FileRef(a.getId(), a.getFileName(), a.getSize(),
+                                    com.bbtc.bluebird.modules.file.application.FileService
+                                            .taskDownloadUrl(a.getTaskId(), a.getId()),
+                                    a.getCreatedBy(), admin || mine,
+                                    taskWritable && (admin || mine)));
+                });
 
         // 子任务统计
         Map<Long, int[]> subCounts = new HashMap<>();

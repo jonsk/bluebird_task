@@ -4,24 +4,23 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.model.UserContext;
+import com.bbtc.bluebird.common.spi.TagUsageCleaner;
 import com.bbtc.bluebird.modules.task.domain.Tag;
-import com.bbtc.bluebird.modules.task.domain.TaskTag;
 import com.bbtc.bluebird.modules.task.dto.TagVO;
 import com.bbtc.bluebird.modules.task.infrastructure.TagMapper;
-import com.bbtc.bluebird.modules.task.infrastructure.TaskTagMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/** 标签服务（02 §4.5）。 */
+/** 标签服务（02 §4.5）。删除时通过 {@link TagUsageCleaner} 清理各实体关联表。 */
 @Service
 @RequiredArgsConstructor
 public class TagService {
 
     private final TagMapper tagMapper;
-    private final TaskTagMapper taskTagMapper;
+    private final List<TagUsageCleaner> cleaners;
 
     public List<TagVO> list() {
         return tagMapper.selectList(Wrappers.<Tag>lambdaQuery()
@@ -54,8 +53,11 @@ public class TagService {
     @Transactional
     public void delete(Long id) {
         requireOwned(id);
+        // 同一事务：先清理全部实体的关联（task_tag / note_tag），再删 tag 行；任一失败整体回滚
+        for (TagUsageCleaner cleaner : cleaners) {
+            cleaner.cleanByTagId(id);
+        }
         tagMapper.deleteById(id);
-        taskTagMapper.delete(Wrappers.<TaskTag>lambdaQuery().eq(TaskTag::getTagId, id));
     }
 
     private Tag requireOwned(Long id) {

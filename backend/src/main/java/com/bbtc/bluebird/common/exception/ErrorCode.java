@@ -4,7 +4,7 @@ package com.bbtc.bluebird.common.exception;
  * 统一错误码（唯一权威源，02 §1.4）。
  *
  * <p>区间：{@code 1xxxx=common}、{@code 2xxxx=identity}、{@code 3xxxx=task}、
- * {@code 4xxxx=file}、{@code 5xxxx=预留}、{@code 6xxxx=org/同步}。
+ * {@code 4xxxx=file}、{@code 5xxxx=note}、{@code 6xxxx=org/同步}。
  */
 public enum ErrorCode {
     OK(0, "成功"),
@@ -35,6 +35,28 @@ public enum ErrorCode {
     FILE_NOT_FOUND(40001, "文件不存在"),
     FILE_TOO_LARGE(40002, "文件超限"),
     FILE_TYPE_NOT_ALLOW(40003, "文件类型不允许"),
+
+    NOTE_NOT_FOUND(50001, "工作日志不存在"),
+    NOTE_CONTENT_TOO_LONG(50002, "日志内容超过 20000 字符"),
+    NOTE_TAG_INVALID(50003, "标签不存在或不属于日志所有者"),
+    NOTE_ATTACHMENT_INVALID(50004, "附件不存在或不属于当前用户"),
+    NOTE_ATTACHMENT_NOT_LINKED(50005, "附件未关联到该工作日志"),
+    NOTE_RELATION_TARGET_NOT_FOUND(50006, "引用目标不存在或不可见"),
+    NOTE_GRANT_DUPLICATE(50007, "已存在对该用户的授权（待确认或已生效）"),
+    NOTE_GRANT_SELF(50008, "不能给自己授权"),
+    NOTE_GRANT_NOT_FOUND(50009, "授权记录不存在"),
+    NOTE_GRANT_NOT_PENDING(50010, "授权记录非待确认状态"),
+    NOTE_GRANT_NOT_SUBORDINATE(50011, "只能向下属发起授权"),
+    NOTE_LOG_DATE_INVALID(50012, "日志日期业务非法（未来超 7 天）；格式不可解析（如 2026-02-30）走 HTTP 400"),
+    NOTE_FIELD_FORBIDDEN(50013, "当前角色无权修改该字段"),
+    NOTE_GRANT_FLOW_FORBIDDEN(50014, "授权状态机不允许该操作"),
+    NOTE_GRANT_MODE_INVALID(50015, "授权发起模式或其必填字段不合法"),
+    NOTE_SCOPE_DISABLED(50016, "当前作用域不可用（如下属可见开关关闭）"),
+    NOTE_DEPT_REQUIRED(50017, "INTERNAL 日志需要 owner 有部门"),
+    NOTE_ATTACHMENT_CANNOT_BIND(50018, "附件不可绑定（HTTP 权限层：附件创建者≠me 且非 ADMIN）"),
+    NOTE_ATTACHMENT_BOUND(50019, "附件已被其他 task 绑定（task 场景，非 note）"),
+    TASK_ATTACHMENT_NOT_LINKED(50020, "附件不属于该任务"),
+    TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请走任务附件专用端点"),
 
     SYNC_IN_PROGRESS(60001, "同步进行中");
 

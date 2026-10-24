@@ -61,6 +61,18 @@ public class TaskAuthService {
         }
     }
 
+    /**
+     * 按 id 判可见（供 task 附件等需要 404 语义的调用方使用）。
+     * 任务不存在/已逻辑删除 → false（调用方映射 404，不泄露存在性）。
+     */
+    public boolean isVisible(Long taskId, Long userId) {
+        if (taskId == null) {
+            return false;
+        }
+        Task task = taskMapper.selectById(taskId);
+        return task != null && isVisible(task, userId);
+    }
+
     public boolean isVisible(Task task, Long userId) {
         if (isAdmin()) {
             return true;

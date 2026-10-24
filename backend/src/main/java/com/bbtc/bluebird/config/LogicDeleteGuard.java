@@ -28,7 +28,8 @@ public class LogicDeleteGuard implements ApplicationRunner {
     /** 禁止声明 deleted 字段的表（关系/从属/日志表）。 */
     private static final Set<String> NO_DELETED_TABLES = Set.of(
             "task_participant", "tag", "task_tag", "task_collect", "task_menu", "task_menu_item",
-            "sys_user_department", "attachment", "audit_operate_log", "audit_login_log", "sys_refresh_token");
+            "sys_user_department", "attachment", "audit_operate_log", "audit_login_log", "sys_refresh_token",
+            "note_tag", "note_user_grant", "note_attachment_ref", "note_relation");
 
     private static final String PACKAGE = "com.bbtc.bluebird";
 

@@ -1,7 +1,9 @@
 package com.bbtc.bluebird.common.exception;
 
 import com.bbtc.bluebird.common.api.ApiResult;
+import com.bbtc.bluebird.common.model.TraceContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
@@ -30,12 +32,19 @@ public class GlobalExceptionHandler {
         return ApiResult.fail(e.getCode().getCode(), message);
     }
 
+    @ExceptionHandler(HttpStatusException.class)
+    public ResponseEntity<ApiResult<Void>> httpStatus(HttpStatusException e) {
+        ErrorCode code = e.getCode() != null ? e.getCode() : ErrorCode.SYSTEM_ERROR;
+        ApiResult<Void> body = new ApiResult<>(code.getCode(), e.getMessage(), null, TraceContext.get());
+        return ResponseEntity.status(e.getStatus()).body(body);
+    }
+
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class,
             HttpMessageNotReadableException.class, IllegalArgumentException.class,
             MethodArgumentTypeMismatchException.class})
-    public ApiResult<Void> valid(Exception e) {
+    public ResponseEntity<ApiResult<Void>> valid(Exception e) {
         log.debug("参数校验失败: {}", e.getMessage());
-        return ApiResult.fail(ErrorCode.PARAM_ERROR);
+        return ResponseEntity.badRequest().body(ApiResult.fail(ErrorCode.PARAM_ERROR));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

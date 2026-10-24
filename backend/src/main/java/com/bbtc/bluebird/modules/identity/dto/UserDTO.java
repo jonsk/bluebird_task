@@ -13,5 +13,7 @@ public record UserDTO(
         Long deptId,
         String deptName,
         String roleCode,
-        String status) {
+        String status,
+        /** 是否开启「上级可读下属日志」——导航显隐 note 下属入口用。 */
+        boolean managerCanReadSubordinate) {
 }

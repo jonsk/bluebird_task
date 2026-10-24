@@ -80,15 +80,17 @@ public class SecurityConfig {
                     auth.anyRequest().authenticated();
                 })
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((req, res, e) -> write(res, ErrorCode.UNAUTHENTICATED))
-                        .accessDeniedHandler((req, res, e) -> write(res, ErrorCode.FORBIDDEN)))
+                        .authenticationEntryPoint((req, res, e) ->
+                                write(res, HttpServletResponse.SC_UNAUTHORIZED, ErrorCode.UNAUTHENTICATED))
+                        .accessDeniedHandler((req, res, e) ->
+                                write(res, HttpServletResponse.SC_FORBIDDEN, ErrorCode.FORBIDDEN)))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtUtils), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
-    private void write(HttpServletResponse response, ErrorCode code) {
+    private void write(HttpServletResponse response, int status, ErrorCode code) {
         try {
-            response.setStatus(HttpServletResponse.SC_OK);
+            response.setStatus(status);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
             objectMapper.writeValue(response.getWriter(), ApiResult.fail(code));
