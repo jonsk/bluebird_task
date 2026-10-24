@@ -94,7 +94,8 @@ const TAG_NAMES: Record<number, string> = { 1: '重要', 2: '紧急', 3: '日常
 const names = (ids: number[]): TagVO[] => ids.map((id) => ({ id, name: TAG_NAMES[id] ?? `标签${id}` }))
 
 /** 初始日志：覆盖 mine / explore / shared / internal / subordinate / archived 的可见性组合。 */
-let noteSeq = 1000
+// 起始值需大于 fixture 最大 id（1007），否则新建日志会与既有卡片撞 id
+let noteSeq = 1100
 let refSeq = 5000
 let grantSeq = 7000
 const notes: NoteRow[] = [
@@ -570,6 +571,11 @@ export const noteHandlers = [
   http.put(`${AUTH}/notes/:id`, async ({ request, params }) => {
     const n = notes.find((x) => String(x.id) === params.id)
     if (!n || n.deleted) return fail(10004, '资源不存在', 404)
+    // e2e 钩子：单页内无法并行制造真实版本落后，故允许一次性强制冲突（用后即焚）
+    if (localStorage.getItem('bb_mock_force_conflict') === '1') {
+      localStorage.removeItem('bb_mock_force_conflict')
+      return fail(10006, '内容已被他人修改，请刷新后重试')
+    }
     const body = (await request.json()) as {
       content?: string
       logDate?: string

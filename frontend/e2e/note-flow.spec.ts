@@ -146,4 +146,139 @@ test.describe('工作日志', () => {
     await expect(page).toHaveURL(/\/allTask$/)
     await expect(page.locator('.bb-task-card')).toHaveCount(7)
   })
+
+  test('N-11 筛选：关键词写入 URL 且结果收敛，清空后恢复', async ({ page }) => {
+    await page.goto('/notes')
+    await expect(page.locator('.note-card')).toHaveCount(2)
+
+    const kw = page.locator('[data-test="note-filter-bar"] input').first()
+    await kw.fill('移动端')
+    await expect(page).toHaveURL(/keyword=%E7%A7%BB%E5%8A%A8%E7%AB%AF|keyword=移动端/)
+    await expect(page.locator('.note-card')).toHaveCount(1)
+    await expect(page.locator('.note-page')).toContainText('移动端适配方案')
+
+    await kw.fill('')
+    await expect(page.locator('.note-card')).toHaveCount(2)
+  })
+
+  test('N-12 筛选无结果：渲染空态且不出现分页', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-filter-bar"] input').first().fill('绝不可能匹配的关键词zzz')
+    await expect(page.locator('[data-test="note-list-empty"]')).toBeVisible()
+    await expect(page.locator('.note-card')).toHaveCount(0)
+    await expect(page.locator('.note-list__pager')).toHaveCount(0)
+  })
+
+  test('N-13 置顶：卡片星标高亮并出现置顶徽标', async ({ page }) => {
+    await page.goto('/notes')
+    const target = page.locator('[data-test="note-card-1002"]')
+    await target.locator('[data-test="note-card-pin"]').click()
+    await expect(page.locator('.el-message--success')).toContainText('操作成功')
+
+    await expect(page.locator('[data-test="note-card-1002"] [data-test="note-card-pin"]')).toHaveClass(/is-on/)
+    await expect(page.locator('[data-test="note-card-1002"] .note-card__badge--pin')).toBeVisible()
+
+    // 取消置顶：星标回退、徽标消失
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-pin"]').click()
+    await expect(page.locator('[data-test="note-card-1002"] [data-test="note-card-pin"]')).not.toHaveClass(/is-on/)
+    await expect(page.locator('[data-test="note-card-1002"] .note-card__badge--pin')).toHaveCount(0)
+  })
+
+  test('N-14 归档：从「我的日志」移出并出现在已归档', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-archive"]').click()
+    await expect(page.locator('.el-message--success')).toContainText('操作成功')
+    await expect(page.locator('.note-card')).toHaveCount(1)
+    await expect(page.locator('.note-page')).not.toContainText('移动端适配方案')
+
+    await page.locator('[data-test="nav-note-archived"]').click()
+    await expect(page).toHaveURL(/\/notes\/archived$/)
+    await expect(page.locator('[data-test="note-card-1002"]')).toBeVisible()
+    await expect(page.locator('.note-card')).toHaveCount(2)
+  })
+
+  test('N-15 删除：二次确认后卡片即时移除', async ({ page }) => {
+    await page.goto('/notes')
+    await expect(page.locator('.note-card')).toHaveCount(2)
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-delete"]').click()
+
+    const box = page.locator('.el-message-box')
+    await expect(box).toContainText('删除后不可恢复')
+    await box.getByRole('button', { name: '删除' }).click()
+
+    await expect(page.locator('.el-message--success')).toContainText('已删除')
+    await expect(page.locator('[data-test="note-card-1002"]')).toHaveCount(0)
+    await expect(page.locator('.note-card')).toHaveCount(1)
+  })
+
+  test('N-16 版本冲突：提示刷新并保留草稿内容', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    await expect(host).toBeVisible()
+
+    // mock 的一次性冲突钩子（模拟"保存前该日志已被他人改动"）
+    await page.evaluate(() => localStorage.setItem('bb_mock_force_conflict', '1'))
+    await host.locator('textarea').fill('冲突场景：这段内容必须保留')
+    await host.getByRole('button', { name: '保存' }).click()
+
+    await expect(page.locator('.el-message--error')).toContainText('内容已被他人修改')
+    // 面板不关闭、草稿仍在
+    await expect(host).toBeVisible()
+    await expect(host.locator('textarea')).toHaveValue(/这段内容必须保留/)
+  })
+
+  test('N-17 Ctrl+Enter 保存：不点按钮也能提交', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    await expect(host).toBeVisible()
+    const textarea = host.locator('textarea')
+    await textarea.fill('快捷键保存的内容')
+    await textarea.press('Control+Enter')
+
+    await expect(host).toHaveCount(0)
+    await expect(page.locator('[data-test="note-card-1002"]')).toContainText('快捷键保存的内容')
+  })
+
+  test('N-18 临时卡片跨路由恢复：进详情再返回仍在', async ({ page }) => {
+    await page.goto('/notes')
+    await page.fill('[data-test="note-editor"] textarea', '跨路由恢复用日志')
+    await page.getByRole('button', { name: '创建' }).click()
+    const draft = page.locator('[data-test="note-draft-card"]')
+    await expect(draft).toBeVisible()
+
+    // 离开 → 返回（HomeView 重新挂载，靠 session 恢复）
+    await page.locator('[data-test="note-card-1001"]').click()
+    await expect(page).toHaveURL(/\/notes\/1001$/)
+    await page.locator('[data-test="note-detail-back"]').click()
+    await expect(page).toHaveURL(/\/notes$/)
+
+    await expect(page.locator('[data-test="note-draft-card"]')).toContainText('跨路由恢复用日志')
+    await page.locator('[data-test="note-draft-discard"]').click()
+    await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
+  })
+
+  test('N-19 1280 窄屏：布局不横向溢出且主区可用', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto('/notes')
+    await expect(page.locator('.note-card')).toHaveCount(2)
+    await expect(page.locator('.note-page')).toBeVisible()
+    await expect(page.locator('[data-test="nav-note-mine"]')).toBeVisible()
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    )
+    expect(overflow).toBeLessThanOrEqual(1)
+  })
+
+  test('N-20 可见性筛选：PRIVATE 只留私有日志', async ({ page }) => {
+    await page.goto('/notes')
+    const vis = page.locator('[data-test="note-filter-bar"] .note-filter-bar__sel').first()
+    await vis.click()
+    await page.getByRole('option', { name: '私有' }).click()
+    await expect(page).toHaveURL(/visibility=PRIVATE/)
+    await expect(page.locator('.note-card')).toHaveCount(1)
+    await expect(page.locator('.note-page')).toContainText('移动端适配方案')
+  })
 })
