@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { useAuthStore } from './auth'
 import type { NoteQuery, NoteScope, NoteListData } from '@/types/note'
 
@@ -173,6 +173,9 @@ export const useNoteStore = defineStore('note', () => {
     sessionStorage.removeItem(`note.session.${userId}`)
     for (const s of scopes) Object.assign(queryByScope[s], defaultQuery())
   }
+
+  /** 会话持久化单一入口：三个字段任一变化即整存整取（多账号互不污染）。 */
+  watch([activeNoteId, activeScopeId, pendingCreatedNoteId], persistSession, { deep: true })
 
   return {
     queryByScope,

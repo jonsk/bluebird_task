@@ -1,22 +1,29 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  ArrowDown,
+  ArrowRight,
   Brush,
   Calendar,
   ChatDotRound,
   Delete,
   Edit,
   Fold,
+  Folder,
+  Key,
   List,
   Notebook,
+  OfficeBuilding,
   Plus,
+  Search,
   Setting,
   Star,
   Sunny,
   SwitchButton,
   User,
+  View,
 } from '@element-plus/icons-vue'
 import { useAppStore, type ThemeKey } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -32,6 +39,9 @@ import { logoutEverywhere } from '@/utils/logout'
  * ③ 自定义栏与各视图**同一列表内联**（Notebook 图标，hover 显改/删）；
  * ④ 「新增自定义任务栏」行在列表末尾；⑤ 全部任务行带 2px 底边线；
  * ⑥ 分类树已移除（2026-10-13，左栏下方不再有分类区块）。
+ * ⑦ 2026-10-24 方案 A：按 `route.meta.module` 分「任务 / 工作日志」两组，
+ *    分组折叠状态按模块持久化（`bb.filter-rail.<module>.collapsed`），
+ *    工作日志组含「探索」，AUDITOR 与普通用户一致显示；task 组在 note 页隐藏自定义栏。
  */
 const app = useAppStore()
 const auth = useAuthStore()
@@ -40,13 +50,72 @@ const menuStore = useMenuStore()
 const route = useRoute()
 const router = useRouter()
 
-const navItems = [
+const taskNavItems = [
   { name: 'index', label: '我的一天', countKey: 'day', icon: Sunny },
   { name: 'myJoin', label: '我@Ta的任务', countKey: 'joined', icon: ChatDotRound },
   { name: 'myDo', label: '分配给我的任务', countKey: 'assigned', icon: User },
   { name: 'myCollect', label: '我的收藏', countKey: 'collect', icon: Star },
   { name: 'allTask', label: '全部任务', countKey: 'all', icon: List },
 ] as const
+
+/** 当前模块（路由 meta.module 单一来源；无 meta → 任务模块）。 */
+const module = computed<'task' | 'note'>(() => (route.meta.module === 'note' ? 'note' : 'task'))
+
+/** 工作日志导航：下属入口看 `managerCanReadSubordinate`，全部/全部归档仅 ADMIN。 */
+const noteNavItems = computed<
+  Array<{ name: string; label: string; icon: unknown; test: string }>
+>(() => {
+  const items: Array<{ name: string; label: string; icon: unknown; test: string }> = [
+    { name: 'NoteHome', label: '我的日志', icon: Notebook, test: 'note-mine' },
+    { name: 'NoteExplore', label: '探索', icon: Search, test: 'note-explore' },
+    { name: 'NoteShared', label: '被授权日志', icon: View, test: 'note-shared' },
+    { name: 'NoteInternal', label: '本部门日志', icon: OfficeBuilding, test: 'note-internal' },
+  ]
+  if (auth.user?.managerCanReadSubordinate) {
+    items.push({ name: 'NoteSubordinate', label: '下属日志', icon: User, test: 'note-subordinate' })
+  }
+  if (auth.hasRole('ADMIN')) {
+    items.push({ name: 'NoteAll', label: '全部日志', icon: List, test: 'note-all' })
+  }
+  items.push(
+    { name: 'NoteArchived', label: '归档日志', icon: Folder, test: 'note-archived' },
+    { name: 'NoteGrants', label: '授权管理', icon: Key, test: 'note-grants' },
+  )
+  return items
+})
+
+/** 分组折叠：分组级持久化，首访按"当前模块展开、另一模块收起"。 */
+const COLLAPSE_KEY = (m: 'task' | 'note') => `bb.filter-rail.${m}.collapsed`
+const collapsed = ref<Record<'task' | 'note', boolean>>({ task: false, note: true })
+function restoreCollapse(): void {
+  try {
+    const stored = localStorage.getItem(COLLAPSE_KEY(module.value))
+    collapsed.value = {
+      task: module.value === 'task' ? stored !== '1' : localStorage.getItem(COLLAPSE_KEY('task')) === '1',
+      note: module.value === 'note' ? stored !== '1' : localStorage.getItem(COLLAPSE_KEY('note')) === '1',
+    }
+  } catch {
+    collapsed.value = { task: module.value === 'task', note: module.value === 'note' }
+  }
+}
+function toggleGroup(m: 'task' | 'note'): void {
+  collapsed.value[m] = !collapsed.value[m]
+  try {
+    localStorage.setItem(COLLAPSE_KEY(m), collapsed.value[m] ? '1' : '0')
+  } catch {
+    /* localStorage 不可用时仅内存态 */
+  }
+}
+restoreCollapse()
+watch(
+  module,
+  (m) => {
+    // 切模块时**必定**展开当前分组：导航项必须随路由可见，否则进入某模块却看不到任何入口。
+    // 用户在同一模块内的手动收起仍会持久化（module 不变 → 不触发本 watch）。
+    collapsed.value[m] = false
+  },
+  { immediate: true },
+)
 
 const currentName = computed(() => String(route.name ?? ''))
 /** 后台入口（独立布局）：ADMIN/AUDITOR/USER_MANAGER 三者任一即可进入，页面级再按角色收窄。 */
@@ -70,6 +139,15 @@ function countOf(key: string): number | null {
 function goView(name: string): void {
   taskStore.setMenuFilter(null)
   if (route.name !== name) void router.push({ name })
+}
+
+/** 底部日历图标：按当前模块跳到对应日历页（任务 → /calendar；工作日志 → /notes/calendar）。 */
+function goCalendar(): void {
+  if (module.value === 'note') {
+    if (route.name !== 'NoteCalendar') void router.push({ name: 'NoteCalendar' })
+    return
+  }
+  goView('calendar')
 }
 
 function selectMenu(menu: Menu): void {
@@ -191,86 +269,133 @@ function onThemeCommand(command: string | number | object): void {
 
     <div class="left-box__scroll">
       <div class="main-tabs-box">
-        <ul class="main-tabs-left-top">
-          <li v-for="item in navItems" :key="item.name">
-            <div
-              class="tabs-item"
-              :data-test="`nav-${item.name}`"
-              :style="item.name === 'allTask' ? { borderBottom: '2px solid var(--bg-accent)' } : undefined"
-              :class="{ 'item-active': currentName === item.name }"
-              @click="goView(item.name)"
-            >
-              <div class="tabs-item-left">
-                <el-icon class="t-i-l-icon"><component :is="item.icon" /></el-icon>
-                <span class="t-i-l-text">{{ item.label }}</span>
-              </div>
-              <div class="tabs-item-right">
-                <span v-if="countOf(item.countKey) !== null" class="layout__count">{{ countOf(item.countKey) }}</span>
-              </div>
-            </div>
-          </li>
-
-          <li v-for="m in menus" :key="`menu-${m.id}`">
-            <div
-              class="tabs-item bb-menu-row"
-              data-test="menu-row"
-              :class="{ 'item-active': activeMenuId === Number(m.id) }"
-              @click="selectMenu(m)"
-            >
-              <div class="tabs-item-left">
-                <el-icon class="t-i-l-icon"><Notebook /></el-icon>
-                <template v-if="editingId === Number(m.id)">
-                  <el-input
-                    ref="nameInput"
-                    v-model="draftName"
-                    size="small"
-                    class="bb-menu-row__input"
-                    @click.stop
-                    @keyup.enter="commitEdit(m)"
-                    @blur="commitEdit(m)"
-                  />
-                </template>
-                <span v-else class="t-i-l-text">{{ m.name }}</span>
-              </div>
-              <div class="tabs-item-right">
-                <span class="bb-menu-row__ops">
-                  <el-icon class="bb-menu-row__op" title="重命名" @click.stop="startEdit(m)"><Edit /></el-icon>
-                  <el-icon class="bb-menu-row__op" title="删除" @click.stop="onDelete(m)"><Delete /></el-icon>
-                </span>
-              </div>
-            </div>
-          </li>
-
-          <li v-if="creating">
-            <div class="tabs-item bb-menu-row">
-              <div class="tabs-item-left">
-                <el-icon class="t-i-l-icon"><Notebook /></el-icon>
-                <el-input
-                  ref="nameInput"
-                  v-model="draftName"
-                  size="small"
-                  class="bb-menu-row__input"
-                  placeholder="栏名称，回车保存"
-                  @keyup.enter="commitCreate"
-                  @blur="commitCreate"
-                />
-              </div>
-            </div>
-          </li>
-
-          <div class="tabs-item bb-add-row" data-test="menu-add" @click="startCreate">
-            <div class="tabs-item-left">新增自定义任务栏</div>
-            <div class="tabs-item-right">
-              <el-icon class="t-i-l-icon"><Plus /></el-icon>
-            </div>
+        <div class="nav-group" data-test="nav-group-task">
+          <div
+            class="nav-group__head"
+            :class="{ 'is-active': module === 'task' }"
+            data-test="nav-group-task-head"
+            @click="toggleGroup('task')"
+          >
+            <span class="nav-group__title">任务</span>
+            <el-icon class="nav-group__caret">
+              <component :is="collapsed.task ? ArrowRight : ArrowDown" />
+            </el-icon>
           </div>
-        </ul>
+
+          <ul v-show="!collapsed.task" class="main-tabs-left-top">
+            <li v-for="item in taskNavItems" :key="item.name">
+              <div
+                class="tabs-item"
+                :data-test="`nav-${item.name}`"
+                :style="item.name === 'allTask' ? { borderBottom: '2px solid var(--bg-accent)' } : undefined"
+                :class="{ 'item-active': currentName === item.name }"
+                @click="goView(item.name)"
+              >
+                <div class="tabs-item-left">
+                  <el-icon class="t-i-l-icon"><component :is="item.icon" /></el-icon>
+                  <span class="t-i-l-text">{{ item.label }}</span>
+                </div>
+                <div class="tabs-item-right">
+                  <span v-if="countOf(item.countKey) !== null" class="layout__count">{{ countOf(item.countKey) }}</span>
+                </div>
+              </div>
+            </li>
+
+            <template v-if="module === 'task'">
+              <li v-for="m in menus" :key="`menu-${m.id}`">
+                <div
+                  class="tabs-item bb-menu-row"
+                  data-test="menu-row"
+                  :class="{ 'item-active': activeMenuId === Number(m.id) }"
+                  @click="selectMenu(m)"
+                >
+                  <div class="tabs-item-left">
+                    <el-icon class="t-i-l-icon"><Notebook /></el-icon>
+                    <template v-if="editingId === Number(m.id)">
+                      <el-input
+                        ref="nameInput"
+                        v-model="draftName"
+                        size="small"
+                        class="bb-menu-row__input"
+                        @click.stop
+                        @keyup.enter="commitEdit(m)"
+                        @blur="commitEdit(m)"
+                      />
+                    </template>
+                    <span v-else class="t-i-l-text">{{ m.name }}</span>
+                  </div>
+                  <div class="tabs-item-right">
+                    <span class="bb-menu-row__ops">
+                      <el-icon class="bb-menu-row__op" title="重命名" @click.stop="startEdit(m)"><Edit /></el-icon>
+                      <el-icon class="bb-menu-row__op" title="删除" @click.stop="onDelete(m)"><Delete /></el-icon>
+                    </span>
+                  </div>
+                </div>
+              </li>
+
+              <li v-if="creating">
+                <div class="tabs-item bb-menu-row">
+                  <div class="tabs-item-left">
+                    <el-icon class="t-i-l-icon"><Notebook /></el-icon>
+                    <el-input
+                      ref="nameInput"
+                      v-model="draftName"
+                      size="small"
+                      class="bb-menu-row__input"
+                      placeholder="栏名称，回车保存"
+                      @keyup.enter="commitCreate"
+                      @blur="commitCreate"
+                    />
+                  </div>
+                </div>
+              </li>
+
+              <div class="tabs-item bb-add-row" data-test="menu-add" @click="startCreate">
+                <div class="tabs-item-left">新增自定义任务栏</div>
+                <div class="tabs-item-right">
+                  <el-icon class="t-i-l-icon"><Plus /></el-icon>
+                </div>
+              </div>
+            </template>
+          </ul>
+        </div>
+
+        <div class="nav-group" data-test="nav-group-note">
+          <div
+            class="nav-group__head"
+            :class="{ 'is-active': module === 'note' }"
+            data-test="nav-group-note-head"
+            @click="toggleGroup('note')"
+          >
+            <span class="nav-group__title">工作日志</span>
+            <el-icon class="nav-group__caret">
+              <component :is="collapsed.note ? ArrowRight : ArrowDown" />
+            </el-icon>
+          </div>
+
+          <ul v-show="!collapsed.note" class="main-tabs-left-top">
+            <li v-for="item in noteNavItems" :key="item.name">
+              <div
+                class="tabs-item"
+                :data-test="`nav-${item.test}`"
+                :class="{ 'item-active': currentName === item.name }"
+                @click="goView(item.name)"
+              >
+                <div class="tabs-item-left">
+                  <el-icon class="t-i-l-icon"><component :is="item.icon" /></el-icon>
+                  <span class="t-i-l-text">{{ item.label }}</span>
+                </div>
+                <div class="tabs-item-right"></div>
+              </div>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
     <div class="left-box__bottom">
       <el-tooltip content="日历" placement="top" effect="light">
-        <el-icon class="left-box__bottom-icon" title="日历" data-test="nav-calendar" @click="goView('calendar')"><Calendar /></el-icon>
+        <el-icon class="left-box__bottom-icon" title="日历" data-test="nav-calendar" @click="goCalendar"><Calendar /></el-icon>
       </el-tooltip>
       <el-tooltip v-if="canEnterAdmin" content="后台管理" placement="top" effect="light">
         <el-icon class="left-box__bottom-icon" title="后台管理" data-test="nav-admin" @click="router.push('/admin')"><Setting /></el-icon>
@@ -379,6 +504,33 @@ function onThemeCommand(command: string | number | object): void {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.nav-group + .nav-group {
+  margin-top: 6px;
+  border-top: 1px solid var(--bg-separator);
+  padding-top: 6px;
+}
+.nav-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 12px 0 20px;
+  box-sizing: border-box;
+  font-size: 12px;
+  color: var(--bb-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.nav-group__head:hover {
+  background: var(--bg-hover);
+}
+.nav-group__head.is-active .nav-group__title {
+  color: var(--bb-text-secondary);
+  font-weight: 700;
+}
+.nav-group__caret {
+  font-size: 12px;
 }
 .tabs-item {
   display: flex;

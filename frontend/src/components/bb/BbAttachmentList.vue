@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { uploadFile, deleteFile, fileDownloadUrl, type FileVO } from '@/api/file'
+import { uploadTaskFile, deleteFile, fileDownloadUrl, type FileVO } from '@/api/file'
 
 /**
  * 附件列表（03 §5.3.4）。上传/下载/删除；预览按 id 由后端代理（02 §5.6，修 SSRF）。
@@ -35,7 +35,7 @@ async function onPick(event: Event): Promise<void> {
   if (!file || props.taskId == null) return
   uploading.value = true
   try {
-    const stored = await uploadFile(file, props.taskId)
+    const stored = await uploadTaskFile(props.taskId, file)
     items.push(stored)
     ElMessage.success('上传成功')
     emit('changed')

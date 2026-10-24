@@ -3363,6 +3363,8 @@ export interface components {
             deptName?: string;
             /** @enum {string} */
             roleCode?: "ADMIN" | "AUDITOR" | "USER_MANAGER" | "COMMON";
+            /** @description 是否开启「上级可读下属日志」；前端据此显隐 note「下属日志」导航与 scope 选项 */
+            managerCanReadSubordinate?: boolean;
         };
         TagVO: {
             /** Format: int64 */

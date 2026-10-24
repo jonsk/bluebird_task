@@ -1,6 +1,7 @@
 import { get, post, put, del } from './http'
 import type { components } from '@/types/api'
 import type { Priority } from '@/utils/constants'
+import type { TaskSearchData } from '@/types/note'
 
 export type TaskVO = components['schemas']['TaskVO']
 export type TaskDetailVO = components['schemas']['TaskDetailVO']
@@ -41,6 +42,11 @@ export interface TaskListQuery {
   menuId?: number
   page?: number
   size?: number
+}
+
+/** 引用选择器用任务搜索（返回 PageResult 风格，keyword < 2 字符后端返回空列表）。 */
+export function searchTasks(params: { keyword?: string; page?: number; size?: number } = {}): Promise<TaskSearchData> {
+  return get<TaskSearchData>('/tasks/search', params)
 }
 
 export function listTasks(query: TaskListQuery): Promise<TaskListData> {

@@ -4,6 +4,7 @@ import { Expand } from '@element-plus/icons-vue'
 import BbFilterRail from '@/components/bb/BbFilterRail.vue'
 import { useAppStore } from '@/stores/app'
 import { useTaskStore } from '@/stores/task'
+import { useNoteStore } from '@/stores/note'
 
 /**
  * 唯一布局（旧 `.main-box`，03 §5.2）：左栏 BbFilterRail + 主区 router-view。
@@ -11,9 +12,12 @@ import { useTaskStore } from '@/stores/task'
  */
 const app = useAppStore()
 const taskStore = useTaskStore()
+const noteStore = useNoteStore()
 
 onMounted(() => {
   void taskStore.fetchCounts()
+  // note 会话恢复的唯一入口（全局唯一一次；路由守卫里不做）
+  noteStore.restoreSession()
 })
 </script>
 

@@ -6,6 +6,12 @@ declare module 'vue-router' {
     title?: string
     requiresAuth?: boolean
     roles?: RoleCode[]
+    /** 左栏分组单一来源：'task' | 'note'（缺省按任务处理） */
+    module?: 'task' | 'note'
+    /** note 列表 scope（7 值集合的子集；NoteListView/useNoteList 唯一输入） */
+    scope?: 'mine' | 'explore' | 'shared' | 'internal' | 'subordinate' | 'visible' | 'all'
+    /** note 归档分段：true = archived 查询 */
+    archived?: boolean
   }
 }
 
@@ -43,6 +49,76 @@ export const routes: RouteRecordRaw[] = [
         name: 'calendar',
         component: () => import('@/views/task/CalendarView.vue'),
         meta: { title: '日历' },
+      },
+      /**
+       * 工作日志（note）。**声明顺序是硬约束**：静态段必须排在 `notes/:id(\d+)` 之前，
+       * 否则 `/notes/calendar` 会被 `:id` 吞（`\d+` 只能挡住字母段，不能作为依赖）。
+       */
+      {
+        path: 'notes',
+        name: 'NoteHome',
+        component: () => import('@/views/note/NoteHomeView.vue'),
+        meta: { module: 'note', scope: 'mine', title: '我的日志', requiresAuth: true },
+      },
+      {
+        path: 'notes/explore',
+        name: 'NoteExplore',
+        component: () => import('@/views/note/NoteExploreView.vue'),
+        meta: { module: 'note', scope: 'explore', title: '探索', requiresAuth: true },
+      },
+      {
+        path: 'notes/shared',
+        name: 'NoteShared',
+        component: () => import('@/views/note/NoteSharedView.vue'),
+        meta: { module: 'note', scope: 'shared', title: '被授权日志', requiresAuth: true },
+      },
+      {
+        path: 'notes/internal',
+        name: 'NoteInternal',
+        component: () => import('@/views/note/NoteInternalView.vue'),
+        meta: { module: 'note', scope: 'internal', title: '本部门日志', requiresAuth: true },
+      },
+      {
+        path: 'notes/subordinate',
+        name: 'NoteSubordinate',
+        component: () => import('@/views/note/NoteSubordinateView.vue'),
+        meta: { module: 'note', scope: 'subordinate', title: '下属日志', requiresAuth: true },
+      },
+      {
+        path: 'notes/all',
+        name: 'NoteAll',
+        component: () => import('@/views/note/NoteAllView.vue'),
+        meta: { module: 'note', scope: 'all', title: '全部日志', roles: ['ADMIN'], requiresAuth: true },
+      },
+      {
+        path: 'notes/grants',
+        name: 'NoteGrants',
+        component: () => import('@/views/note/NoteUserGrantView.vue'),
+        meta: { module: 'note', title: '授权管理', requiresAuth: true },
+      },
+      {
+        path: 'notes/calendar',
+        name: 'NoteCalendar',
+        component: () => import('@/views/note/NoteCalendarView.vue'),
+        meta: { module: 'note', title: '日志日历', requiresAuth: true },
+      },
+      {
+        path: 'notes/archived',
+        name: 'NoteArchived',
+        component: () => import('@/views/note/NoteArchivedView.vue'),
+        meta: { module: 'note', scope: 'mine', archived: true, title: '归档日志', requiresAuth: true },
+      },
+      {
+        path: 'notes/archived/all',
+        name: 'NoteArchivedAll',
+        component: () => import('@/views/note/NoteArchivedView.vue'),
+        meta: { module: 'note', scope: 'all', archived: true, title: '全部归档', roles: ['ADMIN'], requiresAuth: true },
+      },
+      {
+        path: 'notes/:id(\\d+)',
+        name: 'NoteDetail',
+        component: () => import('@/views/note/NoteDetailView.vue'),
+        meta: { module: 'note', title: '日志详情', requiresAuth: true },
       },
     ],
   },

@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue'
+import { ref, onScopeDispose } from 'vue'
 import { listNoteTags } from '@/api/note'
 import type { NoteTagFacetItem, NoteScope } from '@/types/note'
 
@@ -11,9 +11,13 @@ export function useNoteFacets() {
   const loading = ref(false)
   const error = ref<Error | null>(null)
   let seq = 0
+  let lastScope: NoteScope | null = null
+  let lastKeyword: string | undefined
 
   async function load(scope: NoteScope, keyword?: string): Promise<void> {
     const s = ++seq
+    lastScope = scope
+    lastKeyword = keyword
     const key = `${scope}|${keyword ?? ''}`
     const hit = cache.get(key)
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -37,11 +41,14 @@ export function useNoteFacets() {
     }
   }
 
+  /** 重试：清缓存后按上次参数重新请求（不是只清 error 标记）。 */
   function retry(): void {
-    error.value = null
+    if (lastScope == null) return
+    cache.delete(`${lastScope}|${lastKeyword ?? ''}`)
+    void load(lastScope, lastKeyword)
   }
 
-  onUnmounted(() => {
+  onScopeDispose(() => {
     seq++
   })
 

@@ -1,4 +1,4 @@
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onScopeDispose } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { calendar } from '@/api/calendar'
 import { HttpError, BizError } from '@/api/http'
@@ -148,7 +148,7 @@ export function useMonthCalendar(
   }
 
   void load()
-  onUnmounted(() => {
+  onScopeDispose(() => {
     seq++
   })
 

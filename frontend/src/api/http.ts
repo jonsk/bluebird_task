@@ -27,18 +27,21 @@ export class BizError extends Error {
   }
 }
 
-/** 协议级错误（HTTP 4xx/5xx），携带 status，页面统一读 err.status===404/403。 */
-export class HttpError extends Error {
+/**
+ * 协议级错误（HTTP 4xx/5xx），携带 status，页面统一读 err.status===404/403。
+ *
+ * 继承 `BizError` 是有意的：后端 4xx/5xx **同样带统一响应体**（`{code,message,traceId}`），
+ * 页面既要用 `err.status` 分派空态，也要用 `err.code` 判定 50001/50016 等业务码。
+ * 若把 4xx/5xx 只包成 `BizError`，`status` 就丢了（`/notes/:id` 404 会退化成「加载失败」而不是空态）；
+ * 若只包成 `HttpError`，`instanceof BizError` 的分支又会失配。两者合一即消除这对二选一。
+ */
+export class HttpError extends BizError {
   readonly status: number
-  readonly code?: number
-  readonly traceId?: string
 
   constructor(status: number, code?: number, message?: string, traceId?: string) {
-    super(message || `HTTP ${status}`)
+    super(code ?? ERROR_CODE.SYSTEM_ERROR, message || `HTTP ${status}`, traceId)
     this.name = 'HttpError'
     this.status = status
-    this.code = code
-    this.traceId = traceId
   }
 }
 
@@ -54,6 +57,12 @@ http.interceptors.request.use((config) => {
   const token = getAccessToken()
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`)
+  }
+  // FormData 必须由浏览器自己生成 `multipart/form-data; boundary=...`。
+  // 实例默认头 `Content-Type: application/json` 会让 axios 把 FormData 序列化成 `{}`（body 11 字节），
+  // 后端拿不到 part → 上传静默失败（曾表现为「POST /files 200 但附件没落地」）。
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    config.headers.delete('Content-Type')
   }
   return config
 })
@@ -158,12 +167,8 @@ http.interceptors.response.use(
       redirectToLogin()
     }
 
-    // 业务码错误（HTTP 200 + code≠0 实际上也会走成功拦截；此处兜底）
-    if (body && body.code !== ERROR_CODE.OK) {
-      return Promise.reject(toBizError(body))
-    }
-
-    // 协议级错误（4xx/5xx）：抛 HttpError（含 status + 可选 code）
+    // 协议级错误（4xx/5xx）：抛 HttpError（含 status + body.code）；status=0 为网络/取消，code 取 SYSTEM_ERROR。
+    // 注意：这里**不能**降级成 BizError——否则 `err.status===404/403` 的分派（详情空态、列表 403 空态）全部失效。
     return Promise.reject(new HttpError(status, body?.code, body?.message || error.message, body?.traceId))
   },
 )

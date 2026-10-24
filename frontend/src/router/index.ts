@@ -23,7 +23,8 @@ export function setupGuard(): void {
 
     const roles = to.meta.roles
     if (roles && roles.length > 0 && !auth.hasRole(...roles)) {
-      return { name: 'forbidden' }
+      // 保留来源地址，403 页可「返回上一页」，也便于排查是哪个入口越权。
+      return { name: 'forbidden', query: { from: to.fullPath } }
     }
     return true
   })

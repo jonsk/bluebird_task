@@ -4,8 +4,9 @@ info:
   version: 0.1.0
   description: >
     蓝鸟任务系统 **目标态** API 契约（单一事实源，针对重构后的新系统；**非现有系统**——现有系统为 `/task/record/*` 裸 `Page`/裸实体、成功码由前端按「缺失即 200」解释，见 `docs/frontend-baseline/fixtures/legacy-api/`）。
-    统一前缀 `/api/v1`；统一响应 `ApiResult{code,message,data,traceId}`，`code==0` 为成功、**HTTP 恒 200**（业务码表达结果，见 `02 §1.3`）。
-    错误码区间（枚举权威源 `02 §1.4`）：`1xxxx=common`、`2xxxx=identity`、`3xxxx=task`、`4xxxx=file`、`5xxxx=预留`、`6xxxx=org/同步`。
+    统一前缀 `/api/v1`；统一响应 `ApiResult{code,message,data,traceId}`。成功/业务失败 **HTTP 200**（业务码表达结果，见 `02 §1.3`）；
+    鉴权与资源定位失败改用真实 HTTP 状态：`401`（未认证）、`403`（无权限，body 仍为 `ApiResult` 且 `code` 为 5xxxx/对应业务码）、`404`（资源不存在或不可见）、`400`（参数/请求体校验失败）、`409`（冲突，如附件仍被引用）。
+    错误码区间（枚举权威源 `02 §1.4` + `docs/Note模块后端开发方案.md`）：`1xxxx=common`、`2xxxx=identity`、`3xxxx=task`、`4xxxx=file`、`5xxxx=note`、`6xxxx=org/同步`。
     时间统一 ISO8601 + `+08:00`。详见 `Task/02后端模块详细设计.md`。
     约定：用户/个人数据响应统一 `Cache-Control: no-store`；秘密一律不入 URL（token 走 `Authorization` 头，密码/密钥走请求体；query 仅非敏感参数）。
 servers:
@@ -16,6 +17,7 @@ tags:
   - name: user
   - name: org
   - name: task
+  - name: note
   - name: tag
   - name: menu
   - name: file
@@ -119,26 +121,30 @@ paths:
         - { name: error, in: query, schema: { type: string } }
       responses:
         '302': { description: 重定向回前端（成功带 token，失败带 error） }
-  /auth/external/callback:
-    get:
+  /bootstrap/admin:
+    post:
       tags: [auth]
-      summary: OIDC 回调（Spring Security 接管，浏览器整页跳转，非 XHR；已由 /auth/oidc/callback 取代）
+      summary: 一次性引导创建首 ADMIN（仅空库可用，R25）
+      description: >
+        仅当系统中尚无 ADMIN 时可用；否则返回 403。成功返回新 ADMIN 的 id（data）。
       security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string, description: 缺省 admin }
+                password: { type: string }
       responses:
-        '302': { description: 重定向回前端（成功/失败） }
-  /auth/wechat/callback:
-    get:
-      tags: [auth]
-      summary: 企微回调（Controller + WechatIdentityAdapter；前端 XHR 直达）
-      security: []
-      parameters:
-        - { name: code, in: query, required: true, schema: { type: string } }
-      responses: { '200': { $ref: '#/components/responses/Token' } }
+        '200': { $ref: '#/components/responses/Ok' }
   /users:
     get:
       tags: [user]
       summary: 用户列表（人员选择器；手机号脱敏）
       parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [subordinate] }, description: subordinate=当前用户的下属（递归下级部门成员），用于日志授权/主管视图；此时忽略其余过滤参数 }
         - { name: deptId, in: query, schema: { type: integer, format: int64 } }
         - { name: keyword, in: query, schema: { type: string }, description: 按 username 或 name 模糊匹配 }
         - name: includeSubDept
@@ -465,6 +471,21 @@ paths:
         content: { application/json: { schema: { $ref: '#/components/schemas/TaskCreateReq' } } }
       responses:
         '200': { $ref: '#/components/responses/Ok' }
+  /tasks/search:
+    get:
+      tags: [task]
+      summary: 任务检索（note 引用选择器；仅返回当前用户可见任务，分页）
+      parameters:
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, default: 20, maximum: 50 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/TaskSearchData' } } }]
   /tasks/count:
     get:
       tags: [task]
@@ -611,7 +632,7 @@ paths:
   /files:
     post:
       tags: [file]
-      summary: 上传附件（multipart，`taskId` 可选）
+      summary: 通用上传（note 附件前置；`taskId` 非空 → 400，task 附件走 /tasks/{taskId}/attachments）
       requestBody:
         required: true
         content:
@@ -620,25 +641,384 @@ paths:
               type: object
               properties:
                 file: { type: string, format: binary }
-                taskId: { type: integer, format: int64, nullable: true }
-      responses: { '200': { $ref: '#/components/responses/Ok' } }
+                taskId:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  description: 禁止使用；非空即 400（TASK_ATTACHMENT_FORBIDDEN）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/FileVO' } } }]
+  /files/config:
+    get:
+      tags: [file]
+      summary: 上传约束（大小/扩展名白名单，前端预校验用）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResult'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          maxSize: { type: integer, format: int64, description: 单文件字节上限 }
+                          allowedExt: { type: array, items: { type: string } }
   /files/{id}:
     get:
       tags: [file]
-      summary: 下载附件（登录 + 任务访问权校验；按 id 访问，不暴露物理路径）
+      summary: 通用下载（登录 + 附件访问权：task 引用走任务可见，note 引用走日志可见，无引用仅创建者/ADMIN）
+      description: 引用同步保护的附件（task 或 note 引用存在）在无引用的通用下载语境下对非创建者 403。
       parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { description: 文件流 } }
+      responses:
+        '200': { description: 文件流 }
+        '403': { description: 无通用下载权限 }
+        '404': { description: 附件不存在 }
     delete:
       tags: [file]
-      summary: 删除附件
+      summary: 删除附件（引用保护：仍有 task/note 引用 → 409）
       parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { $ref: '#/components/responses/Ok' } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '409': { description: 附件仍被引用（4xxxx） }
   /files/{id}/preview:
     get:
       tags: [file]
-      summary: 预览（登录 + 任务访问权校验；后端按 id 代理，修 SSRF）
+      summary: 预览（与下载同权限；后端按 id 代理，修 SSRF）
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses: { '200': { description: 文件流 } }
+
+  /tasks/{taskId}/attachments:
+    post:
+      tags: [task, file]
+      summary: 上传并绑定任务附件（需任务写权限）
+      parameters: [{ $ref: '#/components/parameters/TaskId' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/FileVO' } } }]
+  /tasks/{taskId}/attachments/{attachmentId}:
+    delete:
+      tags: [task, file]
+      summary: 解除并删除任务附件（需任务写权限；创建者或 ADMIN 可物理删除，否则仅解绑）
+      parameters:
+        - { $ref: '#/components/parameters/TaskId' }
+        - { $ref: '#/components/parameters/AttachmentId' }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /tasks/{taskId}/attachments/{attachmentId}/download:
+    get:
+      tags: [task, file]
+      summary: 任务附件下载（任务可见即可）
+      parameters:
+        - { $ref: '#/components/parameters/TaskId' }
+        - { $ref: '#/components/parameters/AttachmentId' }
+      responses: { '200': { description: 文件流 } }
+  /tasks/{taskId}/attachments/{attachmentId}/preview:
+    get:
+      tags: [task, file]
+      summary: 任务附件预览（任务可见即可）
+      parameters:
+        - { $ref: '#/components/parameters/TaskId' }
+        - { $ref: '#/components/parameters/AttachmentId' }
+      responses: { '200': { description: 文件流 } }
+
+  /notes:
+    get:
+      tags: [note]
+      summary: 工作日志分页（7 种 scope + 过滤/排序）
+      description: >
+        `scope`：`mine`（默认）| `shared`（他人共享给我）| `explore`（PUBLIC）| `internal`（本部门 INTERNAL）|
+        `subordinate`（下属日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（全部可见）| `all`（ADMIN）。
+        `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
+      parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [mine, shared, explore, internal, subordinate, visible, all], default: mine } }
+        - { name: tagId, in: query, schema: { type: integer, format: int64 } }
+        - { name: tagName, in: query, schema: { type: string } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { name: visibility, in: query, schema: { type: string, enum: [PRIVATE, INTERNAL, PUBLIC] } }
+        - { name: pinned, in: query, schema: { type: boolean } }
+        - { name: archived, in: query, schema: { type: boolean, default: false } }
+        - { name: start, in: query, schema: { type: string, format: date } }
+        - { name: end, in: query, schema: { type: string, format: date } }
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string, enum: [log_date_desc, log_date_asc, created_desc, updated_desc], default: log_date_desc } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteListData' } } }]
+        '400': { description: 参数非法（日期/枚举/scope+date 冲突） }
+        '403': { description: scope 无权限（all / subordinate 开关关闭） }
+    post:
+      tags: [note]
+      summary: 新建工作日志
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteCreateReq' } } } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteDetailVO' } } }]
+  /notes/tags:
+    get:
+      tags: [note]
+      summary: 标签 facet（mine 返回 id，其他 scope 返回 name + count）
+      parameters:
+        - { name: scope, in: query, schema: { type: string, default: mine } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteTagFacetItem' } } } }]
+  /notes/calendar:
+    get:
+      tags: [note]
+      summary: 日历聚合（按日计数）
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer } }
+        - { name: month, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 12 } }
+        - { name: scope, in: query, schema: { type: string, default: mine } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteCalendarDay' } } } }]
+  /notes/{id}:
+    get:
+      tags: [note]
+      summary: 日志详情（含引用/被引/附件/ownerTags）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteDetailVO' } } }]
+        '404': { description: 不存在或不可见（含归档且非 owner/ADMIN） }
+    put:
+      tags: [note]
+      summary: 修改日志（owner/ADMIN/EDITOR；乐观锁 version）
+      description: >
+        归档日志：owner/ADMIN 仍可修改；EDITOR 返回 **HTTP 200 + code 50013**（归档只读，明确提示而非 404）。
+        未获授权的用户仍按不可见处理（404）。
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteUpdateReq' } } } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteDetailVO' } } }]
+        '403': { description: 无编辑权（VIEWER/非授权） }
+        '404': { description: 不可见 }
+        '409': { description: 版本冲突（10006）或归档只读 }
+    delete:
+      tags: [note]
+      summary: 删除日志（owner/ADMIN；逻辑删除并级联清理关联表）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { description: 无管理权 }
+        '404': { description: 不可见 }
+  /notes/{id}/pin:
+    post:
+      tags: [note]
+      summary: 置顶
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+    delete:
+      tags: [note]
+      summary: 取消置顶
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /notes/{id}/archive:
+    post:
+      tags: [note]
+      summary: 归档（owner/ADMIN）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '403': { description: 无管理权 }
+        '404': { description: 不可见 }
+  /notes/{id}/unarchive:
+    post:
+      tags: [note]
+      summary: 取消归档（owner/ADMIN）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /notes/{id}/relations:
+    get:
+      tags: [note]
+      summary: 出向引用列表
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteRelationVO' } } } }]
+    post:
+      tags: [note]
+      summary: 新增引用（幂等；自引用 400；目标不可见 400/404）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteRelationCreateReq' } } } }
+      responses:
+        '200':
+          description: OK（已存在时返回既有引用）
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteRelationVO' } } }]
+        '400': { description: 自引用/目标类型非法/目标不可见 }
+  /notes/{id}/relations/{relationId}:
+    delete:
+      tags: [note]
+      summary: 删除引用（创建者/源日志 owner/ADMIN）
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: relationId, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /notes/{id}/backlinks:
+    get:
+      tags: [note]
+      summary: 被引用列表（谁引用了我）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteBacklinkVO' } } } }]
+        '404': { description: 不可见 }
+  /notes/{id}/attachments:
+    get:
+      tags: [note]
+      summary: 附件列表（可见即可）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteAttachmentVO' } } } }]
+    post:
+      tags: [note]
+      summary: 绑定附件（幂等；需写权限；仅允许本人上传且未被 task 引用的附件）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteAttachmentBindReq' } } } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteAttachmentVO' } } }]
+        '400': { description: 附件不可绑定 }
+        '403': { description: 无写权限 }
+  /notes/{id}/attachments/{attachmentId}:
+    delete:
+      tags: [note]
+      summary: 解除附件引用（保留文件；写权限）
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/AttachmentId' }
+      responses: { '200': { $ref: '#/components/responses/Ok' } }
+  /notes/{id}/attachments/{attachmentId}/download:
+    get:
+      tags: [note]
+      summary: 附件下载（日志可见即可）
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/AttachmentId' }
+      responses: { '200': { description: 文件流 } }
+
+  /note-grants:
+    get:
+      tags: [note]
+      summary: 授权列表
+      description: >
+        `tab=created`（我发起的申请）| `granted`（我作为日志主人的授权）| `incoming`（他人向我申请/授权给我）| `all`（ADMIN）。
+      parameters:
+        - { name: tab, in: query, schema: { type: string, enum: [created, granted, incoming, all], default: created } }
+        - { name: status, in: query, schema: { type: string, enum: [PENDING, APPROVED, REJECTED, REVOKED] } }
+        - { name: role, in: query, schema: { type: string, enum: [VIEWER, EDITOR] } }
+        - { name: mode, in: query, schema: { type: string, enum: [OWNER, SUPERIOR, ADMIN] } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteUserGrantVO' } } } }]
+    post:
+      tags: [note]
+      summary: 发起授权（mode=OWNER 直接生效；SUPERIOR 需下属审批；ADMIN 直接生效）
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteUserGrantReq' } } } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteUserGrantVO' } } }]
+        '400': { description: 参数非法（角色/模式/用户） }
+        '403': { description: 无发起权 }
+  /note-grants/{id}/approve:
+    post:
+      tags: [note]
+      summary: 通过申请（仅 grantor，即日志主人；写 approved_by/approved_at）
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: OK（返回 NoteUserGrantVO） } }
+  /note-grants/{id}/reject:
+    post:
+      tags: [note]
+      summary: 拒绝申请
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: OK（返回 NoteUserGrantVO） } }
+  /note-grants/{id}/upgrade:
+    post:
+      tags: [note]
+      summary: VIEWER → EDITOR 升级
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: OK（返回 NoteUserGrantVO） } }
+  /note-grants/{id}:
+    delete:
+      tags: [note]
+      summary: 撤销授权
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: OK（返回 NoteUserGrantVO） } }
 
   /audit/operates:
     get:
@@ -676,6 +1056,8 @@ components:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    TaskId: { name: taskId, in: path, required: true, schema: { type: integer, format: int64 } }
+    AttachmentId: { name: attachmentId, in: path, required: true, schema: { type: integer, format: int64 } }
   responses:
     Ok:
       description: OK
@@ -769,6 +1151,9 @@ components:
             deptId: { type: integer, format: int64 }
             deptName: { type: string }
             roleCode: { type: string, enum: [ADMIN, AUDITOR, USER_MANAGER, COMMON] }
+            managerCanReadSubordinate:
+              type: boolean
+              description: 是否开启「上级可读下属日志」；前端据此显隐 note「下属日志」导航与 scope 选项
     TagVO:
       type: object
       properties:
@@ -780,6 +1165,186 @@ components:
         id: { type: integer, format: int64 }
         fileName: { type: string }
         size: { type: integer, format: int64 }
+        md5: { type: string }
+        downloadUrl:
+          type: string
+          description: 上下文相关相对路径（task 上下文为 /tasks/{taskId}/attachments/{id}/download；通用为 /files/{id}），前端以 axios blob 取流
+        createdBy: { type: integer, format: int64 }
+        canDelete: { type: boolean, description: 可物理删除（创建者/ADMIN，不含引用保护） }
+        canRemoveFromTask:
+          type: boolean
+          nullable: true
+          description: task 附件上下文专用（assertWritable && (createdBy==me||isAdmin)）；其他上下文为 null
+    TaskSearchData:
+      type: object
+      properties:
+        list: { type: array, items: { $ref: '#/components/schemas/TaskSearchItem' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    TaskSearchItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        status: { type: string }
+        dueAt: { type: string, format: date-time, nullable: true }
+    NoteBrief:
+      type: object
+      description: 列表项（contentSummary 为正文前 200 码位，保留换行、不补省略号）
+      properties:
+        id: { type: integer, format: int64 }
+        contentSummary: { type: string }
+        logDate: { type: string, format: date, description: YYYY-MM-DD }
+        visibility: { type: string, enum: [PRIVATE, INTERNAL, PUBLIC] }
+        pinned: { type: boolean }
+        archived: { type: boolean }
+        ownerId: { type: integer, format: int64 }
+        ownerName: { type: string }
+        tags: { type: array, items: { $ref: '#/components/schemas/TagVO' } }
+        canEdit: { type: boolean }
+        canManage: { type: boolean }
+        version: { type: integer, format: int64 }
+    NoteVO:
+      allOf:
+        - $ref: '#/components/schemas/NoteBrief'
+        - type: object
+          properties:
+            content: { type: string, description: 完整正文（仅详情返回） }
+            ownerDept: { type: string, nullable: true }
+            grantRole: { type: string, nullable: true, enum: [VIEWER, EDITOR, OWNER, ADMIN] }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    NoteDetailVO:
+      allOf:
+        - $ref: '#/components/schemas/NoteVO'
+        - type: object
+          properties:
+            relations: { type: array, items: { $ref: '#/components/schemas/NoteRelationVO' } }
+            backlinks: { type: array, items: { $ref: '#/components/schemas/NoteBacklinkVO' } }
+            attachments: { type: array, items: { $ref: '#/components/schemas/NoteAttachmentVO' } }
+            ownerTags:
+              type: array
+              nullable: true
+              description: owner 完整标签；仅 canEdit / canManage 时返回
+              items: { $ref: '#/components/schemas/TagVO' }
+    NoteListData:
+      type: object
+      properties:
+        list: { type: array, items: { $ref: '#/components/schemas/NoteBrief' } }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    NoteCreateReq:
+      type: object
+      required: [content, logDate]
+      properties:
+        content: { type: string }
+        logDate: { type: string, format: date, description: YYYY-MM-DD（严格解析，非法 400） }
+        visibility: { type: string, enum: [PRIVATE, INTERNAL, PUBLIC], default: PRIVATE }
+        tagIds: { type: array, items: { type: integer, format: int64 } }
+    NoteUpdateReq:
+      type: object
+      description: 字段均可省略（null=不改）；提供 version 时做乐观锁校验
+      properties:
+        content: { type: string }
+        logDate: { type: string, format: date }
+        visibility: { type: string, enum: [PRIVATE, INTERNAL, PUBLIC] }
+        tagIds: { type: array, items: { type: integer, format: int64 }, description: 提供即整体替换为给定集合 }
+        version: { type: integer, format: int64 }
+    NoteRelationCreateReq:
+      type: object
+      required: [targetType, targetId]
+      properties:
+        targetType: { type: string, enum: [NOTE, TASK] }
+        targetId: { type: integer, format: int64 }
+    NoteRelationVO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        targetType: { type: string, enum: [NOTE, TASK] }
+        targetId: { type: integer, format: int64 }
+        targetSummary: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time, description: 引用时间 }
+        createdBy: { type: integer, format: int64 }
+        createdByName: { type: string }
+    NoteBacklinkVO:
+      type: object
+      properties:
+        relationId: { type: integer, format: int64 }
+        sourceNoteId: { type: integer, format: int64 }
+        sourceSummary: { type: string }
+        sourceOwnerId: { type: integer, format: int64 }
+        sourceOwnerName: { type: string }
+        createdAt: { type: string, format: date-time, description: 引用时间 }
+        createdBy: { type: integer, format: int64 }
+        createdByName: { type: string }
+    NoteAttachmentBindReq:
+      type: object
+      required: [attachmentId]
+      properties:
+        attachmentId: { type: integer, format: int64 }
+    NoteAttachmentVO:
+      type: object
+      properties:
+        id: { type: integer, format: int64, description: note_attachment_ref.id }
+        attachmentId: { type: integer, format: int64 }
+        fileName: { type: string }
+        size: { type: integer, format: int64 }
+        contentType: { type: string, nullable: true }
+        downloadUrl: { type: string, description: '/notes/{id}/attachments/{attachmentId}/download' }
+        createdAt: { type: string, format: date-time, description: 附件上传时间（取自 attachment 表，非关联时间） }
+        createdBy: { type: integer, format: int64 }
+        createdByName: { type: string }
+        canRemoveRef: { type: boolean }
+        canDelete: { type: boolean }
+    NoteTagFacetItem:
+      type: object
+      description: mine 返回 id；其他 scope 返回 name + count
+      properties:
+        id: { type: integer, format: int64, nullable: true }
+        name: { type: string }
+        count: { type: integer }
+    NoteCalendarDay:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        count: { type: integer }
+    NoteUserGrantReq:
+      type: object
+      required: [mode, role]
+      description: >
+        `OWNER`：日志主人授权他人，`grantorId` 必须省略（服务端取当前用户），`granteeId` 必填，立即 APPROVED；
+        `SUPERIOR`：主管申请下属日志，`grantorId`=下属（必须是自己下属）、`granteeId` 必须省略（推导为当前用户），落 PENDING；
+        `ADMIN`：`grantorId`/`granteeId` 均必填，立即 APPROVED。
+      properties:
+        mode: { type: string, enum: [OWNER, SUPERIOR, ADMIN], description: OWNER=日志主人授权；SUPERIOR=主管申请下属日志；ADMIN=管理员授权 }
+        grantorId: { type: integer, format: int64, description: 日志主人（SUPERIOR/ADMIN 必填，OWNER 禁填） }
+        granteeId: { type: integer, format: int64, description: 被授权人（OWNER/ADMIN 必填，SUPERIOR 禁填） }
+        role: { type: string, enum: [VIEWER, EDITOR] }
+    NoteUserGrantVO:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        grantorId: { type: integer, format: int64 }
+        grantorName: { type: string }
+        granteeId: { type: integer, format: int64 }
+        granteeName: { type: string }
+        role: { type: string, enum: [VIEWER, EDITOR] }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, REVOKED] }
+        mode: { type: string, enum: [OWNER, SUPERIOR, ADMIN] }
+        direction: { type: string, enum: [outgoing, incoming, none], description: 'outgoing=我是日志主人；incoming=他人向我授权/申请；none=ADMIN 视角' }
+        createdBy: { type: integer, format: int64 }
+        createdByName: { type: string }
+        createdAt: { type: string, format: date-time }
+        approvedBy: { type: integer, format: int64, nullable: true }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        revokedBy: { type: integer, format: int64, nullable: true }
+        canApprove: { type: boolean }
+        canReject: { type: boolean }
+        canUpgrade: { type: boolean }
+        canRevoke: { type: boolean }
     TaskVO:
       type: object
       properties:

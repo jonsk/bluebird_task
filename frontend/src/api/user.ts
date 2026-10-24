@@ -18,7 +18,15 @@ export function me(): Promise<UserVO> {
 }
 
 export function listUsers(
-  params: { deptId?: number; keyword?: string; includeSubDept?: boolean; page?: number; size?: number } = {},
+  params: {
+    deptId?: number
+    keyword?: string
+    includeSubDept?: boolean
+    /** 'subordinate' = 仅我的下属（后端按"我负责的部门及其后代"过滤） */
+    scope?: 'subordinate'
+    page?: number
+    size?: number
+  } = {},
 ): Promise<UserPage> {
   return get<UserPage>('/users', params)
 }

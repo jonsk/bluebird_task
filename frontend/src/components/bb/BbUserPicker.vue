@@ -17,13 +17,19 @@ import { listUsers, type UserVO } from '@/api/user'
  *   每次 `selection-change` 只重算**当前页**的勾选，其余页签保留在 `picked`。
  */
 const visible = defineModel<boolean>({ required: true })
+/** 已选人员（note 授权/引用使用；不用 modelValue，避免与 visible 的 defineModel 冲突）。 */
+const selected = defineModel<UserVO[]>('selected', { default: () => [] })
 
 const props = withDefaults(
   defineProps<{
     /** 打开时用于回显的人员（跨分页时后端未必在第一页返回）。 */
     pickedUsers?: UserVO[]
+    /** false = 单选（note 授权选人）；默认多选（任务选人原有行为） */
+    multiple?: boolean
+    /** 'subordinate' = 仅可选我的下属（后端 scope 过滤，隐藏机构树） */
+    scope?: 'all' | 'subordinate'
   }>(),
-  { pickedUsers: () => [] },
+  { pickedUsers: () => [], multiple: true, scope: 'all' },
 )
 
 const emit = defineEmits<{
@@ -67,7 +73,9 @@ async function loadUsers(): Promise<void> {
   loading.value = true
   try {
     const res = await listUsers({
-      deptId: selectedDeptId.value ?? undefined,
+      // 下属模式：后端按"我负责的部门及其后代"过滤，忽略部门树下钻
+      scope: props.scope === 'subordinate' ? 'subordinate' : undefined,
+      deptId: props.scope === 'subordinate' ? undefined : (selectedDeptId.value ?? undefined),
       // 有搜索词时跨部门全局搜索（大组织里按名字找人优先于按部门下钻）
       includeSubDept: true,
       keyword: keyword.value.trim() || undefined,
@@ -96,9 +104,21 @@ function syncPageSelection(): void {
 
 /** 只重算当前页的勾选，其他页/搜索结果的已选保持不变。 */
 function onSelectionChange(selection: UserVO[]): void {
+  // 单选模式：表格仍用多选列，但这里强制只保留最后一次选择
+  const finalSelection = props.multiple ? selection : selection.slice(-1)
+  if (!props.multiple && selection.length > 1) {
+    picked.value = new Map()
+    tableRef.value?.clearSelection()
+    const last = finalSelection[0]
+    if (last) {
+      picked.value.set(Number(last.id), last)
+      tableRef.value?.toggleRowSelection(last, true)
+    }
+    return
+  }
   const pageIds = new Set(rows.value.map((r) => Number(r.id)))
   for (const id of pageIds) picked.value.delete(id)
-  for (const u of selection) picked.value.set(Number(u.id), u)
+  for (const u of finalSelection) picked.value.set(Number(u.id), u)
   picked.value = new Map(picked.value)
 }
 
@@ -137,6 +157,7 @@ function clearPicked(): void {
 
 function onConfirm(): void {
   emit('confirm', pickedList.value)
+  selected.value = pickedList.value
   visible.value = false
 }
 
@@ -161,9 +182,15 @@ function filterNode(value: string, data: Department): boolean {
 
 watch(visible, async (open) => {
   if (!open) return
-  picked.value = new Map((props.pickedUsers ?? []).map((u) => [Number(u.id), u]))
+  const preset = props.pickedUsers.length ? props.pickedUsers : selected.value
+  picked.value = new Map((preset ?? []).map((u) => [Number(u.id), u]))
   page.value = 1
   keyword.value = ''
+  if (props.scope === 'subordinate') {
+    // 下属模式不展示机构树，避免用户误以为可以按部门挑非下属
+    await loadUsers()
+    return
+  }
   await Promise.all([loadTree(), loadUsers()])
 })
 </script>
@@ -180,8 +207,8 @@ watch(visible, async (open) => {
     @closed="onClosed"
   >
     <div class="bb-up">
-      <!-- 左：机构树 -->
-      <aside class="bb-up__left">
+      <!-- 左：机构树（下属模式下隐藏：范围已由后端限定） -->
+      <aside v-if="scope !== 'subordinate'" class="bb-up__left">
         <el-input
           v-model="deptKeyword"
           size="small"
