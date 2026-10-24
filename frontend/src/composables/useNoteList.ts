@@ -43,6 +43,8 @@ function readQueryFromRoute(route: ReturnType<typeof useRoute>): NoteQueryPatch 
   }
 }
 
+const SCOPES: NoteScope[] = ['mine', 'shared', 'explore', 'internal', 'subordinate', 'visible', 'all']
+
 export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult {
   const route = useRoute()
   const router = useRouter()
@@ -83,13 +85,13 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
     return store.cacheKey(scope.value, query.value)
   }
 
-  async function run(): Promise<void> {
+  async function run(force = false): Promise<void> {
     const seq = ++reqSeq
     loading.value = true
     error.value = null
     const key = buildKey()
-    // 缓存读取（仅非 isolated）
-    if (!options.isolated) {
+    // 缓存读取（仅非 isolated；force 时跳过——写操作后必须拿到服务端最新数据）
+    if (!options.isolated && !force) {
       const hit = store.cacheGet(key)
       if (hit) {
         notes.value = hit.data.list ?? []
@@ -158,14 +160,21 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
     void run()
   }
   function refresh(): void {
-    void run()
+    // 先失效**全部 scope** 再强制重拉：新建/归档/授权会同时改变 mine/internal/subordinate/all 等
+    // 多个作用域，只失效当前 scope 会让"切回上一个页签看到旧数据"；
+    // 也必须 force，否则同 key 的缓存会让列表看起来"保存没生效"。
+    if (!options.isolated) store.invalidate(SCOPES)
+    void run(true)
   }
 
   const needsReloadComputed = computed(() => needsReload.value)
 
   // 缓存命中需要重载时自动重拉首页
   watch(needsReloadComputed, (v) => {
-    if (v) reloadFirst()
+    if (v) {
+      page.value = 1
+      void run(true)
+    }
   })
 
   // URL/路由变化（非 isolated 时监听 query）

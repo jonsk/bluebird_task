@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { dataOf, envelope } from './fixtures'
+import { noteHandlers } from './noteHandlers'
 
 /**
  * MSW 契约 Mock（03 §2.6）—— **直连基线 fixtures**（`docs/frontend-baseline/fixtures/api/**`）。
@@ -121,7 +122,6 @@ interface FileLike {
   md5?: string
 }
 const fileStore: FileLike[] = structuredClone((detail.files ?? []) as FileLike[])
-let fileSeq = 9000
 function mergeFiles(base: unknown[]): FileLike[] {
   const seen = new Set<number>(base.map((f) => Number((f as FileLike).id)))
   return [...(base as FileLike[]), ...fileStore.filter((f) => !seen.has(Number(f.id)))]
@@ -438,6 +438,19 @@ export const handlers = [
   http.get(`${AUTH}/tasks/count`, () => raw('tasks/GET.count')),
   http.get(`${AUTH}/tasks/calendar`, () => raw('tasks/GET.calendar')),
   http.get(`${AUTH}/tasks/subtasks`, () => raw('tasks/GET.subtasks')),
+  // 必须在 `/tasks/:id` 之前：否则 `search` 会被当成 id 命中详情
+  http.get(`${AUTH}/tasks/search`, async ({ request }) => {
+    const url = new URL(request.url)
+    const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase()
+    if (keyword.length < 2) return fail(10001, 'param')
+    const hit = tasks.filter((t) => (t.title ?? '').toLowerCase().includes(keyword))
+    return ok({
+      list: hit.map((t) => ({ id: t.id, title: t.title, status: t.status ?? null, dueAt: t.dueAt ?? null })),
+      total: hit.length,
+      page: 1,
+      size: 20,
+    })
+  }),
   http.get(`${AUTH}/tasks`, ({ request }) => {
     const url = new URL(request.url)
     const scope = url.searchParams.get('scope') ?? 'all'
@@ -559,16 +572,8 @@ export const handlers = [
   }),
 
   // ---- files ----
-  // item 10：上传回显用户所选文件（文件名/大小），不再固定返回 fixture 的「季度报告.pdf」
-  http.post(`${AUTH}/files`, async ({ request }) => {
-    const form = await request.formData()
-    const file = form.get('file')
-    const fileName = file instanceof File ? file.name : '未命名文件'
-    const size = file instanceof File ? file.size : 0
-    const stored: FileLike = { id: fileSeq++, fileName, size }
-    fileStore.push(stored)
-    return ok(stored)
-  }),
+  // `POST /files` 已迁到 noteHandlers（note 附件绑定需要同一份文件内存库）；
+  // 此处只保留通用删除，避免两条同 URL handler 抢匹配导致「上传成功但绑定 50004」。
   // item 10：允许删除上传的附件（内存移除）
   http.delete(`${AUTH}/files/:id`, ({ params }) => {
     const idx = fileStore.findIndex((f) => String(f.id) === params.id)
@@ -638,4 +643,7 @@ export const handlers = [
       size: 20,
     }),
   ),
+
+  // ---- 工作日志（独立模块：noteHandlers.ts）----
+  ...noteHandlers,
 ]

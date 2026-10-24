@@ -10,6 +10,7 @@
     "deptId": 10,
     "deptName": "研发部",
     "roleCode": "ADMIN",
-    "mustChangePassword": false
+    "mustChangePassword": false,
+    "managerCanReadSubordinate": true
   }
 }

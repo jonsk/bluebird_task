@@ -119,6 +119,8 @@ function onCreated(detail: NoteDetailVO): void {
   // 新建后回到第一页并清空筛选（"新建后回第一页"是明确预期）
   list.setQuery({ keyword: undefined, tagId: undefined, tagName: undefined, pinned: undefined, date: undefined, visibility: undefined })
   ElMessage.success('已保存并回到第一页')
+  // 必须强制重拉：同 key 的列表缓存会让刚创建的日志看不见
+  list.refresh()
   void page.loadFacets()
 }
 
@@ -156,6 +158,7 @@ function onComposerFocus(): void {
 
 function onEditorSaved(): void {
   editId.value = null
+  ElMessage.success('已保存')
   list.refresh()
   void page.loadFacets()
 }

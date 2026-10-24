@@ -88,4 +88,28 @@ test.describe('视觉回归基线（1440×900）', () => {
     await expect(page.locator('.el-tab-pane:visible .el-table__row')).toHaveCount(3)
     await expect(page).toHaveScreenshot('admin-logs-1440x900.png')
   })
+
+  /**
+   * 工作日志（与任务模块同一套视觉语言）：右栏日历 + 当日日志、卡片行高/间距、筛选条。
+   */
+  test('工作日志（我的日志 + 右栏当日日志）', async ({ page }) => {
+    await login(page)
+    await page.goto('/notes')
+    await expect(page.locator('.note-card')).toHaveCount(2)
+    await expect(page).toHaveScreenshot('notes-home-1440x900.png')
+  })
+
+  test('工作日志日历（月计数）', async ({ page }) => {
+    await login(page)
+    await page.goto('/notes/calendar')
+    await expect(page.locator('.nc-grid').first()).toBeVisible()
+    await expect(page).toHaveScreenshot('notes-calendar-1440x900.png')
+  })
+
+  test('工作日志详情（正文 / 引用 / 附件）', async ({ page }) => {
+    await login(page)
+    await page.goto('/notes/1001')
+    await expect(page.locator('[data-test="note-detail-content"]')).toBeVisible()
+    await expect(page).toHaveScreenshot('notes-detail-1440x900.png')
+  })
 })

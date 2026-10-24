@@ -100,7 +100,10 @@ async function removeNote(): Promise<void> {
 
 function onSaved(): void {
   editing.value = false
+  ElMessage.success('已保存')
   detailApi.reload()
+  // 列表缓存与详情已不一致，回到列表时必须是新数据
+  store.invalidate(['mine', 'shared', 'explore', 'internal', 'subordinate', 'visible', 'all'])
 }
 
 async function addRef(payload: NoteTargetRef & { summary?: string }): Promise<void> {

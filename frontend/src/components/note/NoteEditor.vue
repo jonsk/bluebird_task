@@ -97,6 +97,8 @@ async function onSubmit(): Promise<void> {
   }
   submitting.value = true
   try {
+    // 成功 toast 交给宿主：新建要提示"已保存并回到第一页"、行内编辑提示"已保存"，
+    // 这里再弹一次会出现双 toast（同一动作两条提示）。
     let detail: NoteDetailVO
     if (isEdit.value && props.noteId != null) {
       detail = await updateNote(props.noteId, {
@@ -106,7 +108,6 @@ async function onSubmit(): Promise<void> {
         tagIds: tagIds.value,
         version: version.value,
       })
-      ElMessage.success('已保存')
     } else {
       detail = await createNote({
         content: content.value,
@@ -114,7 +115,6 @@ async function onSubmit(): Promise<void> {
         visibility: visibility.value,
         tagIds: tagIds.value,
       })
-      ElMessage.success('已创建')
     }
     emit('saved', detail)
   } catch (e) {
