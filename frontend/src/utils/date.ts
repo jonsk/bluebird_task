@@ -60,6 +60,14 @@ export function formatCreatedDate(input?: string | number | Date | null): string
   return `${pad(date.getMonth() + 1)}月${pad(date.getDate())}日`
 }
 
+/** 上海时区的当天日期（YYYY-MM-DD），禁止 toISOString().slice（会偏移到 UTC）。 */
+export function todayInShanghai(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
+}
+
+/** todayInShanghai 的同义别名。 */
+export const todayDate = todayInShanghai
+
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n)
 }

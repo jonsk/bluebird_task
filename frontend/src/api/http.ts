@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios'
 import { ERROR_CODE, messageOf } from '@/utils/errorCode'
+import type { components } from '@/types/api'
 import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, clearTokens } from './token'
 
 /** 后端统一响应体（02 §1.3）。 */
@@ -10,7 +11,10 @@ export interface ApiResult<T> {
   traceId: string
 }
 
-/** 业务错误（携带 code/message/traceId，03 §4.1）。 */
+/** 通用文件 VO（downloadUrl 为相对路径，由 http 层透传、不拼前缀）。 */
+export type FileVO = components['schemas']['FileVO'] & { md5?: string }
+
+/** 业务错误（HTTP 200 + code≠0）。 */
 export class BizError extends Error {
   readonly code: number
   readonly traceId?: string
@@ -18,6 +22,21 @@ export class BizError extends Error {
   constructor(code: number, message: string, traceId?: string) {
     super(message)
     this.name = 'BizError'
+    this.code = code
+    this.traceId = traceId
+  }
+}
+
+/** 协议级错误（HTTP 4xx/5xx），携带 status，页面统一读 err.status===404/403。 */
+export class HttpError extends Error {
+  readonly status: number
+  readonly code?: number
+  readonly traceId?: string
+
+  constructor(status: number, code?: number, message?: string, traceId?: string) {
+    super(message || `HTTP ${status}`)
+    this.name = 'HttpError'
+    this.status = status
     this.code = code
     this.traceId = traceId
   }
@@ -67,46 +86,91 @@ function redirectToLogin(): void {
   }
 }
 
-// 响应拦截：解包 ApiResult；10002/20005 触发续签重试（03 §4.1）
+function isApiResult(v: unknown): v is ApiResult<unknown> {
+  return !!v && typeof v === 'object' && typeof (v as ApiResult<unknown>).code === 'number'
+}
+
+function toBizError(body: ApiResult<unknown>): BizError {
+  return new BizError(body.code, body.message || messageOf(body.code), body.traceId)
+}
+
+// 成功拦截：JSON 解包（code≠0 抛 BizError）；blob 仅在确为 JSON 错误时解析处理
 http.interceptors.response.use(
-  (response) => response,
+  async (response) => {
+    const isBlob = response.config.responseType === 'blob'
+    if (isBlob) {
+      const ct = (response.headers?.['content-type'] || '') as string
+      if (ct.includes('application/json') && response.data instanceof Blob) {
+        const text = await response.data.text()
+        try {
+          const parsed = JSON.parse(text)
+          if (isApiResult(parsed) && parsed.code !== ERROR_CODE.OK) {
+            throw toBizError(parsed)
+          }
+        } catch {
+          // 非 JSON：当作正常 blob 落盘
+        }
+      }
+      return response
+    }
+    const body = response.data
+    if (isApiResult(body) && body.code !== ERROR_CODE.OK) {
+      throw toBizError(body)
+    }
+    return response
+  },
   async (error: AxiosError<ApiResult<unknown>>) => {
     const resp = error.response
+    const status = resp?.status ?? 0
     const original = error.config as AxiosRequestConfig & { _retried?: boolean }
-    const body = resp?.data
 
-    if (body && typeof body.code === 'number' && !original._retried) {
-      if (body.code === ERROR_CODE.TOKEN_INVALID) {
-        original._retried = true
-        refreshing = refreshing ?? doRefresh()
-        const token = await refreshing
-        refreshing = null
-        if (token) {
-          return http.request(original)
+    // 解析 body（blob 需读文本）
+    let body: ApiResult<unknown> | null = null
+    if (resp?.data instanceof Blob) {
+      try {
+        const text = await resp.data.text()
+        try {
+          body = JSON.parse(text)
+        } catch {
+          body = null
         }
-        redirectToLogin()
+      } catch {
+        body = null
       }
+    } else if (isApiResult(resp?.data)) {
+      body = resp.data
     }
-    return Promise.reject(toBizError(error))
+
+    // 401 窄化续签：仅 HTTP 401 且 code∈{10002,20005}
+    if (
+      body &&
+      status === 401 &&
+      (body.code === ERROR_CODE.UNAUTHENTICATED || body.code === ERROR_CODE.TOKEN_INVALID) &&
+      !original._retried
+    ) {
+      original._retried = true
+      refreshing = refreshing ?? doRefresh()
+      const token = await refreshing
+      refreshing = null
+      if (token) {
+        return http.request(original)
+      }
+      redirectToLogin()
+    }
+
+    // 业务码错误（HTTP 200 + code≠0 实际上也会走成功拦截；此处兜底）
+    if (body && body.code !== ERROR_CODE.OK) {
+      return Promise.reject(toBizError(body))
+    }
+
+    // 协议级错误（4xx/5xx）：抛 HttpError（含 status + 可选 code）
+    return Promise.reject(new HttpError(status, body?.code, body?.message || error.message, body?.traceId))
   },
 )
 
-function toBizError(error: AxiosError<ApiResult<unknown>>): BizError {
-  const body = error.response?.data
-  if (body && typeof body.code === 'number') {
-    return new BizError(body.code, body.message || messageOf(body.code), body.traceId)
-  }
-  return new BizError(ERROR_CODE.SYSTEM_ERROR, error.message || messageOf(ERROR_CODE.SYSTEM_ERROR))
-}
-
 /** 解包业务响应：code==0 返回 data，否则抛 BizError。 */
 function unwrap<T>(result: ApiResult<T>): T {
-  if (result.code === ERROR_CODE.OK) {
-    return result.data
-  }
-  if (result.code === ERROR_CODE.UNAUTHENTICATED) {
-    redirectToLogin()
-  }
+  if (result.code === ERROR_CODE.OK) return result.data
   throw new BizError(result.code, result.message || messageOf(result.code), result.traceId)
 }
 
@@ -128,4 +192,10 @@ export async function put<T>(url: string, data?: unknown): Promise<T> {
 export async function del<T>(url: string, data?: unknown): Promise<T> {
   const resp = await http.delete<ApiResult<T>>(url, { data })
   return unwrap(resp.data)
+}
+
+/** blob 下载（带 Bearer，拦截器已注入）；错误由拦截器抛 HttpError/BizError。 */
+export async function getBlob(url: string, params?: Record<string, unknown>): Promise<Blob> {
+  const resp = await http.get<Blob>(url, { params, responseType: 'blob' })
+  return resp.data
 }

@@ -158,13 +158,13 @@ export interface paths {
         };
         /**
          * 发起 Casdoor 单点登录（302 跳转上游 authorize）
-         * @description 生成随机 `state` 并写入 httpOnly cookie（`bb_oidc_state`，10 分钟），随后 302 到 Casdoor `/login/oauth/authorize`。`target` 为登录成功后回跳的前端路径（默认 `/index`）。
+         * @description 生成随机 `state` 并写入 httpOnly cookie（`bb_oidc_state`，10 分钟），随后 302 到 Casdoor `/login/oauth/authorize`。`redirect` 为登录成功后回跳的前端路径（默认 `/index`，仅接受站内绝对路径）。
          */
         get: {
             parameters: {
                 query?: {
                     /** @description 登录成功后的前端回跳路径 */
-                    target?: string;
+                    redirect?: string;
                 };
                 header?: never;
                 path?: never;
@@ -230,64 +230,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/external/callback": {
+    "/bootstrap/admin": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** OIDC 回调（Spring Security 接管，浏览器整页跳转，非 XHR；已由 /auth/oidc/callback 取代） */
-        get: {
+        get?: never;
+        put?: never;
+        /**
+         * 一次性引导创建首 ADMIN（仅空库可用，R25）
+         * @description 仅当系统中尚无 ADMIN 时可用；否则返回 403。成功返回新 ADMIN 的 id（data）。
+         */
+        post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
-            responses: {
-                /** @description 重定向回前端（成功/失败） */
-                302: {
-                    headers: {
-                        [name: string]: unknown;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description 缺省 admin */
+                        username?: string;
+                        password?: string;
                     };
-                    content?: never;
                 };
             };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/wechat/callback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 企微回调（Controller + WechatIdentityAdapter；前端 XHR 直达） */
-        get: {
-            parameters: {
-                query: {
-                    code: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
             responses: {
-                200: components["responses"]["Token"];
+                200: components["responses"]["Ok"];
             };
         };
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -305,6 +280,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    /** @description subordinate=当前用户的下属（递归下级部门成员），用于日志授权/主管视图；此时忽略其余过滤参数 */
+                    scope?: "subordinate";
                     deptId?: number;
                     /** @description 按 username 或 name 模糊匹配 */
                     keyword?: string;
@@ -1322,6 +1299,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tasks/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 任务检索（note 引用选择器；仅返回当前用户可见任务，分页） */
+        get: {
+            parameters: {
+                query?: {
+                    keyword?: string;
+                    page?: number;
+                    size?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["TaskSearchData"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tasks/count": {
         parameters: {
             query?: never;
@@ -1885,7 +1904,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 上传附件（multipart，`taskId` 可选） */
+        /** 通用上传（note 附件前置；`taskId` 非空 → 400，task 附件走 /tasks/{taskId}/attachments） */
         post: {
             parameters: {
                 query?: never;
@@ -1898,15 +1917,73 @@ export interface paths {
                     "multipart/form-data": {
                         /** Format: binary */
                         file?: string;
-                        /** Format: int64 */
+                        /**
+                         * Format: int64
+                         * @description 禁止使用；非空即 400（TASK_ATTACHMENT_FORBIDDEN）
+                         */
                         taskId?: number | null;
                     };
                 };
             };
             responses: {
-                200: components["responses"]["Ok"];
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["FileVO"];
+                        };
+                    };
+                };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 上传约束（大小/扩展名白名单，前端预校验用） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: {
+                                /**
+                                 * Format: int64
+                                 * @description 单文件字节上限
+                                 */
+                                maxSize?: number;
+                                allowedExt?: string[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1920,7 +1997,81 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 下载附件（登录 + 任务访问权校验；按 id 访问，不暴露物理路径） */
+        /**
+         * 通用下载（登录 + 附件访问权：task 引用走任务可见，note 引用走日志可见，无引用仅创建者/ADMIN）
+         * @description 引用同步保护的附件（task 或 note 引用存在）在无引用的通用下载语境下对非创建者 403。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 文件流 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 无通用下载权限 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 附件不存在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** 删除附件（引用保护：仍有 task/note 引用 → 409） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["Ok"];
+                /** @description 附件仍被引用（4xxxx） */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 预览（与下载同权限；后端按 id 代理，修 SSRF） */
         get: {
             parameters: {
                 query?: never;
@@ -1943,7 +2094,493 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        /** 删除附件 */
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 上传并绑定任务附件（需任务写权限） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: components["parameters"]["TaskId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        file?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["FileVO"];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 解除并删除任务附件（需任务写权限；创建者或 ADMIN 可物理删除，否则仅解绑） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: components["parameters"]["TaskId"];
+                    attachmentId: components["parameters"]["AttachmentId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["Ok"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}/attachments/{attachmentId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 任务附件下载（任务可见即可） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: components["parameters"]["TaskId"];
+                    attachmentId: components["parameters"]["AttachmentId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 文件流 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}/attachments/{attachmentId}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 任务附件预览（任务可见即可） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: components["parameters"]["TaskId"];
+                    attachmentId: components["parameters"]["AttachmentId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 文件流 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 工作日志分页（7 种 scope + 过滤/排序）
+         * @description `scope`：`mine`（默认）| `shared`（他人共享给我）| `explore`（PUBLIC）| `internal`（本部门 INTERNAL）| `subordinate`（下属日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（全部可见）| `all`（ADMIN）。 `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    scope?: "mine" | "shared" | "explore" | "internal" | "subordinate" | "visible" | "all";
+                    tagId?: number;
+                    tagName?: string;
+                    keyword?: string;
+                    visibility?: "PRIVATE" | "INTERNAL" | "PUBLIC";
+                    pinned?: boolean;
+                    archived?: boolean;
+                    start?: string;
+                    end?: string;
+                    date?: string;
+                    sort?: "log_date_desc" | "log_date_asc" | "created_desc" | "updated_desc";
+                    page?: number;
+                    size?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteListData"];
+                        };
+                    };
+                };
+                /** @description 参数非法（日期/枚举/scope+date 冲突） */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description scope 无权限（all / subordinate 开关关闭） */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** 新建工作日志 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NoteCreateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteDetailVO"];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 标签 facet（mine 返回 id，其他 scope 返回 name + count） */
+        get: {
+            parameters: {
+                query?: {
+                    scope?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteTagFacetItem"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 日历聚合（按日计数） */
+        get: {
+            parameters: {
+                query: {
+                    year: number;
+                    month: number;
+                    scope?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteCalendarDay"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 日志详情（含引用/被引/附件/ownerTags） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteDetailVO"];
+                        };
+                    };
+                };
+                /** @description 不存在或不可见（含归档且非 owner/ADMIN） */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /**
+         * 修改日志（owner/ADMIN/EDITOR；乐观锁 version）
+         * @description 归档日志：owner/ADMIN 仍可修改；EDITOR 返回 **HTTP 200 + code 50013**（归档只读，明确提示而非 404）。 未获授权的用户仍按不可见处理（404）。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NoteUpdateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteDetailVO"];
+                        };
+                    };
+                };
+                /** @description 无编辑权（VIEWER/非授权） */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不可见 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 版本冲突（10006）或归档只读 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** 删除日志（owner/ADMIN；逻辑删除并级联清理关联表） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["Ok"];
+                /** @description 无管理权 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不可见 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 置顶 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["Ok"];
+            };
+        };
+        /** 取消置顶 */
         delete: {
             parameters: {
                 query?: never;
@@ -1963,20 +2600,361 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/files/{id}/preview": {
+    "/notes/{id}/archive": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 预览（登录 + 任务访问权校验；后端按 id 代理，修 SSRF） */
+        get?: never;
+        put?: never;
+        /** 归档（owner/ADMIN） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["Ok"];
+                /** @description 无管理权 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不可见 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 取消归档（owner/ADMIN） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["Ok"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 出向引用列表 */
         get: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
                     id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteRelationVO"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 新增引用（幂等；自引用 400；目标不可见 400/404） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NoteRelationCreateReq"];
+                };
+            };
+            responses: {
+                /** @description OK（已存在时返回既有引用） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteRelationVO"];
+                        };
+                    };
+                };
+                /** @description 自引用/目标类型非法/目标不可见 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}/relations/{relationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除引用（创建者/源日志 owner/ADMIN） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    relationId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["Ok"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}/backlinks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 被引用列表（谁引用了我） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteBacklinkVO"][];
+                        };
+                    };
+                };
+                /** @description 不可见 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 附件列表（可见即可） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteAttachmentVO"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 绑定附件（幂等；需写权限；仅允许本人上传且未被 task 引用的附件） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NoteAttachmentBindReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteAttachmentVO"];
+                        };
+                    };
+                };
+                /** @description 附件不可绑定 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 无写权限 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 解除附件引用（保留文件；写权限） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    attachmentId: components["parameters"]["AttachmentId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["Ok"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{id}/attachments/{attachmentId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 附件下载（日志可见即可） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    attachmentId: components["parameters"]["AttachmentId"];
                 };
                 cookie?: never;
             };
@@ -1994,6 +2972,236 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/note-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 授权列表
+         * @description `tab=created`（我发起的申请）| `granted`（我作为日志主人的授权）| `incoming`（他人向我申请/授权给我）| `all`（ADMIN）。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    tab?: "created" | "granted" | "incoming" | "all";
+                    status?: "PENDING" | "APPROVED" | "REJECTED" | "REVOKED";
+                    role?: "VIEWER" | "EDITOR";
+                    mode?: "OWNER" | "SUPERIOR" | "ADMIN";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteUserGrantVO"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 发起授权（mode=OWNER 直接生效；SUPERIOR 需下属审批；ADMIN 直接生效） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NoteUserGrantReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteUserGrantVO"];
+                        };
+                    };
+                };
+                /** @description 参数非法（角色/模式/用户） */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 无发起权 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/note-grants/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 通过申请（仅 grantor，即日志主人；写 approved_by/approved_at） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK（返回 NoteUserGrantVO） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/note-grants/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 拒绝申请 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK（返回 NoteUserGrantVO） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/note-grants/{id}/upgrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** VIEWER → EDITOR 升级 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK（返回 NoteUserGrantVO） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/note-grants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 撤销授权 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK（返回 NoteUserGrantVO） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -2167,6 +3375,242 @@ export interface components {
             fileName?: string;
             /** Format: int64 */
             size?: number;
+            md5?: string;
+            /** @description 上下文相关相对路径（task 上下文为 /tasks/{taskId}/attachments/{id}/download；通用为 /files/{id}），前端以 axios blob 取流 */
+            downloadUrl?: string;
+            /** Format: int64 */
+            createdBy?: number;
+            /** @description 可物理删除（创建者/ADMIN，不含引用保护） */
+            canDelete?: boolean;
+            /** @description task 附件上下文专用（assertWritable && (createdBy==me||isAdmin)）；其他上下文为 null */
+            canRemoveFromTask?: boolean | null;
+        };
+        TaskSearchData: {
+            list?: components["schemas"]["TaskSearchItem"][];
+            total?: number;
+            page?: number;
+            size?: number;
+        };
+        TaskSearchItem: {
+            /** Format: int64 */
+            id?: number;
+            title?: string;
+            status?: string;
+            /** Format: date-time */
+            dueAt?: string | null;
+        };
+        /** @description 列表项（contentSummary 为正文前 200 码位，保留换行、不补省略号） */
+        NoteBrief: {
+            /** Format: int64 */
+            id?: number;
+            contentSummary?: string;
+            /**
+             * Format: date
+             * @description YYYY-MM-DD
+             */
+            logDate?: string;
+            /** @enum {string} */
+            visibility?: "PRIVATE" | "INTERNAL" | "PUBLIC";
+            pinned?: boolean;
+            archived?: boolean;
+            /** Format: int64 */
+            ownerId?: number;
+            ownerName?: string;
+            tags?: components["schemas"]["TagVO"][];
+            canEdit?: boolean;
+            canManage?: boolean;
+            /** Format: int64 */
+            version?: number;
+        };
+        NoteVO: components["schemas"]["NoteBrief"] & {
+            /** @description 完整正文（仅详情返回） */
+            content?: string;
+            ownerDept?: string | null;
+            /** @enum {string|null} */
+            grantRole?: "VIEWER" | "EDITOR" | "OWNER" | "ADMIN" | null;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        NoteDetailVO: components["schemas"]["NoteVO"] & {
+            relations?: components["schemas"]["NoteRelationVO"][];
+            backlinks?: components["schemas"]["NoteBacklinkVO"][];
+            attachments?: components["schemas"]["NoteAttachmentVO"][];
+            /** @description owner 完整标签；仅 canEdit / canManage 时返回 */
+            ownerTags?: components["schemas"]["TagVO"][] | null;
+        };
+        NoteListData: {
+            list?: components["schemas"]["NoteBrief"][];
+            total?: number;
+            page?: number;
+            size?: number;
+        };
+        NoteCreateReq: {
+            content: string;
+            /**
+             * Format: date
+             * @description YYYY-MM-DD（严格解析，非法 400）
+             */
+            logDate: string;
+            /**
+             * @default PRIVATE
+             * @enum {string}
+             */
+            visibility: "PRIVATE" | "INTERNAL" | "PUBLIC";
+            tagIds?: number[];
+        };
+        /** @description 字段均可省略（null=不改）；提供 version 时做乐观锁校验 */
+        NoteUpdateReq: {
+            content?: string;
+            /** Format: date */
+            logDate?: string;
+            /** @enum {string} */
+            visibility?: "PRIVATE" | "INTERNAL" | "PUBLIC";
+            /** @description 提供即整体替换为给定集合 */
+            tagIds?: number[];
+            /** Format: int64 */
+            version?: number;
+        };
+        NoteRelationCreateReq: {
+            /** @enum {string} */
+            targetType: "NOTE" | "TASK";
+            /** Format: int64 */
+            targetId: number;
+        };
+        NoteRelationVO: {
+            /** Format: int64 */
+            id?: number;
+            /** @enum {string} */
+            targetType?: "NOTE" | "TASK";
+            /** Format: int64 */
+            targetId?: number;
+            targetSummary?: string | null;
+            /**
+             * Format: date-time
+             * @description 引用时间
+             */
+            createdAt?: string;
+            /** Format: int64 */
+            createdBy?: number;
+            createdByName?: string;
+        };
+        NoteBacklinkVO: {
+            /** Format: int64 */
+            relationId?: number;
+            /** Format: int64 */
+            sourceNoteId?: number;
+            sourceSummary?: string;
+            /** Format: int64 */
+            sourceOwnerId?: number;
+            sourceOwnerName?: string;
+            /**
+             * Format: date-time
+             * @description 引用时间
+             */
+            createdAt?: string;
+            /** Format: int64 */
+            createdBy?: number;
+            createdByName?: string;
+        };
+        NoteAttachmentBindReq: {
+            /** Format: int64 */
+            attachmentId: number;
+        };
+        NoteAttachmentVO: {
+            /**
+             * Format: int64
+             * @description note_attachment_ref.id
+             */
+            id?: number;
+            /** Format: int64 */
+            attachmentId?: number;
+            fileName?: string;
+            /** Format: int64 */
+            size?: number;
+            contentType?: string | null;
+            /** @description /notes/{id}/attachments/{attachmentId}/download */
+            downloadUrl?: string;
+            /**
+             * Format: date-time
+             * @description 附件上传时间（取自 attachment 表，非关联时间）
+             */
+            createdAt?: string;
+            /** Format: int64 */
+            createdBy?: number;
+            createdByName?: string;
+            canRemoveRef?: boolean;
+            canDelete?: boolean;
+        };
+        /** @description mine 返回 id；其他 scope 返回 name + count */
+        NoteTagFacetItem: {
+            /** Format: int64 */
+            id?: number | null;
+            name?: string;
+            count?: number;
+        };
+        NoteCalendarDay: {
+            /** Format: date */
+            date?: string;
+            count?: number;
+        };
+        /** @description `OWNER`：日志主人授权他人，`grantorId` 必须省略（服务端取当前用户），`granteeId` 必填，立即 APPROVED； `SUPERIOR`：主管申请下属日志，`grantorId`=下属（必须是自己下属）、`granteeId` 必须省略（推导为当前用户），落 PENDING； `ADMIN`：`grantorId`/`granteeId` 均必填，立即 APPROVED。 */
+        NoteUserGrantReq: {
+            /**
+             * @description OWNER=日志主人授权；SUPERIOR=主管申请下属日志；ADMIN=管理员授权
+             * @enum {string}
+             */
+            mode: "OWNER" | "SUPERIOR" | "ADMIN";
+            /**
+             * Format: int64
+             * @description 日志主人（SUPERIOR/ADMIN 必填，OWNER 禁填）
+             */
+            grantorId?: number;
+            /**
+             * Format: int64
+             * @description 被授权人（OWNER/ADMIN 必填，SUPERIOR 禁填）
+             */
+            granteeId?: number;
+            /** @enum {string} */
+            role: "VIEWER" | "EDITOR";
+        };
+        NoteUserGrantVO: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int64 */
+            grantorId?: number;
+            grantorName?: string;
+            /** Format: int64 */
+            granteeId?: number;
+            granteeName?: string;
+            /** @enum {string} */
+            role?: "VIEWER" | "EDITOR";
+            /** @enum {string} */
+            status?: "PENDING" | "APPROVED" | "REJECTED" | "REVOKED";
+            /** @enum {string} */
+            mode?: "OWNER" | "SUPERIOR" | "ADMIN";
+            /**
+             * @description outgoing=我是日志主人；incoming=他人向我授权/申请；none=ADMIN 视角
+             * @enum {string}
+             */
+            direction?: "outgoing" | "incoming" | "none";
+            /** Format: int64 */
+            createdBy?: number;
+            createdByName?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int64 */
+            approvedBy?: number | null;
+            /** Format: date-time */
+            approvedAt?: string | null;
+            /** Format: date-time */
+            revokedAt?: string | null;
+            /** Format: int64 */
+            revokedBy?: number | null;
+            canApprove?: boolean;
+            canReject?: boolean;
+            canUpgrade?: boolean;
+            canRevoke?: boolean;
         };
         TaskVO: {
             /** Format: int64 */
@@ -2678,6 +4122,8 @@ export interface components {
     };
     parameters: {
         Id: number;
+        TaskId: number;
+        AttachmentId: number;
     };
     requestBodies: never;
     headers: never;
