@@ -1150,6 +1150,7 @@ export type NoteQueryPatch = Omit<Partial<NoteQuery>, 'scope' | 'page' | 'size' 
 | `pnpm exec vue-tsc --noEmit` | 通过（0 error） |
 | `pnpm test` | 9 files / 54 tests 全通过 |
 | `pnpm test:e2e` | 43 passed（task-flow 18 + note-flow 10 + visual 14 + filter-rail 1） |
+| 后端全量 `mvn -o test` | 31 tests / 0 failures（含 `NoteFlowTest`、`NoteAuthMatrixTest`），BUILD SUCCESS |
 | 真实后端联调（8080 + 5173，`VITE_USE_MOCK=false`） | mine=4 / internal=11 / subordinate=11 / shared=4 / explore=3 / all=13(admin)；新建→临时卡片→上传→下载→完成；行内编辑；404 空态；403 `?from=`；日历月计数 |
 
 ### 12.3 实现期修正的真实缺陷
@@ -1172,7 +1173,7 @@ export type NoteQueryPatch = Omit<Partial<NoteQuery>, 'scope' | 'page' | 'size' 
 - 右栏“当日日志”为 isolated 实例（size=5），不参与主列表分页与缓存（符合 §7.2）。
 - 行内编辑宿主仅 `NoteHomeView` 提供，其余 6 页 `edit` 跳详情（符合 §7.2 宿主规则）。
 - MSW mock 的 scope 语义是前端侧近似实现，不是后端权限矩阵的完整镜像。
-- 后端 note 模块（`backend/**/modules/note/**`、`V6__note.sql`、`NoteFlowTest`/`NoteAuthMatrixTest`）在本仓库仍处于未提交状态，需单独评审后入库。
+- 后端 note 模块已入库（commit `73aea41`），仅做编译 + 定向测试；后续如改动 note 后端，须重跑 `mvn test` 全量（当前基线 31 tests）。
 
 ## 11. 后续可扩展
 
