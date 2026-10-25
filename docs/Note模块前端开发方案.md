@@ -1185,8 +1185,8 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 | --- | --- |
 | `pnpm exec vue-tsc --noEmit` | 通过（0 error） |
 | `pnpm test` | 9 files / 54 tests 全通过 |
-| `pnpm test:e2e` | 43 passed（task-flow 18 + note-flow 10 + visual 14 + filter-rail 1） |
-| 后端全量 `mvn -o test` | 31 tests / 0 failures（含 `NoteFlowTest`、`NoteAuthMatrixTest`），BUILD SUCCESS |
+| `pnpm test:e2e` | 53 passed（task-flow 18 + note-flow 20 + visual 14 + filter-rail 1） |
+| 后端全量 `mvn -o test` | 39 tests / 0 failures（`NoteFlowTest` 1 + `NoteAuthMatrixTest` 1 + `NoteSubFlowTest` 8 + 其他模块 29），BUILD SUCCESS |
 | 真实后端联调（8080 + 5173，`VITE_USE_MOCK=false`） | mine=4 / internal=11 / subordinate=11 / shared=4 / explore=3 / all=13(admin)；新建→临时卡片→上传→下载→完成；行内编辑；404 空态；403 `?from=`；日历月计数 |
 
 ### 12.3 实现期修正的真实缺陷
@@ -1209,7 +1209,8 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 - 右栏“当日日志”为 isolated 实例（size=5），不参与主列表分页与缓存（符合 §7.2）。
 - 行内编辑宿主仅 `NoteHomeView` 提供，其余 6 页 `edit` 跳详情（符合 §7.2 宿主规则）。
 - MSW mock 的 scope 语义是前端侧近似实现，不是后端权限矩阵的完整镜像。
-- 后端 note 模块已入库（commit `73aea41`），仅做编译 + 定向测试；后续如改动 note 后端，须重跑 `mvn test` 全量（当前基线 31 tests）。
+- 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **39 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope）。后续改动 note 后端须重跑 `mvn test` 全量。
+- 版本冲突的 e2e 覆盖依赖 mock 一次性钩子 `bb_mock_force_conflict`（单页内无法并行制造真实版本落后），真实后端冲突路径由 `NoteFlowTest` step 6 保证。
 
 ## 11. 后续可扩展
 
