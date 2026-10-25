@@ -20,9 +20,30 @@ const props = withDefaults(
     noteId?: number | null
     ownerTags?: TagVO[]
     initial?: { content?: string; logDate?: string; visibility?: NoteVisibility; tagIds?: number[] } | null
+    /**
+     * 字段级可编辑性（EDITOR 授权时仅正文/日期可改；后端对这些字段返回 50013）。
+     * 缺省 = 全字段可改（owner / 新建）。
+     */
+    fieldPermissions?: { visibility?: boolean; tagIds?: boolean; logDate?: boolean }
   }>(),
-  { noteId: null, ownerTags: undefined, initial: null },
+  { noteId: null, ownerTags: undefined, initial: null, fieldPermissions: () => ({}) },
 )
+
+/** 字段是否可编辑：显式 fieldPermissions 优先；编辑态若后端下发 grantRole=EDITOR，则锁可见性与标签（对齐 50013） */
+const loadedRole = ref<string | null>(null)
+const locks = computed(() => {
+  const p = props.fieldPermissions ?? {}
+  const editor = loadedRole.value === 'EDITOR'
+  return {
+    visibility: p.visibility === false || editor,
+    tagIds: p.tagIds === false || editor,
+    logDate: p.logDate === false,
+  }
+})
+
+function canEditField(key: 'visibility' | 'tagIds' | 'logDate'): boolean {
+  return !locks.value[key]
+}
 
 const emit = defineEmits<{
   (e: 'saved', detail: NoteDetailVO): void
@@ -55,6 +76,7 @@ async function loadDetail(): Promise<void> {
     visibility.value = d.visibility ?? 'PRIVATE'
     tagIds.value = (d.tags ?? []).map((t) => t.id!).filter((id): id is number => id != null)
     version.value = d.version
+    loadedRole.value = (d as { grantRole?: string | null }).grantRole ?? null
   } catch (e) {
     const msg = e instanceof BizError || e instanceof HttpError ? e.message : (e as Error).message
     ElMessage.error(msg || '加载详情失败')
@@ -154,8 +176,14 @@ function onCtrlEnter(e?: Event): void {
       />
 
       <div class="note-editor__row">
-        <el-date-picker v-model="logDate" type="date" value-format="YYYY-MM-DD" placeholder="日志日期" />
-        <el-select v-model="visibility" class="note-editor__sel">
+        <el-date-picker
+          v-model="logDate"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="日志日期"
+          :disabled="!canEditField('logDate')"
+        />
+        <el-select v-model="visibility" class="note-editor__sel" :disabled="!canEditField('visibility')">
           <el-option label="私有" value="PRIVATE" />
           <el-option label="部门内" value="INTERNAL" />
           <el-option label="公开" value="PUBLIC" />
@@ -164,8 +192,12 @@ function onCtrlEnter(e?: Event): void {
           :options="tagOptions"
           v-model="tagIds"
           class="note-editor__tags"
+          :disabled="!canEditField('tagIds')"
         />
       </div>
+      <p v-if="!canEditField('visibility') || !canEditField('tagIds')" class="note-editor__hint">
+        作为协作者，仅可修改正文与日期；可见性与标签由作者维护。
+      </p>
 
       <div class="note-editor__ops">
         <el-button v-if="tagOptions === undefined" disabled>标签加载中…</el-button>
@@ -205,6 +237,11 @@ function onCtrlEnter(e?: Event): void {
 .note-editor__tags {
   flex: 1;
   min-width: 200px;
+}
+.note-editor__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--bb-text-muted);
 }
 .note-editor__ops {
   display: flex;
