@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.bbtc.bluebird.common.domain.PageResult;
 import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
+import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.common.util.JsonUtils;
 import com.bbtc.bluebird.modules.file.domain.Attachment;
@@ -154,16 +155,22 @@ public class TaskQueryService {
         return PageResult.of(new ArrayList<>(visible.subList(from, to)), visible.size(), p, s);
     }
 
+    /**
+     * 详情：不可见 / 不存在一律 **HTTP 404**（不暴露存在性，与附件下载路径一致）。
+     *
+     * <p>历史行为是 HTTP 200 + code 10003/30001，会把「存在但无权」和「不存在」区分给调用方，
+     * 也与同模块附件路径（404）不一致；现统一为 404 + code 10004。
+     */
     public TaskDetailVO detail(Long id) {
         Long me = UserContext.currentUserId();
-        Task t = authService.require(id);
-        boolean visible = authService.isVisible(t, me);
-        if (!visible) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
+        Task t = taskMapper.selectById(id);
+        if (t == null || !authService.isVisible(t, me)) {
+            throw HttpStatusException.notFound();
         }
         List<Task> list = List.of(t);
         TaskVO vo = assemble(list, participantsOf(list.stream().map(Task::getId).toList())).get(0);
         TaskDetailVO detail = copy(vo);
+        // 子任务沿用「随父任务」口径：父任务可见即返回全部子任务（与旧行为一致，避免 CC/下属看不到步骤）
         List<Task> children = taskMapper.selectList(Wrappers.<Task>lambdaQuery()
                 .eq(Task::getParentId, id).orderByAsc(Task::getId));
         detail.setSubtasks(assemble(children, participantsOf(children.stream().map(Task::getId).toList())));
