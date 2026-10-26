@@ -16,7 +16,7 @@ def build(api, U, FX, run, TODAY):
     # ---------------- A. Note CRUD ----------------
     def a1():
         return api.req('POST', '/notes', Z, {'content': 'MTX-A1 创建', 'logDate': TODAY.isoformat(),
-                                             'visibility': 'PRIVATE', 'tagIds': [FX['tag']['id']]})
+                                             'tagIds': [FX['tag']['id']]})
 
     run('1', 'A', 'owner 创建日志', 200, 0, a1,
         lambda r: need(r, 0, lambda x: all(k in x.data for k in
@@ -27,44 +27,46 @@ def build(api, U, FX, run, TODAY):
 
     def a1b():
         return api.req('POST', '/notes', OUT, {'content': 'MTX-A1b outsider 自建', 'logDate': TODAY.isoformat(),
-                                               'visibility': 'PRIVATE', 'tagIds': []})
+                                               'tagIds': []})
 
     run('1b', 'A', '任意登录用户创建自己的日志', 200, 0, a1b, lambda r: need(r, 0, lambda x: x.data.get('id') is not None))
 
     run('1c', 'A', 'content 超 20000', 200, 50002,
         lambda: api.req('POST', '/notes', Z, {'content': 'x' * 20001, 'logDate': TODAY.isoformat(),
-                                              'visibility': 'PRIVATE', 'tagIds': []}),
+                                              'tagIds': []}),
         lambda r: need(r, 50002))
 
     run('1d', 'A', 'logDate=2026-13-15', 400, None,
         lambda: api.req('POST', '/notes', Z, {'content': 'x', 'logDate': '2026-13-15',
-                                              'visibility': 'PRIVATE', 'tagIds': []}))
+                                              'tagIds': []}))
     run('1d-1', 'A', 'logDate=abc', 400, None,
         lambda: api.req('POST', '/notes', Z, {'content': 'x', 'logDate': 'abc',
-                                              'visibility': 'PRIVATE', 'tagIds': []}))
+                                              'tagIds': []}))
     run('1d-2', 'A', 'logDate 未来超 7 天', 200, 50012,
         lambda: api.req('POST', '/notes', Z, {'content': 'x', 'logDate': (TODAY + timedelta(days=30)).isoformat(),
-                                              'visibility': 'PRIVATE', 'tagIds': []}),
+                                              'tagIds': []}),
         lambda r: need(r, 50012))
 
     def a1e():
         other_tag = api.req('POST', '/tags', L, {'name': 'MTX-L' + uuid.uuid4().hex[:4]}).data
         tag_id = other_tag if isinstance(other_tag, int) else other_tag['id']
         return api.req('POST', '/notes', Z, {'content': 'MTX-A1e', 'logDate': TODAY.isoformat(),
-                                             'visibility': 'PRIVATE', 'tagIds': [tag_id]})
+                                             'tagIds': [tag_id]})
 
     run('1e', 'A', '引用他人标签', 200, 50003, a1e, lambda r: need(r, 50003))
     def a2():
         api.clear_dept(NODEPT)
         return api.req('POST', '/notes', NODEPT, {'content': 'MTX-A2', 'logDate': TODAY.isoformat(),
-                                                  'visibility': 'INTERNAL', 'tagIds': []})
+                                                  'tagIds': []})
 
-    run('2', 'A', '无部门用户 INTERNAL', 200, 50017, a2, lambda r: need(r, 50017))
+    # 减法后 visibility 已下线：无部门用户也能创建；未知字段被忽略，详情不再回传 visibility/archived
+    run('2', 'A', 'visibility 字段已废弃（传了也被忽略）', 200, 0, a2,
+        lambda r: need(r, 0, lambda x: 'visibility' not in x.data and 'archived' not in x.data))
 
     def a4():
         n = api.new_note(Z)
         return api.req('PUT', f"/notes/{n['id']}", Z, {'content': '改', 'version': n['version'] - 1,
-                                                       'logDate': n['logDate'], 'visibility': n['visibility'],
+                                                       'logDate': n['logDate'],
                                                        'tagIds': []})
 
     run('4', 'A', 'version 过期冲突', 200, 10006, a4, lambda r: need(r, 10006))
@@ -72,7 +74,7 @@ def build(api, U, FX, run, TODAY):
     def a4a():
         n = api.new_note(Z)
         r = api.req('PUT', f"/notes/{n['id']}", Z, {'content': 'MTX-4a 新内容', 'version': n['version'],
-                                                    'logDate': n['logDate'], 'visibility': n['visibility'],
+                                                    'logDate': n['logDate'],
                                                     'tagIds': []})
         assert r.code == 0 and r.data['version'] == n['version'] + 1, f"version 未递增: {r.data.get('version')}"
         return r
@@ -81,16 +83,16 @@ def build(api, U, FX, run, TODAY):
 
     def a5():
         n = api.new_note(Z)
-        return api.req('PUT', f"/notes/{n['id']}", L, {'visibility': 'PUBLIC', 'version': n['version'],
+        return api.req('PUT', f"/notes/{n['id']}", L, {'version': n['version'],
                                                        'content': n['contentSummary'], 'logDate': n['logDate'],
-                                                       'tagIds': []})
+                                                       'tagIds': [999999]})
 
-    run('5', 'A', 'EDITOR 改 visibility 被拒', 200, 50013, a5, lambda r: need(r, 50013))
+    run('5', 'A', 'EDITOR 改 tagIds 被拒', 200, 50013, a5, lambda r: need(r, 50013))
 
     def a5a():
-        n = api.new_note(Z, visibility='INTERNAL')
+        n = api.new_note(Z)
         return api.req('PUT', f"/notes/{n['id']}", 'mtxviewer', {'content': 'VIEWER 越权', 'version': n['version'],
-                                                                 'logDate': n['logDate'], 'visibility': 'INTERNAL',
+                                                                 'logDate': n['logDate'],
                                                                  'tagIds': []})
 
     run('5a', 'A', 'VIEWER 编辑被拒', 403, None, a5a)
@@ -132,9 +134,13 @@ def build(api, U, FX, run, TODAY):
         return r
 
     run('10', 'B', 'size>100 截断', 200, 0, b10)
-    run('11', 'B', 'mine+archived', 200, 0, lambda: api.req('GET', '/notes?scope=mine&archived=true', Z))
-    run('12', 'B', 'shared+archived 忽略归档', 200, 0, lambda: api.req('GET', '/notes?scope=shared&archived=true', W))
-    run('12b', 'B', 'internal 同部门可见', 200, 0, lambda: api.req('GET', '/notes?scope=internal&size=100', L),
+    # 减法后 explore / internal 两个 scope 已下线，archive 查询参数被忽略
+    run('11', 'B', 'scope=explore 已下线', 400, None, lambda: api.req('GET', '/notes?scope=explore', Z))
+    run('12', 'B', 'scope=internal 已下线', 400, None, lambda: api.req('GET', '/notes?scope=internal', Z))
+    run('12b', 'B', 'shared 被授权列表', 200, 0, lambda: api.req('GET', '/notes?scope=shared&size=100', L),
+        lambda r: need(r, 0, lambda x: isinstance(x.data.get('list'), list)))
+    run('12c', 'B', 'archived 参数已废弃（被忽略）', 200, 0,
+        lambda: api.req('GET', '/notes?scope=mine&archived=true', Z),
         lambda r: need(r, 0, lambda x: isinstance(x.data.get('list'), list)))
     run('12d', 'B', 'tagName 不存在', 200, 0, lambda: api.req('GET', '/notes?scope=mine&tagName=不存在的标签xyz', Z),
         lambda r: need(r, 0, lambda x: x.data.get('total') == 0))
@@ -179,36 +185,15 @@ def build(api, U, FX, run, TODAY):
 
     run('14a', 'C', 'EDITOR 取消置顶被拒', 403, None, c14a)
 
-    def c15():
-        n = api.new_note(Z)
-        r = api.req('POST', f"/notes/{n['id']}/archive", Z)
-        d = api.req('GET', f"/notes/{n['id']}", Z)
-        assert d.data['archived'] is True, 'archived 未置 true'
-        return r
-
-    run('15', 'C', '归档', 200, 0, c15)
-
-    def c15a():
-        n = api.new_note(Z)
-        return api.req('POST', f"/notes/{n['id']}/archive", L)
-
-    run('15a', 'C', 'EDITOR 归档被拒', 403, None, c15a)
-
-    def c16():
-        n = api.new_note(Z)
-        api.req('POST', f"/notes/{n['id']}/archive", Z)
-        r = api.req('POST', f"/notes/{n['id']}/unarchive", Z)
-        d = api.req('GET', f"/notes/{n['id']}", Z)
-        assert d.data['archived'] is False, 'archived 未置 false'
-        return r
-
-    run('16', 'C', '取消归档', 200, 0, c16)
-
-    def c16a():
-        n = api.new_note(Z)
-        api.req('POST', f"/notes/{n['id']}/archive", Z)
-        return api.req('POST', f"/notes/{n['id']}/unarchive", L)
-
-    # 实现语义：归档后非 owner 不可见 → 404（不泄露存在性），非 403
-    run('16a', 'C', 'EDITOR 取消归档（归档即不可见）', 404, None, c16a)
+    # 减法：归档能力整体下线 → 两个端点都不再映射（统一 200 + 10004「资源不存在」）
+    run('15', 'C', 'archive 端点已下线', 200, 10004,
+        lambda: api.req('POST', f"/notes/{api.new_note(Z)['id']}/archive", Z), lambda r: need(r, 10004))
+    run('15a', 'C', 'unarchive 端点已下线', 200, 10004,
+        lambda: api.req('POST', f"/notes/{api.new_note(Z)['id']}/unarchive", Z), lambda r: need(r, 10004))
+    run('16', 'C', '详情不含 archived 字段', 200, 0,
+        lambda: api.req('GET', f"/notes/{api.new_note(Z)['id']}", Z),
+        lambda r: need(r, 0, lambda x: 'archived' not in x.data))
+    run('16a', 'C', '列表不含 visibility / archived', 200, 0,
+        lambda: api.req('GET', '/notes?scope=mine', Z),
+        lambda r: need(r, 0, lambda x: all('visibility' not in i and 'archived' not in i for i in x.data['list'])))
     return locals()

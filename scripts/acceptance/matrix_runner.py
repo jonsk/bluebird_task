@@ -140,7 +140,7 @@ class Api:
         con.close()
         self.tokens.pop(user, None)
 
-    def new_note(self, user='zhangli', content=None, visibility='PRIVATE', log_date=None, tags=None):
+    def new_note(self, user='zhangli', content=None, log_date=None, tags=None):
         r = self.req(
             'POST',
             '/notes',
@@ -148,7 +148,6 @@ class Api:
             {
                 'content': content or f'MTX-{uuid.uuid4().hex[:8]} 验收矩阵用例',
                 'logDate': log_date or TODAY.isoformat(),
-                'visibility': visibility,
                 'tagIds': tags or [],
             },
         )
@@ -245,10 +244,9 @@ def setup():
     fx = {}
     tag_raw = api.req('POST', '/tags', 'zhangli', {'name': 'MTX-T' + uuid.uuid4().hex[:4]}).data
     fx['tag'] = {'id': tag_raw if isinstance(tag_raw, int) else (tag_raw or {}).get('id')}
-    fx['z_note'] = api.new_note('zhangli', visibility='INTERNAL')
-    fx['z_private'] = api.new_note('zhangli', visibility='PRIVATE')
-    fx['z_public'] = api.new_note('zhangli', visibility='PUBLIC')
-    fx['l_note'] = api.new_note('lisi', visibility='INTERNAL')
+    fx['z_note'] = api.new_note('zhangli')
+    fx['z_private'] = api.new_note('zhangli')
+    fx['l_note'] = api.new_note('lisi')
 
     def grant(body, creator='zhangli'):
         r = api.req('POST', '/note-grants', creator, body)

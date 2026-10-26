@@ -155,11 +155,11 @@ def build(api, U, FX, run, TODAY):
 
     def f27a():
         n = api.new_note(Z)
-        api.req('POST', f"/notes/{n['id']}/archive", Z)
+        api.req('DELETE', f"/notes/{n['id']}", Z)
         return api.req('POST', f"/notes/{n['id']}/attachments", L, {'attachmentId': FX['file']['id']})
 
-    # 实现语义：归档后该日志退出共享/授权视图，非 owner 一律 404（不泄露存在性）
-    run('27a', 'F', 'EDITOR 写已归档日志（归档即不可见）', 404, None, f27a)
+    # 实现语义：已删除日志对协作者一律 404（不泄露存在性）
+    run('27a', 'F', 'EDITOR 写已删除日志', 404, None, f27a)
 
     def f27b():
         n = api.new_note(Z)
@@ -404,7 +404,7 @@ def build(api, U, FX, run, TODAY):
 
     def i39():
         n = api.new_note(Z)
-        hidden = api.new_note(OUT, visibility='PRIVATE')
+        hidden = api.new_note(OUT)
         return api.req('POST', f"/notes/{n['id']}/relations", Z, {'targetType': 'NOTE', 'targetId': hidden['id']})
 
     run('39', 'I', '引用不可见 note', 200, 50006, i39, lambda r: need(r, 50006))
@@ -431,10 +431,10 @@ def build(api, U, FX, run, TODAY):
 
     def i39c():
         n = api.new_note(Z)
-        api.req('POST', f"/notes/{n['id']}/archive", Z)
+        api.req('DELETE', f"/notes/{n['id']}", Z)
         return api.req('POST', f"/notes/{n['id']}/relations", L, {'targetType': 'TASK', 'targetId': task_id()})
 
-    run('39c', 'I', 'EDITOR 给已归档日志加引用（归档即不可见）', 404, None, i39c)
+    run('39c', 'I', 'EDITOR 给已删除日志加引用', 404, None, i39c)
     run('40', 'I', '列引用', 200, 0, lambda: api.req('GET', f"/notes/{FX['z_note']['id']}/relations", Z),
         lambda r: need(r, 0, lambda x: isinstance(x.data, list)))
     run('40a', 'I', '不可见用户列引用', 404, None,
@@ -480,7 +480,7 @@ def build(api, U, FX, run, TODAY):
     def k45():
         tag_id = tag_id_of(api.req('POST', '/tags', Z, {'name': 'MTX-K' + uuid.uuid4().hex[:4]}))
         n = api.req('POST', '/notes', Z, {'content': 'MTX-K45', 'logDate': TODAY.isoformat(),
-                                          'visibility': 'PRIVATE', 'tagIds': [tag_id]})
+                                          'tagIds': [tag_id]})
         assert n.code == 0, n.body
         r = api.req('DELETE', f"/tags/{tag_id}", Z)
         d = api.req('GET', f"/notes/{n.data['id']}", Z)
@@ -509,5 +509,6 @@ def build(api, U, FX, run, TODAY):
         lambda r: need(r, 0, lambda x: x.data == []))
     run('46c', 'L', 'facet scope=all 非 ADMIN', 403, None, lambda: api.req('GET', '/notes/tags?scope=all', Z))
     run('46d', 'L', 'facet scope 非法', 400, None, lambda: api.req('GET', '/notes/tags?scope=xxx', Z))
+    run('46e', 'L', 'facet scope=explore 已下线', 400, None, lambda: api.req('GET', '/notes/tags?scope=explore', Z))
 
     return locals()

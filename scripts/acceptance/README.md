@@ -1,13 +1,17 @@
 # Note 模块 §9 接口验收矩阵 · 执行脚本
 
-对应 `docs/Note模块前端开发方案.md` §9（120 行用例，A–L 共 12 组；已脚本化 **117 例主跑 + 4 例开关关闭**，0 例未自动化）。
+对应 `docs/Note模块前端开发方案.md` §9（120 行用例，A–L 共 12 组；功能减法后已脚本化 **119 例主跑 + 4 例开关关闭**，0 例未自动化）。
+
+> 2026-10-26 功能减法：`explore`/`internal` scope、`archived` 参数与 archive/unarchive 端点已下线。
+> 相关用例改为回归口径：`#2/#5` 字段忽略与 EDITOR 改 tagIds、`#11/#12/#46e` scope 已下线 400、
+> `#12b/#12c` shared 列表与 archived 参数忽略、`#15/#15a` 端点 200+10004、`#16/#16a` 响应不再含 visibility/archived。
 
 ## 组成
 
 | 文件 | 作用 |
 | --- | --- |
 | `matrix_runner.py` | 基础设施：HTTP 客户端、多账号登录缓存、`run()` 断言与结果收集、共享 fixture、测试授权行重置 |
-| `matrix_cases_a.py` | A–C 组用例（Note CRUD / 列表与 scope / 置顶归档） |
+| `matrix_cases_a.py` | A–C 组用例（Note CRUD / 列表与 scope / 置顶 + 归档下线回归） |
 | `matrix_cases_b.py` | D–L 组用例（授权 / 日历 / 附件 / files / task 附件 / 引用 / 搜索 / 标签 / facet） |
 | `matrix_main.py` | 主跑入口（后端 `MANAGER_CAN_READ_SUBORDINATE=true`） |
 | `matrix_toggle.py` | 开关关闭场景（后端 `MANAGER_CAN_READ_SUBORDINATE=false`） |
@@ -27,7 +31,7 @@
 ```powershell
 cd scripts/acceptance
 py seed_accounts.py                 # 1. 准备账号（幂等）
-py matrix_main.py                   # 2. 主跑：期望 117 例全 PASS
+py matrix_main.py                   # 2. 主跑：期望 119 例全 PASS
 # 3. 关开关重启后端后：
 py matrix_toggle.py                 # 4. 期望 4 例全 PASS
 ```
