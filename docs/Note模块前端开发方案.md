@@ -1184,8 +1184,8 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 | 命令 | 结果 |
 | --- | --- |
 | `pnpm exec vue-tsc --noEmit` | 通过（0 error） |
-| `pnpm test` | 9 files / 54 tests 全通过 |
-| `pnpm test:e2e` | 53 passed（task-flow 18 + note-flow 20 + visual 14 + filter-rail 1） |
+| `pnpm test` | 18 files / 115 tests 全通过（新增 6 个 composable + 3 个组件用例，见 §8.4） |
+| `pnpm test:e2e` | **63 passed**（task-flow 18 + note-flow 20 + note-permission 5 + visual 14 + visual-narrow 5 + filter-rail 1） |
 | 后端全量 `mvn -o test` | 39 tests / 0 failures（`NoteFlowTest` 1 + `NoteAuthMatrixTest` 1 + `NoteSubFlowTest` 8 + 其他模块 29），BUILD SUCCESS |
 | 真实后端联调（8080 + 5173，`VITE_USE_MOCK=false`） | mine=4 / internal=11 / subordinate=11 / shared=4 / explore=3 / all=13(admin)；新建→临时卡片→上传→下载→完成；行内编辑；404 空态；403 `?from=`；日历月计数 |
 
@@ -1205,10 +1205,47 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 
 ### 12.4 已知未做 / 偏差
 
-- 附件上传**并发多选**未做（`input` 单文件，串行上传；方案允许）。
+- ~~附件上传**并发多选**未做~~ → **已做**：`input[multiple]`，批量预校验后 `Promise.all` 并发上传+绑定，单文件失败不影响其他文件（`NoteAttachmentList`，单测覆盖 7 例）。
+- ~~`fieldPermissions` 字段级未落地~~ → **已做**：`NoteEditor` 支持 `fieldPermissions` prop，且详情回传 `grantRole=EDITOR` 时自动锁定「可见性 / 标签」（对齐后端 50013 与「无权修改可见性/标签」）。后端未新增字段级权限位，属前端派生。
 - 右栏“当日日志”为 isolated 实例（size=5），不参与主列表分页与缓存（符合 §7.2）。
 - 行内编辑宿主仅 `NoteHomeView` 提供，其余 6 页 `edit` 跳详情（符合 §7.2 宿主规则）。
-- MSW mock 的 scope 语义是前端侧近似实现，不是后端权限矩阵的完整镜像。
+- MSW mock 的数据归属仍是 admin 视角；多账号身份（`src/mocks/identity.ts`）只做**权限门控**（`scope=all` 需 ADMIN、`scope=subordinate` 需开关），不做数据隔离。
+- 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **39 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope）。后续改动 note 后端须重跑 `mvn test` 全量。
+- 版本冲突的 e2e 覆盖依赖 mock 一次性钩子 `bb_mock_force_conflict`（单页内无法并行制造真实版本落后），真实后端冲突路径由 `NoteFlowTest` step 6 保证。
+- 仍未自动化的矩阵用例：`#19`（同一 grantor 第 6 条 PENDING → 400），需 5 组不同 creator，现有账号无法稳定构造（其余 116 + 4 已脚本化）。
+- 右栏“当日日志”为 isolated 实例（size=5），不参与主列表分页与缓存（符合 §7.2）。
+- 行内编辑宿主仅 `NoteHomeView` 提供，其余 6 页 `edit` 跳详情（符合 §7.2 宿主规则）。
+- MSW mock 的 scope 语义是前端侧近似实现，不是后端权限矩阵的完整镜像（多账号身份只做权限门控，不做数据隔离）。
+
+### 12.5 测试覆盖补充（本轮）
+
+**单测（Vitest，18 文件 / 115 例）**：本轮新增 61 例，覆盖此前只有契约无测试的对象。
+
+| 文件 | 例数 | 关注点 |
+| --- | --- | --- |
+| `useNoteDetail.spec.ts` | 6 | 成功 / 404 / 50001 / 403 不判 notFound / 竞态取最后一次 / reload 复用 id |
+| `useNoteFacets.spec.ts` | 6 | 按 scope 取数 / 60s 缓存命中 / retry 清缓存重拉 / 未加载不发请求 / 失败不写缓存 / 竞态 |
+| `useNoteGrants.spec.ts` | 5 | 分页参数透传 / setPage / 失败不清列表 / 竞态 / 重载清 error |
+| `useFileConfig.spec.ts` | 4 | 默认回退常量 / 成功覆盖 / 失败回退 / 竞态 |
+| `useNoteActions.spec.ts` | 10 | visibility→scope 失效集合（4 例）/ pin/archive/remove 端点与缓存失效 / BizError、HttpError、兜底 toast |
+| `useNoteScopePage.spec.ts` | 7 | adminOnly、emptyOn403 的 403 空态文案 / 非 403 仍错误卡片 / onEdit 宿主与跳详情 / onRemove 取消与确认 / 找不到行静默 |
+| `NoteCard.spec.ts` | 10 | 点击 open / canEdit·canManage 按钮矩阵 / pin·unpin / archive·unarchive / `is-on` 与徽标 / 操作区不冒泡 / 标签 / active |
+| `NoteAttachmentList.spec.ts` | 7 | 多选并发上传 / 单文件文案 / 部分失败 / 预校验拦截 / 移除用 `attachmentId` / `canRemoveRef`·`canUpload` 显隐 |
+| `BbFilterRail.spec.ts` | 6 | 普通用户·下属·ADMIN 的日志导航项 / 两组存在 / 折叠持久化 + 切模块强制展开 / 路由高亮与 push |
+
+**e2e（Playwright，63 例）**
+
+- `note-permission.spec.ts`（5 例，新增）：非管理员访问 `/notes/all` → 路由守卫跳 `/403?from=`；普通用户左栏无「全部日志 / 下属日志」；无下属权限访问 `/notes/subordinate` → 403 空态「未开启「上级可读下属日志」…」且不再叠加「标签加载失败」；ADMIN 可见并进入「全部日志」；AUDITOR 无「全部日志」但可进探索。
+- `visual-narrow.spec.ts`（5 例，新增）：1280×800 下我的日志、日志详情、筛选空态（无分页）、行内编辑、授权管理列表。
+- 依赖 `src/mocks/identity.ts`：mock 登录支持 `admin/admin123`、`common|nodept|auditor`（`Test@1234`）；token 可反解身份，刷新后身份不丢；`scope=all` 非 ADMIN、`scope=subordinate` 无开关时返回 403（`/notes`、`/notes/tags`、`/notes/calendar` 三处一致）。
+
+**同步修复**
+
+- 403 空态文案改为使用页面策展文案（`emptyText`），不再直出后端 `message`（原为「无权限」）。
+- 403 时不再叠加「标签加载失败」（新增 `useNoteScopePage.tagError`，7 个 scope 页统一使用）。
+- `useNoteActions.toggleArchive` 的失效 scope 去重（`Set`），避免重复遍历缓存。
+
+**CI**：`.github/workflows/ci.yml` 增加前端类型检查、单测、后端 `mvn verify`，并新增手动触发的验收矩阵 job（`workflow_dispatch` + `run_acceptance=true`，启动后端 + SQLite → seed → `matrix_main.py`，产物上传）。
 - 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **39 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope）。后续改动 note 后端须重跑 `mvn test` 全量。
 - 版本冲突的 e2e 覆盖依赖 mock 一次性钩子 `bb_mock_force_conflict`（单页内无法并行制造真实版本落后），真实后端冲突路径由 `NoteFlowTest` step 6 保证。
 
