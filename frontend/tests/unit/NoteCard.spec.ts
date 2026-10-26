@@ -4,7 +4,7 @@ import { mount } from '@vue/test-utils'
 /**
  * NoteCard：纯展示卡片。断言 4 类：
  * 1) 点击卡片 emit open(id)；2) canEdit / canManage 控制按钮显隐；
- * 3) 置顶/归档按钮按当前状态 emit pin|unpin、archive|unarchive；
+ * 3) 置顶按钮按当前状态 emit pin|unpin；
  * 4) 操作区点击不冒泡成 open。
  */
 
@@ -22,8 +22,6 @@ vi.mock('@element-plus/icons-vue', () => {
   return {
     StarFilled: icon,
     Star: icon,
-    Folder: icon,
-    FolderOpened: icon,
     Delete: icon,
     Edit: icon,
   }
@@ -40,7 +38,6 @@ function base(over: Note = {}): Note {
     ownerName: '张三',
     contentSummary: '今日完成日志模块',
     pinned: false,
-    archived: false,
     canEdit: false,
     canManage: false,
     tags: [],
@@ -77,7 +74,6 @@ describe('NoteCard', () => {
   it('canEdit=false 且 canManage=false：不渲染操作区', () => {
     const w = mountCard(base())
     expect(w.find('[data-test="note-card-pin"]').exists()).toBe(false)
-    expect(w.find('[data-test="note-card-archive"]').exists()).toBe(false)
     expect(w.find('[data-test="note-card-delete"]').exists()).toBe(false)
   })
 
@@ -85,7 +81,6 @@ describe('NoteCard', () => {
     const w = mountCard(base({ canManage: true }))
     expect(w.find('[data-test="note-card-delete"]').exists()).toBe(true)
     expect(w.find('[data-test="note-card-pin"]').exists()).toBe(false)
-    expect(w.find('[data-test="note-card-archive"]').exists()).toBe(false)
   })
 
   it('未置顶点置顶 → emit pin；已置顶点 → emit unpin', async () => {
@@ -99,16 +94,7 @@ describe('NoteCard', () => {
     expect(w2.emitted('unpin')).toEqual([[1001]])
   })
 
-  it('归档按钮按 archived 分流，并在置顶时渲染 is-on 与徽标', async () => {
-    const w = mountCard(base({ canEdit: true, archived: false }))
-    await w.find('[data-test="note-card-archive"]').trigger('click')
-    expect(w.emitted('archive')).toEqual([[1001]])
-
-    const w2 = mountCard(base({ canEdit: true, archived: true }))
-    await w2.find('[data-test="note-card-archive"]').trigger('click')
-    expect(w2.emitted('unarchive')).toEqual([[1001]])
-    expect(w2.text()).toContain('已归档')
-
+  it('置顶态渲染 is-on 与徽标', () => {
     const w3 = mountCard(base({ canEdit: true, pinned: true }))
     const pin = w3.find('[data-test="note-card-pin"]')
     expect(pin.classes()).toContain('is-on')

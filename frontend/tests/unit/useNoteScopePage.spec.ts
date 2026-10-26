@@ -14,7 +14,7 @@ import { createPinia, setActivePinia } from 'pinia'
 const route = reactive({
   path: '/notes',
   query: {} as Record<string, string>,
-  meta: { scope: 'mine', archived: false } as Record<string, unknown>,
+  meta: { scope: 'mine' } as Record<string, unknown>,
 })
 const router = { push: vi.fn(() => Promise.resolve()), replace: vi.fn(() => Promise.resolve()) }
 vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => router }))
@@ -29,8 +29,6 @@ vi.mock('@/api/note', () => ({
   deleteNote: (...a: unknown[]) => deleteNote(...a),
   pinNote: (...a: unknown[]) => pinNote(...a),
   unpinNote: vi.fn(),
-  archiveNote: vi.fn(),
-  unarchiveNote: vi.fn(),
 }))
 
 const confirm = vi.fn()
@@ -66,7 +64,7 @@ function mountPage(options: UseNoteScopePageOptions = {}) {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  route.meta = { scope: 'mine', archived: false }
+  route.meta = { scope: 'mine' }
   route.query = {}
   ;[listNotes, listNoteTags, deleteNote, pinNote, confirm, success, errorMsg].forEach((f) => f.mockReset())
   router.push.mockClear()
@@ -75,7 +73,7 @@ beforeEach(() => {
 
 describe('useNoteScopePage', () => {
   it('scope 来自 route.meta，403 且 adminOnly → 空态文案', async () => {
-    route.meta = { scope: 'all', archived: false }
+    route.meta = { scope: 'all' }
     listNotes.mockRejectedValue(new HttpError(403, undefined, '无权限'))
     const { api } = mountPage({ adminOnly: true })
     api.list.reloadFirst()

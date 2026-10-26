@@ -67,11 +67,11 @@ describe('useMonthCalendar · 月份与 scope', () => {
     calendarApi.mockResolvedValue([{ date: '2026-09-28', count: 2 }])
     const { api, wrapper } = mountCalendar({ initialYear: 2026, initialMonth: 9, initialScope: 'mine' })
     await flush()
-    api.setScope('internal')
+    api.setScope('shared')
     await flush()
-    expect(calendarApi).toHaveBeenLastCalledWith(2026, 9, 'internal')
+    expect(calendarApi).toHaveBeenLastCalledWith(2026, 9, 'shared')
     expect(router.replace).toHaveBeenLastCalledWith(
-      expect.objectContaining({ query: expect.objectContaining({ scope: 'internal' }) }),
+      expect.objectContaining({ query: expect.objectContaining({ scope: 'shared' }) }),
     )
     wrapper.unmount()
   })

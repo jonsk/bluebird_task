@@ -3,18 +3,15 @@ import { noteListRouteOf } from '@/utils/noteRoute'
 import { ERROR_CODE, messageOf } from '@/utils/errorCode'
 
 /**
- * note 路由映射（7 个列表页 + 归档）与 note 错误码文案（§8.4）。
+ * note 路由映射（4 个列表页 + 后台全部日志）与 note 错误码文案（§8.4）。
  * 路由映射错会让"左栏点了却停在旧页"，错误码漏映射会让 403/404 显示成通用文案。
  */
 describe('noteListRouteOf', () => {
   it.each([
     ['mine', '/notes'],
-    ['explore', '/notes/explore'],
     ['shared', '/notes/shared'],
-    ['internal', '/notes/internal'],
     ['subordinate', '/notes/subordinate'],
-    ['all', '/notes/all'],
-    ['archived', '/notes/archived'],
+    ['all', '/admin/notes'],
   ] as const)('%s → %s', (scope, path) => {
     expect(noteListRouteOf(scope)).toBe(path)
   })

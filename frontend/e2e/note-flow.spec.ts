@@ -5,9 +5,9 @@ import { freezeTime, login, settle } from './helpers'
  * 工作日志 E2E（真实交互 + MSW 契约 mock）。
  *
  * 数据基线：`src/mocks/noteHandlers.ts`（冻结时间 2026-09-28）。
- *   我的日志 1001/1002（1003 已归档）
- *   李四 1004/1007、张三 1005、王五 1006
+ *   我的日志 1001/1002；李四 1004/1007、张三 1005、王五 1006
  *   授权：李四 → 管理员 VIEWER APPROVED；李四 → 张三 EDITOR PENDING
+ *   全部日志已移到后台 `/admin/notes`（仅 ADMIN），左栏只留普通入口
  */
 test.describe('工作日志', () => {
   test.beforeEach(async ({ page }) => {
@@ -24,7 +24,7 @@ test.describe('工作日志', () => {
     await page.goto('/notes')
     await expect(page).toHaveURL(/\/notes$/)
     await expect(page.locator('.note-card')).toHaveCount(2)
-    for (const key of ['note-mine', 'note-explore', 'note-shared', 'note-internal', 'note-subordinate', 'note-archived', 'note-grants']) {
+    for (const key of ['note-mine', 'note-shared', 'note-subordinate', 'note-grants']) {
       await expect(page.locator(`[data-test="nav-${key}"]`)).toBeVisible()
     }
   })
@@ -71,13 +71,11 @@ test.describe('工作日志', () => {
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('已改为两栏布局')
   })
 
-  test('N-04 七个作用域列表与左栏一致', async ({ page }) => {
+  test('N-04 三个作用域列表与左栏一致', async ({ page }) => {
     const cases: Array<{ nav: string; url: RegExp; count: number; text: string }> = [
-      { nav: 'note-explore', url: /\/notes\/explore$/, count: 2, text: '市场部 Q3 复盘方法论' },
+      { nav: 'note-mine', url: /\/notes$/, count: 2, text: '工作日志的前端骨架' },
       { nav: 'note-shared', url: /\/notes\/shared$/, count: 2, text: '被授权给管理员查看' },
-      { nav: 'note-internal', url: /\/notes\/internal$/, count: 4, text: '懒加载与缓存淘汰' },
-      { nav: 'note-subordinate', url: /\/notes\/subordinate$/, count: 4, text: '部门树递归查询' },
-      { nav: 'note-archived', url: /\/notes\/archived$/, count: 1, text: '旧的日志接口草案' },
+      { nav: 'note-subordinate', url: /\/notes\/subordinate$/, count: 3, text: '部门树递归查询' },
     ]
     for (const c of cases) {
       await page.locator(`[data-test="nav-${c.nav}"]`).click()
@@ -184,17 +182,12 @@ test.describe('工作日志', () => {
     await expect(page.locator('[data-test="note-card-1002"] .note-card__badge--pin')).toHaveCount(0)
   })
 
-  test('N-14 归档：从「我的日志」移出并出现在已归档', async ({ page }) => {
+  test('N-14 归档能力已下线：卡片无归档按钮', async ({ page }) => {
     await page.goto('/notes')
-    await page.locator('[data-test="note-card-1002"] [data-test="note-card-archive"]').click()
-    await expect(page.locator('.el-message--success')).toContainText('操作成功')
-    await expect(page.locator('.note-card')).toHaveCount(1)
-    await expect(page.locator('.note-page')).not.toContainText('移动端适配方案')
-
-    await page.locator('[data-test="nav-note-archived"]').click()
-    await expect(page).toHaveURL(/\/notes\/archived$/)
-    await expect(page.locator('[data-test="note-card-1002"]')).toBeVisible()
     await expect(page.locator('.note-card')).toHaveCount(2)
+    await expect(page.locator('[data-test="note-card-archive"]')).toHaveCount(0)
+    // 左栏也没有「已归档」入口
+    await expect(page.locator('[data-test="nav-note-archived"]')).toHaveCount(0)
   })
 
   test('N-15 删除：二次确认后卡片即时移除', async ({ page }) => {
@@ -272,13 +265,15 @@ test.describe('工作日志', () => {
     expect(overflow).toBeLessThanOrEqual(1)
   })
 
-  test('N-20 可见性筛选：PRIVATE 只留私有日志', async ({ page }) => {
+  test('N-20 全部日志在后台：仅 ADMIN 可见，列出全员日志', async ({ page }) => {
+    // 前台左栏不再有入口
     await page.goto('/notes')
-    const vis = page.locator('[data-test="note-filter-bar"] .note-filter-bar__sel').first()
-    await vis.click()
-    await page.getByRole('option', { name: '私有' }).click()
-    await expect(page).toHaveURL(/visibility=PRIVATE/)
-    await expect(page.locator('.note-card')).toHaveCount(1)
-    await expect(page.locator('.note-page')).toContainText('移动端适配方案')
+    await expect(page.locator('[data-test="nav-note-all"]')).toHaveCount(0)
+
+    await page.goto('/admin/notes')
+    await expect(page).toHaveURL(/\/admin\/notes$/)
+    await expect(page.locator('[data-test="admin-nav-adminNotes"]')).toHaveClass(/is-active/)
+    await expect(page.locator('.note-card')).toHaveCount(6)
+    await expect(page.locator('.note-page')).toContainText('部门树递归查询')
   })
 })

@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 /**
  * BbFilterRail（方案 A：任务/工作日志两组）：
- * 1) 日志组按 权限 动态追加「下属日志 / 全部日志」，并始终含归档与授权管理
+ * 1) 日志组只留普通入口（我的 / 被授权 / 员工(开关) / 授权管理），不含「全部日志」（已在后台 /admin/notes）
  * 2) 分组折叠按模块持久化到 localStorage，切模块时当前组必定展开
  * 3) 当前路由高亮 is-active
  */
@@ -114,17 +114,10 @@ beforeEach(() => {
 })
 
 describe('BbFilterRail · 工作日志分组', () => {
-  it('普通用户：无「下属日志 / 全部日志」，含归档与授权管理', () => {
+  it('普通用户：只有我的/被授权/授权管理，无员工、无全部日志', () => {
     const w = mountRail()
     const tests = navTests(w)
-    expect(tests).toContain('nav-note-mine')
-    expect(tests).toContain('nav-note-explore')
-    expect(tests).toContain('nav-note-shared')
-    expect(tests).toContain('nav-note-internal')
-    expect(tests).not.toContain('nav-note-subordinate')
-    expect(tests).not.toContain('nav-note-all')
-    expect(tests).toContain('nav-note-archived')
-    expect(tests).toContain('nav-note-grants')
+    expect(tests).toEqual(['nav-note-mine', 'nav-note-shared', 'nav-note-grants'])
   })
 
   it('managerCanReadSubordinate=true 时出现「下属日志」', () => {
@@ -133,10 +126,10 @@ describe('BbFilterRail · 工作日志分组', () => {
     expect(navTests(w)).toContain('nav-note-subordinate')
   })
 
-  it('ADMIN 出现「全部日志」', () => {
+  it('ADMIN 也不出现「全部日志」（已移到后台 /admin/notes）', () => {
     authState.hasRole = (...roles: string[]) => roles.includes('ADMIN')
     const w = mountRail()
-    expect(navTests(w)).toContain('nav-note-all')
+    expect(navTests(w)).not.toContain('nav-note-all')
   })
 
   it('两组分组都存在，且日志页时日志组展开', () => {
@@ -166,11 +159,11 @@ describe('BbFilterRail · 工作日志分组', () => {
   })
 
   it('当前路由项高亮 is-active，点击项触发 router.push', async () => {
-    route.name = 'NoteExplore'
+    route.name = 'NoteShared'
     const w = mountRail()
-    const active = w.find('[data-test="nav-note-explore"]')
+    const active = w.find('[data-test="nav-note-shared"]')
     expect(active.classes()).toContain('item-active')
-    await w.find('[data-test="nav-note-shared"]').trigger('click')
+    await w.find('[data-test="nav-note-mine"]').trigger('click')
     expect(router.push).toHaveBeenCalled()
   })
 })

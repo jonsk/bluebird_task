@@ -2,11 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useNoteStore } from '@/stores/note'
-import { scopesForVisibility } from '@/composables/useNoteActions'
 
 /**
  * noteStore：列表缓存键/淘汰/失效 + 会话快照（§8.4）。
- * 这些是 7 个列表页与右栏共用的状态层，缓存语义错会直接表现为「保存后列表没变」。
+ * 这些是 4 个列表页与右栏共用的状态层，缓存语义错会直接表现为「保存后列表没变」。
  */
 
 const page = (ids: number[], total = ids.length) => ({
@@ -31,7 +30,7 @@ describe('noteStore · 缓存键', () => {
 
   it('scope 不同则键不同（避免跨作用域串数据）', () => {
     const s = useNoteStore()
-    expect(s.cacheKey('mine', {} as never)).not.toBe(s.cacheKey('internal', {} as never))
+    expect(s.cacheKey('mine', {} as never)).not.toBe(s.cacheKey('shared', {} as never))
   })
 
   it('scope 不参与键体重复：query 里的 scope 被剔除', () => {
@@ -46,10 +45,10 @@ describe('noteStore · 失效与读取', () => {
   it('invalidate 只清指定 scope', () => {
     const s = useNoteStore()
     s.cacheSet(s.cacheKey('mine', {} as never), page([1]))
-    s.cacheSet(s.cacheKey('internal', {} as never), page([2]))
+    s.cacheSet(s.cacheKey('shared', {} as never), page([2]))
     s.invalidate(['mine'])
     expect(s.cacheGet(s.cacheKey('mine', {} as never))).toBeUndefined()
-    expect(s.cacheGet(s.cacheKey('internal', {} as never))?.data.total).toBe(1)
+    expect(s.cacheGet(s.cacheKey('shared', {} as never))?.data.total).toBe(1)
   })
 
   it('cacheClear 清空全部', () => {
@@ -85,9 +84,9 @@ describe('noteStore · 查询状态', () => {
   it('作用域之间筛选互不影响', () => {
     const s = useNoteStore()
     s.setQuery('mine', { keyword: 'mine-kw' } as never)
-    s.setQuery('internal', { keyword: 'internal-kw' } as never)
+    s.setQuery('shared', { keyword: 'internal-kw' } as never)
     expect(s.getQuery('mine').keyword).toBe('mine-kw')
-    expect(s.getQuery('internal').keyword).toBe('internal-kw')
+    expect(s.getQuery('shared').keyword).toBe('internal-kw')
   })
 })
 
@@ -134,17 +133,5 @@ describe('noteStore · 会话快照（临时卡片跨路由恢复）', () => {
     expect(s.cache.size).toBe(0)
     expect(s.pendingCreatedNoteId).toBeNull()
     expect(sessionStorage.getItem('note.session.1')).toBeNull()
-  })
-})
-
-describe('useNoteActions · 可见性 → 受影响 scope', () => {
-  it('PRIVATE 只影响自己与管理员视图', () => {
-    expect(scopesForVisibility('PRIVATE')).toEqual(['mine', 'all'])
-  })
-  it('INTERNAL 额外影响本部门', () => {
-    expect(scopesForVisibility('INTERNAL')).toContain('internal')
-  })
-  it('PUBLIC 影响探索与共享', () => {
-    expect(scopesForVisibility('PUBLIC')).toEqual(expect.arrayContaining(['explore', 'shared']))
   })
 })

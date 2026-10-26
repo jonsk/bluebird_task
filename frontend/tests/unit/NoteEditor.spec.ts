@@ -3,8 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 /**
  * NoteEditor：编辑态按后端 `fieldPermissions` 锁定字段
- * 1) owner（四项 true）→ 控件全部可用、无提示
- * 2) EDITOR（visibility/tagIds false）→ 可见性与标签禁用 + 协作者提示
+ * 1) owner（三项 true）→ 控件全部可用、无提示
+ * 2) EDITOR（tagIds false）→ 标签禁用 + 协作者提示
  * 3) VIEWER（content false）→ 正文只读 + 只读提示
  * 4) 旧后端未下发 fieldPermissions → 回退 grantRole=EDITOR 的锁定规则
  * 5) 新建态 → 全字段可改
@@ -61,11 +61,10 @@ function detail(over: Record<string, unknown> = {}) {
     id: 1001,
     content: '正文',
     logDate: '2026-09-28',
-    visibility: 'PRIVATE',
     version: 1,
     tags: [],
     grantRole: 'OWNER',
-    fieldPermissions: { content: true, logDate: true, visibility: true, tagIds: true },
+    fieldPermissions: { content: true, logDate: true, tagIds: true },
     ...over,
   }
 }
@@ -83,7 +82,6 @@ async function mountEdit(payload: Record<string, unknown>) {
 const flags = (w: ReturnType<typeof mountEdit> extends Promise<infer T> ? T : never) => ({
   contentReadonly: w.findComponent(ElInput).props('readonly') === true,
   dateDisabled: w.findComponent(ElDatePicker).props('disabled') === true,
-  visibilityDisabled: w.findComponent(ElSelect).props('disabled') === true,
   tagsDisabled: w.findComponent(BbTagPicker).props('disabled') === true,
 })
 
@@ -97,41 +95,38 @@ describe('NoteEditor · fieldPermissions', () => {
     expect(flags(w)).toEqual({
       contentReadonly: false,
       dateDisabled: false,
-      visibilityDisabled: false,
       tagsDisabled: false,
     })
     expect(w.find('[data-test="note-editor-field-hint"]').exists()).toBe(false)
     expect(w.find('[data-test="note-editor-readonly-hint"]').exists()).toBe(false)
   })
 
-  it('EDITOR：锁定可见性与标签，正文/日期可改，显示协作者提示', async () => {
+  it('EDITOR：锁定标签，正文/日期可改，显示协作者提示', async () => {
     const w = await mountEdit(
       detail({
         grantRole: 'EDITOR',
-        fieldPermissions: { content: true, logDate: true, visibility: false, tagIds: false },
+        fieldPermissions: { content: true, logDate: true, tagIds: false },
       }),
     )
     expect(flags(w)).toEqual({
       contentReadonly: false,
       dateDisabled: false,
-      visibilityDisabled: true,
       tagsDisabled: true,
     })
     expect(w.find('[data-test="note-editor-field-hint"]').text()).toContain('作为协作者')
     expect(w.find('[data-test="note-editor-readonly-hint"]').exists()).toBe(false)
   })
 
-  it('VIEWER：正文只读、四字段全禁，显示只读提示', async () => {
+  it('VIEWER：正文只读、三字段全禁，显示只读提示', async () => {
     const w = await mountEdit(
       detail({
         grantRole: 'VIEWER',
-        fieldPermissions: { content: false, logDate: false, visibility: false, tagIds: false },
+        fieldPermissions: { content: false, logDate: false, tagIds: false },
       }),
     )
     expect(flags(w)).toEqual({
       contentReadonly: true,
       dateDisabled: true,
-      visibilityDisabled: true,
       tagsDisabled: true,
     })
     expect(w.find('[data-test="note-editor-readonly-hint"]').text()).toContain('只读视图')
@@ -145,7 +140,6 @@ describe('NoteEditor · fieldPermissions', () => {
     expect(flags(w)).toEqual({
       contentReadonly: false,
       dateDisabled: false,
-      visibilityDisabled: true,
       tagsDisabled: true,
     })
   })
@@ -157,7 +151,6 @@ describe('NoteEditor · fieldPermissions', () => {
     expect(flags(w)).toEqual({
       contentReadonly: false,
       dateDisabled: false,
-      visibilityDisabled: false,
       tagsDisabled: false,
     })
   })
