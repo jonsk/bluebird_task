@@ -348,11 +348,24 @@ function brief(n: NoteRow) {
   }
 }
 
+/**
+ * 字段级可编辑性：与后端 `NoteAuthService.fieldPermissions` 同规则
+ * （owner/ADMIN 全 true；未归档 EDITOR 仅正文+日期；其余全 false）。
+ */
+function fieldPermsOf(n: NoteRow): { content: boolean; logDate: boolean; visibility: boolean; tagIds: boolean } {
+  const p = permsOf(n)
+  if (p.canManage) return { content: true, logDate: true, visibility: true, tagIds: true }
+  if (p.canEdit) return { content: true, logDate: true, visibility: false, tagIds: false }
+  return { content: false, logDate: false, visibility: false, tagIds: false }
+}
+
 function detailOf(n: NoteRow) {
   const p = permsOf(n)
+  const perms = fieldPermsOf(n)
   return {
     ...brief(n),
     content: n.content,
+    fieldPermissions: perms,
     relations: relations.filter((r) => r.noteId === n.id),
     backlinks: relations
       .filter((r) => r.targetType === 'NOTE' && Number(r.targetId) === n.id)

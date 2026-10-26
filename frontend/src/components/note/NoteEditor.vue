@@ -21,27 +21,45 @@ const props = withDefaults(
     ownerTags?: TagVO[]
     initial?: { content?: string; logDate?: string; visibility?: NoteVisibility; tagIds?: number[] } | null
     /**
-     * 字段级可编辑性（EDITOR 授权时仅正文/日期可改；后端对这些字段返回 50013）。
-     * 缺省 = 全字段可改（owner / 新建）。
+     * 字段级可编辑性（后端 `fieldPermissions` 原样透传：content/logDate/visibility/tagIds）。
+     * 新建或未传时全字段可改；编辑态以 `GET /notes/{id}` 下发的值为准（后端是唯一事实来源）。
      */
-    fieldPermissions?: { visibility?: boolean; tagIds?: boolean; logDate?: boolean }
+    fieldPermissions?: { content?: boolean; logDate?: boolean; visibility?: boolean; tagIds?: boolean }
   }>(),
   { noteId: null, ownerTags: undefined, initial: null, fieldPermissions: () => ({}) },
 )
 
-/** 字段是否可编辑：显式 fieldPermissions 优先；编辑态若后端下发 grantRole=EDITOR，则锁可见性与标签（对齐 50013） */
+/**
+ * 字段是否可编辑：
+ * 1) 编辑态使用详情接口下发的 `fieldPermissions`（后端唯一事实来源）；
+ * 2) 未下发（旧后端 / mock 未升级）时回退到 `grantRole`：EDITOR 仅正文与日期可改；
+ * 3) 新建态不受限。
+ */
 const loadedRole = ref<string | null>(null)
+const loadedPerms = ref<{ content?: boolean; logDate?: boolean; visibility?: boolean; tagIds?: boolean } | null>(null)
+
 const locks = computed(() => {
-  const p = props.fieldPermissions ?? {}
-  const editor = loadedRole.value === 'EDITOR'
+  const explicit = loadedPerms.value ?? props.fieldPermissions ?? null
+  // 空对象 = 未下发（默认值），此时回退到 grantRole 规则
+  const perms = explicit && Object.keys(explicit).length > 0 ? explicit : null
+  const editorFallback = perms == null && loadedRole.value === 'EDITOR'
+  const locked = (key: 'content' | 'logDate' | 'visibility' | 'tagIds'): boolean => {
+    if (perms == null) {
+      // 回退：只有 EDITOR 受限（归档日志由后端 404/50013 兜底）
+      return editorFallback && (key === 'visibility' || key === 'tagIds')
+    }
+    return perms[key] === false
+  }
   return {
-    visibility: p.visibility === false || editor,
-    tagIds: p.tagIds === false || editor,
-    logDate: p.logDate === false,
+    content: locked('content'),
+    date: locked('logDate'),
+    visibility: locked('visibility'),
+    tagIds: locked('tagIds'),
   }
 })
 
-function canEditField(key: 'visibility' | 'tagIds' | 'logDate'): boolean {
+function canEditField(key: 'content' | 'visibility' | 'tagIds' | 'logDate'): boolean {
+  if (key === 'logDate') return !locks.value.date
   return !locks.value[key]
 }
 
@@ -77,6 +95,7 @@ async function loadDetail(): Promise<void> {
     tagIds.value = (d.tags ?? []).map((t) => t.id!).filter((id): id is number => id != null)
     version.value = d.version
     loadedRole.value = (d as { grantRole?: string | null }).grantRole ?? null
+    loadedPerms.value = (d as { fieldPermissions?: typeof loadedPerms.value }).fieldPermissions ?? null
   } catch (e) {
     const msg = e instanceof BizError || e instanceof HttpError ? e.message : (e as Error).message
     ElMessage.error(msg || '加载详情失败')
@@ -170,8 +189,10 @@ function onCtrlEnter(e?: Event): void {
         maxlength="20000"
         show-word-limit
         resize="vertical"
+        :readonly="!canEditField('content')"
         placeholder="记录今日工作…（Ctrl+Enter 保存）"
         class="note-editor__content"
+        data-test="note-editor-content"
         @keydown.ctrl.enter="onCtrlEnter"
       />
 
@@ -195,7 +216,14 @@ function onCtrlEnter(e?: Event): void {
           :disabled="!canEditField('tagIds')"
         />
       </div>
-      <p v-if="!canEditField('visibility') || !canEditField('tagIds')" class="note-editor__hint">
+      <p v-if="!canEditField('content')" class="note-editor__hint" data-test="note-editor-readonly-hint">
+        当前为只读视图，无可编辑字段。
+      </p>
+      <p
+        v-else-if="!canEditField('visibility') || !canEditField('tagIds')"
+        class="note-editor__hint"
+        data-test="note-editor-field-hint"
+      >
         作为协作者，仅可修改正文与日期；可见性与标签由作者维护。
       </p>
 
