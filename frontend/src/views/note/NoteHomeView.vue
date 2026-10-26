@@ -49,6 +49,7 @@ const {
   loading,
   error,
   tagOptions,
+  tagError,
   facets,
   errorMode,
   emptyText,
@@ -179,7 +180,7 @@ function openDetail(id: number): void {
     :active-id="activeId"
     :tag-options="tagOptions"
     :tag-loading="facets.loading.value"
-    :tag-error="facets.error.value != null"
+    :tag-error="tagError"
     :error-mode="errorMode"
     :empty-text="emptyText"
     show-composer

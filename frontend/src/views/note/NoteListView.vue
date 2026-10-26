@@ -135,7 +135,8 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
             <slot name="above-list" />
 
             <div v-if="isEmptyError" class="note-page__empty" data-test="note-page-empty">
-              <el-empty :description="error?.message || emptyText" :image-size="72" />
+              <!-- 403 空态用页面给的策展文案（如「仅管理员可查看」），不直接暴露后端 message -->
+              <el-empty :description="emptyText" :image-size="72" />
             </div>
 
             <NoteList

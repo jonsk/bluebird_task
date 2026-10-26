@@ -51,6 +51,9 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
     facets.tags.value.map((t) => ({ id: t.id, name: t.name ?? '' })).filter((t) => t.id != null) as TagOption[],
   )
 
+  /** 403 空态下标签也必然拿不到：不再额外报「标签加载失败」，避免双重错误噪音 */
+  const tagError = computed(() => !forbidden.value && facets.error.value != null)
+
   function loadFacets(): void {
     void facets.load(scope.value)
   }
@@ -123,6 +126,7 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
     facets,
     actions,
     tagOptions,
+    tagError,
     forbidden,
     errorMode,
     emptyText,

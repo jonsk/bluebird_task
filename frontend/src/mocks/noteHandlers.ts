@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { dataOf } from './fixtures'
+import { canReadSubordinate, isAdminRequest } from './identity'
 
 /**
  * Note（工作日志）MSW Mock —— 内存实现，覆盖 `docs/api/openapi.yaml` 的 note 相关端点。
@@ -475,6 +476,8 @@ export const noteHandlers = [
   http.get(`${AUTH}/notes/tags`, ({ request }) => {
     const url = new URL(request.url)
     const scope = url.searchParams.get('scope') ?? 'mine'
+    if (scope === 'all' && !isAdminRequest(request)) return fail(10003, '无权限', 403)
+    if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
     const base = notes.filter((n) => alive(n) && inScope(n, scope, false))
     if (scope === 'mine') {
       return ok(
@@ -496,6 +499,8 @@ export const noteHandlers = [
     const month = Number(url.searchParams.get('month'))
     const scope = url.searchParams.get('scope') ?? 'mine'
     if (!year || !month) return fail(10001, 'year/month 必填', 400)
+    if (scope === 'all' && !isAdminRequest(request)) return fail(10003, '无权限', 403)
+    if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
     const counter = new Map<string, number>()
     for (const n of notes) {
       if (!alive(n) || !inScope(n, scope, false)) continue
@@ -517,6 +522,10 @@ export const noteHandlers = [
     const tagId = q.get('tagId') ? Number(q.get('tagId')) : null
     const tagName = q.get('tagName') ?? ''
     const date = q.get('date') ?? ''
+
+    // 权限门控（对齐后端 NoteQueryService）：all 仅 ADMIN；subordinate 需 MANAGER_CAN_READ_SUBORDINATE
+    if (scope === 'all' && !isAdminRequest(request)) return fail(10003, '无权限', 403)
+    if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
 
     let list = notes.filter((n) => alive(n) && inScope(n, scope, archived))
     if (keyword) list = list.filter((n) => n.content.toLowerCase().includes(keyword))

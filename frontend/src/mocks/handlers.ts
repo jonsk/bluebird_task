@@ -1,6 +1,14 @@
 import { http, HttpResponse } from 'msw'
 import { dataOf, envelope } from './fixtures'
 import { noteHandlers } from './noteHandlers'
+import {
+  MOCK_ACCOUNTS,
+  accessTokenOf,
+  accountFromRefreshToken,
+  accountFromRequest,
+  meOf,
+  refreshTokenOf,
+} from './identity'
 
 /**
  * MSW 契约 Mock（03 §2.6）—— **直连基线 fixtures**（`docs/frontend-baseline/fixtures/api/**`）。
@@ -328,17 +336,35 @@ export const handlers = [
   // ---- auth ----
   http.post(`${AUTH}/auth/login`, async ({ request }) => {
     const body = (await request.json()) as { username?: string; password?: string }
-    if (body.username === ME.username && body.password === 'admin123') {
-      return raw('auth/POST.login')
-    }
-    return fail(20003, 'bad-credentials')
+    const account = MOCK_ACCOUNTS.find((a) => a.username === body.username && a.password === body.password)
+    if (!account) return fail(20003, 'bad-credentials')
+    // admin 保持基线 token（视觉/既有用例不变），其余账号返回可反解的身份 token
+    if (account.username === 'admin') return raw('auth/POST.login')
+    return ok({
+      accessToken: accessTokenOf(account.username),
+      refreshToken: refreshTokenOf(account.username),
+      mustChangePassword: false,
+    })
   }),
-  http.post(`${AUTH}/auth/refresh`, () => raw('auth/POST.refresh')),
+  http.post(`${AUTH}/auth/refresh`, async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { refreshToken?: string }
+    const account = accountFromRefreshToken(body.refreshToken)
+    if (!account || account.username === 'admin') return raw('auth/POST.refresh')
+    return ok({
+      accessToken: accessTokenOf(account.username),
+      refreshToken: refreshTokenOf(account.username),
+      mustChangePassword: false,
+    })
+  }),
   http.post(`${AUTH}/auth/logout`, () => raw('auth/POST.logout')),
   http.get(`${AUTH}/auth/external/config`, () => raw('auth/GET.external-config')),
 
   // ---- users ----
-  http.get(`${AUTH}/users/me`, () => raw('users/GET.me')),
+  http.get(`${AUTH}/users/me`, ({ request }) => {
+    const account = accountFromRequest(request)
+    if (account.username === 'admin') return raw('users/GET.me')
+    return ok(meOf(account))
+  }),
   http.get(`${AUTH}/users`, ({ request }) => {
     const url = new URL(request.url)
     const deptId = url.searchParams.get('deptId')
