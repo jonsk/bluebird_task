@@ -41,7 +41,7 @@ public final class SpaRoutes {
     public static final List<String> SAMPLE_PAGES = List.of(
             "/login", "/index", "/myJoin", "/myDo", "/myCollect",
             "/allTask", "/calendar/2026-10-01",
-            "/notes", "/notes/123", "/notes/calendar", "/notes/shared", "/notes/subordinate", "/notes/grants",
+            "/notes", "/notes/123", "/notes/calendar", "/notes/subordinate",
             "/admin", "/admin/users", "/admin/casdoor", "/admin/notes", "/admin/logs", "/admin/settings",
             "/403");
 

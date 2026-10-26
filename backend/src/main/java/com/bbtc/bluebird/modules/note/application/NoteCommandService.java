@@ -9,7 +9,6 @@ import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
 import com.bbtc.bluebird.modules.note.domain.NoteRelation;
 import com.bbtc.bluebird.modules.note.domain.NoteTag;
-import com.bbtc.bluebird.modules.note.domain.NoteUserGrant;
 import com.bbtc.bluebird.modules.note.dto.NoteCreateReq;
 import com.bbtc.bluebird.modules.note.dto.NoteDetailVO;
 import com.bbtc.bluebird.modules.note.dto.NoteUpdateReq;
@@ -77,9 +76,7 @@ public class NoteCommandService {
         authService.assertWritable(note, me);
         boolean admin = authService.isAdmin();
         boolean owner = me.equals(note.getOwnerId());
-        String role = authService.grantRole(note, me);
-        boolean editor = !owner && !admin && NoteUserGrant.EDITOR.equals(role);
-        if (!owner && !admin && !editor) {
+        if (!owner && !admin) {
             throw HttpStatusException.forbidden();
         }
 
@@ -90,9 +87,6 @@ public class NoteCommandService {
             validateLogDate(req.logDate());
         }
 
-        if (req.tagIds() != null && editor && !sameTagIds(id, req.tagIds())) {
-            throw new BusinessException(ErrorCode.NOTE_FIELD_FORBIDDEN, "无权修改标签");
-        }
         if (req.tagIds() != null) {
             validateTagOwnership(req.tagIds(), note.getOwnerId());
         }
@@ -119,7 +113,7 @@ public class NoteCommandService {
     @Transactional
     public void delete(Long id) {
         Note note = authService.requireManageable(id);
-        // 级联清理（不清理 note_user_grant：用户级全量授权，删单条日志不应破坏授权）
+        // 级联清理（日志为个人记录，无跨人授权关系需维护）
         noteTagMapper.delete(Wrappers.<NoteTag>lambdaQuery().eq(NoteTag::getNoteId, note.getId()));
         attachmentRefMapper.delete(Wrappers.<NoteAttachmentRef>lambdaQuery()
                 .eq(NoteAttachmentRef::getNoteId, note.getId()));
@@ -172,13 +166,6 @@ public class NoteCommandService {
                 throw new BusinessException(ErrorCode.NOTE_TAG_INVALID);
             }
         }
-    }
-
-    private boolean sameTagIds(Long noteId, List<Long> tagIds) {
-        Set<Long> current = new HashSet<>();
-        noteTagMapper.selectList(Wrappers.<NoteTag>lambdaQuery().eq(NoteTag::getNoteId, noteId))
-                .forEach(t -> current.add(t.getTagId()));
-        return current.equals(new HashSet<>(tagIds));
     }
 
     private void replaceTags(Long noteId, List<Long> tagIds) {

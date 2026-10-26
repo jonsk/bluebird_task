@@ -16,7 +16,6 @@ import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
 import com.bbtc.bluebird.modules.note.domain.NoteRelation;
 import com.bbtc.bluebird.modules.note.domain.NoteTag;
-import com.bbtc.bluebird.modules.note.domain.NoteUserGrant;
 import com.bbtc.bluebird.modules.note.dto.NoteAttachmentVO;
 import com.bbtc.bluebird.modules.note.dto.NoteBacklinkVO;
 import com.bbtc.bluebird.modules.note.dto.NoteBrief;
@@ -30,7 +29,6 @@ import com.bbtc.bluebird.modules.note.infrastructure.NoteAttachmentRefMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteRelationMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteTagMapper;
-import com.bbtc.bluebird.modules.note.infrastructure.NoteUserGrantMapper;
 import com.bbtc.bluebird.modules.note.util.NoteVisibilitySqlBuilder;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
@@ -56,7 +54,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 日志读查询：5 种 scope 列表、详情、日历、标签 facet。
+ * 日志读查询：4 种 scope 列表、详情、日历、标签 facet。
  *
  * <p>所有 scope 均通过 {@link NoteVisibilitySqlBuilder} 生成条件（与 isVisible 同源）。
  */
@@ -68,7 +66,6 @@ public class NoteQueryService {
 
     private final NoteMapper noteMapper;
     private final NoteTagMapper noteTagMapper;
-    private final NoteUserGrantMapper grantMapper;
     private final NoteAttachmentRefMapper attachmentRefMapper;
     private final NoteRelationMapper relationMapper;
     private final TagMapper tagMapper;
@@ -298,23 +295,18 @@ public class NoteQueryService {
         Set<Long> ownerIds = new HashSet<>();
         notes.forEach(n -> ownerIds.add(n.getOwnerId()));
         Map<Long, String> ownerNames = userNames(ownerIds);
-        Map<Long, String> roles = grantRoles(me, ownerIds);
 
         List<NoteBrief> out = new ArrayList<>();
         for (Note n : notes) {
-            String role = roleFor(n, me, admin, roles);
-            boolean canEdit = canEdit(n, me, admin, role);
-            boolean canManage = canManage(n, me, admin);
             out.add(new NoteBrief(n.getId(), summary(n.getContent()), n.getLogDate(),
                     isTrue(n.getPinned()), n.getOwnerId(),
                     ownerNames.get(n.getOwnerId()), tags.getOrDefault(n.getId(), List.of()),
-                    canEdit, canManage, versionOf(n)));
+                    canEdit(n, me, admin), canManage(n, me, admin), versionOf(n)));
         }
         return out;
     }
 
     private void fillBase(NoteVO vo, Note note, Long me, boolean admin) {
-        String role = authService.grantRole(note, me);
         vo.setId(note.getId());
         vo.setContentSummary(summary(note.getContent()));
         vo.setLogDate(note.getLogDate());
@@ -326,7 +318,7 @@ public class NoteQueryService {
         vo.setVersion(versionOf(note));
         vo.setCanEdit(authService.canEdit(note, me));
         vo.setCanManage(authService.canManage(note, me));
-        vo.setGrantRole(role);
+        vo.setRole(authService.roleOf(note, me));
         vo.setCreatedAt(note.getCreatedAt());
         vo.setUpdatedAt(note.getUpdatedAt());
         vo.setTags(tagsOf(List.of(note.getId())).getOrDefault(note.getId(), List.of()));
@@ -356,44 +348,12 @@ public class NoteQueryService {
         return out;
     }
 
-    private Map<Long, String> grantRoles(Long me, Set<Long> ownerIds) {
-        Map<Long, String> out = new HashMap<>();
-        if (me == null || ownerIds.isEmpty()) {
-            return out;
-        }
-        grantMapper.selectList(Wrappers.<NoteUserGrant>lambdaQuery()
-                        .eq(NoteUserGrant::getGranteeId, me)
-                        .in(NoteUserGrant::getGrantorId, ownerIds)
-                        .eq(NoteUserGrant::getStatus, NoteUserGrant.APPROVED))
-                .forEach(g -> out.put(g.getGrantorId(), g.getRole()));
-        return out;
-    }
-
-    private String roleFor(Note n, Long me, boolean admin, Map<Long, String> roles) {
-        if (me != null && me.equals(n.getOwnerId())) {
-            return "OWNER";
-        }
-        if (admin) {
-            return "ADMIN";
-        }
-        return roles.get(n.getOwnerId());
-    }
-
-    private boolean canEdit(Note n, Long me, boolean admin, String role) {
-        if (isTrue(n.getDeleted())) {
-            return false;
-        }
-        if (admin || (me != null && me.equals(n.getOwnerId()))) {
-            return true;
-        }
-        return NoteUserGrant.EDITOR.equals(role);
+    private boolean canEdit(Note n, Long me, boolean admin) {
+        return !isTrue(n.getDeleted()) && (admin || (me != null && me.equals(n.getOwnerId())));
     }
 
     private boolean canManage(Note n, Long me, boolean admin) {
-        if (isTrue(n.getDeleted())) {
-            return false;
-        }
-        return admin || (me != null && me.equals(n.getOwnerId()));
+        return canEdit(n, me, admin);
     }
 
     private Map<Long, String> userNames(Set<Long> ids) {

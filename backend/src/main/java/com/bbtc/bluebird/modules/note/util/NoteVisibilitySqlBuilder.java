@@ -10,19 +10,19 @@ import org.springframework.stereotype.Component;
 import java.util.Set;
 
 /**
- * 日志可见性 SQL 构建器 —— {@code scope=visible} 与 {@code NoteAuthService.isVisible} 的**同源载体**。
+ * 日志可见性 SQL 构造器 —— 与 {@code NoteAuthService.isVisible} 是**同源条件**。
  *
- * <p>语义：{@code visible = isVisible}（owner / 已授权 / 下属，受开关约束）。
- * 对 ADMIN 恒为 {@code 1=1}（与 {@code scope=all} 结果集相同，仅语义/入口不同）。
+ * <p>口径：{@code visible = isVisible}：owner / 上级看下属（受开关约束）；ADMIN 视为 {@code 1=1}，
+ * 仅 {@code scope=all} 允许 ADMIN 使用。
  *
- * <p>生成的 SQL 只拼接可信的长整型用户 id，不接受任何用户字符串，无注入面。
+ * <p>生成的 SQL 只拼接开放的常量与用户 id，不拼任何用户字符串（防注入）。
  */
 @Component
 @RequiredArgsConstructor
 public class NoteVisibilitySqlBuilder {
 
     private static final Set<String> SCOPES = Set.of(
-            "mine", "shared", "subordinate", "visible", "all");
+            "mine", "subordinate", "visible", "all");
 
     private final DepartmentPolicy departmentPolicy;
 
@@ -39,15 +39,13 @@ public class NoteVisibilitySqlBuilder {
     }
 
     /**
-     * scope 对应的 base 条件（不含 archived / visibility 附加过滤）。
+     * scope 对应的 base 条件（无 archived / visibility 附加过滤）。
      *
      * @throws HttpStatusException 403：{@code scope=all} 非 ADMIN；{@code scope=subordinate} 开关关闭
      */
     public String scopePredicate(String scope, Long me, boolean admin) {
         return switch (scope) {
             case "mine" -> "note.owner_id = " + me;
-            case "shared" -> "note.owner_id IN (SELECT g.grantor_id FROM note_user_grant g"
-                    + " WHERE g.grantee_id = " + me + " AND g.status = 'APPROVED')";
             case "subordinate" -> {
                 if (!managerCanReadSubordinate) {
                     throw new HttpStatusException(HttpStatus.FORBIDDEN,
@@ -69,7 +67,7 @@ public class NoteVisibilitySqlBuilder {
     /**
      * 与 {@code NoteAuthService.isVisible} 逐分支等价的可见性条件。
      *
-     * <p>下属分支必须带 {@code managerCanReadSubordinate} 条件。
+     * <p>唯一可变分支是 {@code managerCanReadSubordinate} 开关。
      */
     public String visiblePredicate(Long me, boolean admin) {
         if (admin) {
@@ -77,9 +75,6 @@ public class NoteVisibilitySqlBuilder {
         }
         StringBuilder sb = new StringBuilder("(");
         sb.append("note.owner_id = ").append(me);
-        sb.append(" OR EXISTS (SELECT 1 FROM note_user_grant g")
-                .append(" WHERE g.grantor_id = note.owner_id AND g.grantee_id = ").append(me)
-                .append(" AND g.status = 'APPROVED')");
         if (managerCanReadSubordinate) {
             sb.append(" OR note.owner_id IN ").append(departmentPolicy.subordinateOwnerSql(me));
         }
@@ -87,7 +82,7 @@ public class NoteVisibilitySqlBuilder {
         return sb.toString();
     }
 
-    /** 子查询：scope 命中的 note id（供标签 facet / 日历等聚合使用，调用方自行追加 deleted）。 */
+    /** 子查询：scope 命中的 note id（供标签 facet / 日历。聚合使用，不带 deleted）。 */
     public String noteIdSubquery(String scope, Long me, boolean admin) {
         return "SELECT note.id FROM note WHERE " + scopePredicate(scope, me, admin);
     }

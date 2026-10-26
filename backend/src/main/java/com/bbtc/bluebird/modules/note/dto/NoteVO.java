@@ -26,8 +26,8 @@ public class NoteVO {
     private Long version;
     private boolean canEdit;
     private boolean canManage;
-    /** VIEWER | EDITOR | OWNER | ADMIN | null */
-    private String grantRole;
+    /** OWNER | ADMIN | null */
+    private String role;
     private Instant createdAt;
     private Instant updatedAt;
     /** 本 note 已选标签。 */
