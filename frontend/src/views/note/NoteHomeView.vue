@@ -58,8 +58,6 @@ const {
   onEdit,
   onPin,
   onUnpin,
-  onArchive,
-  onUnarchive,
   onRemove,
 } = page
 
@@ -118,7 +116,7 @@ function onCreated(detail: NoteDetailVO): void {
   draftError.value = ''
   noteStore.setPending(Number(detail.id))
   // 新建后回到第一页并清空筛选（"新建后回第一页"是明确预期）
-  list.setQuery({ keyword: undefined, tagId: undefined, tagName: undefined, pinned: undefined, date: undefined, visibility: undefined })
+  list.setQuery({ keyword: undefined, tagId: undefined, tagName: undefined, pinned: undefined, date: undefined })
   ElMessage.success('已保存并回到第一页')
   // 必须强制重拉：同 key 的列表缓存会让刚创建的日志看不见
   list.refresh()
@@ -192,8 +190,6 @@ function openDetail(id: number): void {
     @edit="onEdit"
     @pin="onPin"
     @unpin="onUnpin"
-    @archive="onArchive"
-    @unarchive="onUnarchive"
     @remove="onRemove"
   >
     <template #composer>

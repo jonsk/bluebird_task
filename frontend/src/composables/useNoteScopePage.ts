@@ -11,7 +11,7 @@ import type { TagOption } from '@/types/tag'
 export interface UseNoteScopePageOptions {
   /** 空态文案 */
   emptyText?: string
-  /** true = 403 渲染空态而非错误卡片（/notes/all、/notes/archived/all） */
+  /** true = 403 渲染空态而非错误卡片（/notes/all） */
   adminOnly?: boolean | (() => boolean)
   /** 非管理员访问时 403 也渲染空态（下属页：开关关闭） */
   emptyOn403?: boolean
@@ -23,13 +23,12 @@ export interface UseNoteScopePageOptions {
 
 /**
  * scope 页共用逻辑：列表 / 标签 facet / 动作 + 403 空态 + 详情跳转。
- * 7 个列表页只写"scope 配置 + 标题 + 权限分支"，不复制列表逻辑。
+ * 4 个列表页只写"scope 配置 + 标题 + 权限分支"，不复制列表逻辑。
  */
 export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
   const route = useRoute()
   const router = useRouter()
   const scope = computed<NoteScope>(() => (route.meta.scope as NoteScope) || 'mine')
-  const archived = computed(() => Boolean(route.meta.archived))
 
   const list = useNoteList()
   const facets = useNoteFacets()
@@ -59,7 +58,7 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
   }
 
   onMounted(loadFacets)
-  watch([scope, archived], loadFacets)
+  watch(scope, loadFacets)
 
   /** 列表行一定有 id（NoteBrief.id 在 schema 里是可选，这里收窄）。 */
   type NoteRow = NoteBrief & { id: number }
@@ -98,12 +97,6 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
   async function onUnpin(id: number): Promise<void> {
     await withNote(id, actions.togglePin)
   }
-  async function onArchive(id: number): Promise<void> {
-    await withNote(id, actions.toggleArchive)
-  }
-  async function onUnarchive(id: number): Promise<void> {
-    await withNote(id, actions.toggleArchive)
-  }
   async function onRemove(id: number): Promise<void> {
     const note = noteOf(id)
     if (!note) return
@@ -121,7 +114,6 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
 
   return {
     scope,
-    archived,
     list,
     facets,
     actions,
@@ -141,8 +133,6 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
     onEdit,
     onPin,
     onUnpin,
-    onArchive,
-    onUnarchive,
     onRemove,
     loadFacets,
   }

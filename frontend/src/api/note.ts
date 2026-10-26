@@ -47,14 +47,6 @@ export function unpinNote(id: number): Promise<void> {
   return del<void>(`/notes/${id}/pin`)
 }
 
-export function archiveNote(id: number): Promise<void> {
-  return post<void>(`/notes/${id}/archive`)
-}
-
-export function unarchiveNote(id: number): Promise<void> {
-  return post<void>(`/notes/${id}/unarchive`)
-}
-
 // ---- 附件 ----
 export function listAttachments(id: number): Promise<NoteAttachmentVO[]> {
   return get<NoteAttachmentVO[]>(`/notes/${id}/attachments`)

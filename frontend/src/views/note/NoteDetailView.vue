@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Edit, Folder, FolderOpened, Plus, Star, StarFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, Edit, Plus, Star, StarFilled } from '@element-plus/icons-vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
 import NoteAttachmentList from '@/components/note/NoteAttachmentList.vue'
 import NoteRelationPicker from '@/components/note/NoteRelationPicker.vue'
@@ -63,8 +63,6 @@ const existingRefs = computed<NoteTargetRef[]>(() =>
     .map((r) => ({ targetType: r.targetType as 'NOTE' | 'TASK', targetId: Number(r.targetId) })),
 )
 
-const VISIBILITY_LABEL: Record<string, string> = { PRIVATE: '私有', INTERNAL: '部门内', PUBLIC: '公开' }
-
 function back(): void {
   void router.push({ name: 'NoteHome' })
 }
@@ -73,13 +71,6 @@ async function togglePin(): Promise<void> {
   const d = detail.value
   if (!d) return
   await actions.togglePin({ id: Number(d.id), pinned: d.pinned })
-  detailApi.reload()
-}
-
-async function toggleArchive(): Promise<void> {
-  const d = detail.value
-  if (!d) return
-  await actions.toggleArchive({ id: Number(d.id), archived: d.archived, visibility: d.visibility })
   detailApi.reload()
 }
 
@@ -94,7 +85,7 @@ async function removeNote(): Promise<void> {
   } catch {
     return
   }
-  await actions.remove({ id: Number(d.id), visibility: d.visibility })
+  await actions.remove({ id: Number(d.id) })
   void router.push({ name: 'NoteHome' })
 }
 
@@ -103,7 +94,7 @@ function onSaved(): void {
   ElMessage.success('已保存')
   detailApi.reload()
   // 列表缓存与详情已不一致，回到列表时必须是新数据
-  store.invalidate(['mine', 'shared', 'explore', 'internal', 'subordinate', 'visible', 'all'])
+  store.invalidate(['mine', 'shared', 'subordinate', 'visible', 'all'])
 }
 
 async function addRef(payload: NoteTargetRef & { summary?: string }): Promise<void> {
@@ -168,18 +159,13 @@ function openBacklink(sourceNoteId?: number): void {
       <section class="note-detail__head">
         <div class="note-detail__meta">
           <span class="note-detail__logdate">{{ detail.logDate }}</span>
-          <el-tag size="small" type="info" effect="plain">{{ VISIBILITY_LABEL[detail.visibility ?? 'PRIVATE'] }}</el-tag>
           <span class="note-detail__owner">{{ detail.ownerName }}</span>
           <el-tag v-if="detail.pinned" size="small" type="warning" effect="plain">置顶</el-tag>
-          <el-tag v-if="detail.archived" size="small" type="info">已归档</el-tag>
           <el-tag v-for="t in tagList" :key="t.id ?? t.name" size="small" effect="plain">{{ t.name }}</el-tag>
         </div>
         <div class="note-detail__ops">
           <el-button v-if="detail.canEdit" size="small" :icon="detail.pinned ? StarFilled : Star" @click="togglePin">
             {{ detail.pinned ? '取消置顶' : '置顶' }}
-          </el-button>
-          <el-button v-if="detail.canEdit" size="small" :icon="detail.archived ? FolderOpened : Folder" @click="toggleArchive">
-            {{ detail.archived ? '取消归档' : '归档' }}
           </el-button>
           <el-button v-if="detail.canEdit" size="small" type="primary" :icon="Edit" data-test="note-detail-edit" @click="editing = true">
             编辑

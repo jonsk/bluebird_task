@@ -20,8 +20,6 @@ const {
   onEdit,
   onPin,
   onUnpin,
-  onArchive,
-  onUnarchive,
   onRemove,
 } = useNoteScopePage({ emptyText: '暂无被授权的工作日志' })
 </script>
@@ -47,8 +45,6 @@ const {
     @edit="onEdit"
     @pin="onPin"
     @unpin="onUnpin"
-    @archive="onArchive"
-    @unarchive="onUnarchive"
     @remove="onRemove"
   />
 </template>

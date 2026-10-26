@@ -11,13 +11,10 @@ import {
   Delete,
   Edit,
   Fold,
-  Folder,
   Key,
   List,
   Notebook,
-  OfficeBuilding,
   Plus,
-  Search,
   Setting,
   Star,
   Sunny,
@@ -41,7 +38,8 @@ import { logoutEverywhere } from '@/utils/logout'
  * ⑥ 分类树已移除（2026-10-13，左栏下方不再有分类区块）。
  * ⑦ 2026-10-24 方案 A：按 `route.meta.module` 分「任务 / 工作日志」两组，
  *    分组折叠状态按模块持久化（`bb.filter-rail.<module>.collapsed`），
- *    工作日志组含「探索」，AUDITOR 与普通用户一致显示；task 组在 note 页隐藏自定义栏。
+ *    工作日志组 = 我的 / 被授权 / 员工（开关）/ 授权管理；「全部日志」已移到后台（/admin/notes，仅 ADMIN）。
+ *    task 组在 note 页隐藏自定义栏。
  */
 const app = useAppStore()
 const auth = useAuthStore()
@@ -61,26 +59,18 @@ const taskNavItems = [
 /** 当前模块（路由 meta.module 单一来源；无 meta → 任务模块）。 */
 const module = computed<'task' | 'note'>(() => (route.meta.module === 'note' ? 'note' : 'task'))
 
-/** 工作日志导航：下属入口看 `managerCanReadSubordinate`，全部/全部归档仅 ADMIN。 */
+/** 工作日志导航：员工日志入口看 `managerCanReadSubordinate`（全部日志在后台）。 */
 const noteNavItems = computed<
   Array<{ name: string; label: string; icon: unknown; test: string }>
 >(() => {
   const items: Array<{ name: string; label: string; icon: unknown; test: string }> = [
     { name: 'NoteHome', label: '我的日志', icon: Notebook, test: 'note-mine' },
-    { name: 'NoteExplore', label: '探索', icon: Search, test: 'note-explore' },
     { name: 'NoteShared', label: '被授权日志', icon: View, test: 'note-shared' },
-    { name: 'NoteInternal', label: '本部门日志', icon: OfficeBuilding, test: 'note-internal' },
   ]
   if (auth.user?.managerCanReadSubordinate) {
-    items.push({ name: 'NoteSubordinate', label: '下属日志', icon: User, test: 'note-subordinate' })
+    items.push({ name: 'NoteSubordinate', label: '员工日志', icon: User, test: 'note-subordinate' })
   }
-  if (auth.hasRole('ADMIN')) {
-    items.push({ name: 'NoteAll', label: '全部日志', icon: List, test: 'note-all' })
-  }
-  items.push(
-    { name: 'NoteArchived', label: '归档日志', icon: Folder, test: 'note-archived' },
-    { name: 'NoteGrants', label: '授权管理', icon: Key, test: 'note-grants' },
-  )
+  items.push({ name: 'NoteGrants', label: '授权管理', icon: Key, test: 'note-grants' })
   return items
 })
 

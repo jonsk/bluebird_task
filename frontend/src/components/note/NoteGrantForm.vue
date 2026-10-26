@@ -7,7 +7,7 @@ import type { NoteGrantMode, NoteGrantRole } from '@/types/note'
 /**
  * NoteGrantForm — 授权发起（三模式）：
  * - OWNER：我给某人授权（选被授权人），创建即生效；
- * - SUPERIOR：我读下属日志（选下属作为 grantor），待下属确认；
+ * - SUPERIOR：我读员工日志（选下属作为 grantor），待下属确认；
  * - ADMIN：管理员代授（同时指定 grantor 与 grantee），创建即生效。
  * 用户选择统一走 `BbUserPicker`：OWNER/ADMIN 用全量；SUPERIOR 用 `scope=subordinate` 单选。
  */
@@ -19,7 +19,7 @@ const props = withDefaults(
     submitting?: boolean
     /** 是否显示 ADMIN 模式（仅管理员） */
     adminMode?: boolean
-    /** 下属开关关闭时禁用 SUPERIOR 模式 */
+    /** 员工日志开关关闭时禁用 SUPERIOR 模式 */
     subordinateEnabled?: boolean
   }>(),
   { submitting: false, adminMode: false, subordinateEnabled: true },
@@ -38,7 +38,7 @@ const grantee = ref<UserVO | null>(null)
 const modeOptions = computed(() => {
   const list: Array<{ value: NoteGrantMode; label: string; hint: string }> = [
     { value: 'OWNER', label: '我授权给他人', hint: '把「我的日志」只读/可编辑授权给对方，创建即生效' },
-    { value: 'SUPERIOR', label: '我要看下属日志', hint: '选择下属，待其确认后生效' },
+    { value: 'SUPERIOR', label: '我要看员工日志', hint: '选择下属，待其确认后生效' },
   ]
   if (props.adminMode) list.push({ value: 'ADMIN', label: '管理员代授权', hint: '指定日志主人与查看人，创建即生效' })
   return list
@@ -125,7 +125,7 @@ function onModeChange(): void {
     </div>
 
     <p v-if="mode === 'SUPERIOR' && !subordinateEnabled" class="grant-form__warn">
-      未开启「上级可读下属日志」，暂不能发起下属授权
+      未开启「上级可读员工日志」，暂不能发起员工授权
     </p>
 
     <div class="grant-form__ops">

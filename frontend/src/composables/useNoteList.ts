@@ -34,7 +34,6 @@ function readQueryFromRoute(route: ReturnType<typeof useRoute>): NoteQueryPatch 
     keyword: typeof q.keyword === 'string' ? q.keyword : undefined,
     tagId: num(q.tagId),
     tagName: typeof q.tagName === 'string' ? q.tagName : undefined,
-    visibility: (q.visibility as NoteQuery['visibility']) || undefined,
     pinned: q.pinned === 'true' ? true : q.pinned === 'false' ? false : undefined,
     date: typeof q.date === 'string' ? q.date : undefined,
     start: typeof q.start === 'string' ? q.start : undefined,
@@ -43,14 +42,13 @@ function readQueryFromRoute(route: ReturnType<typeof useRoute>): NoteQueryPatch 
   }
 }
 
-const SCOPES: NoteScope[] = ['mine', 'shared', 'explore', 'internal', 'subordinate', 'visible', 'all']
+const SCOPES: NoteScope[] = ['mine', 'shared', 'subordinate', 'visible', 'all']
 
 export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult {
   const route = useRoute()
   const router = useRouter()
   const store = useNoteStore()
   const scope = computed<NoteScope>(() => (route.meta.scope as NoteScope) || 'mine')
-  const archived = computed<boolean>(() => Boolean(route.meta.archived))
 
   const notes = ref<NoteBrief[]>([])
   const total = ref(0)
@@ -75,7 +73,6 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
     return {
       ...base,
       scope: scope.value,
-      archived: archived.value,
       page: page.value,
       size: base.size ?? 20,
     }
@@ -125,7 +122,6 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
     if (p.keyword) q.keyword = p.keyword
     if (p.tagId != null) q.tagId = String(p.tagId)
     if (p.tagName) q.tagName = p.tagName
-    if (p.visibility) q.visibility = p.visibility
     if (p.pinned != null) q.pinned = String(p.pinned)
     if (p.date) q.date = p.date
     if (p.start) q.start = p.start
@@ -160,7 +156,7 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
     void run()
   }
   function refresh(): void {
-    // 先失效**全部 scope** 再强制重拉：新建/归档/授权会同时改变 mine/internal/subordinate/all 等
+    // 先失效**全部 scope** 再强制重拉：新建/授权会同时改变 mine/shared/subordinate/all 等
     // 多个作用域，只失效当前 scope 会让"切回上一个页签看到旧数据"；
     // 也必须 force，否则同 key 的缓存会让列表看起来"保存没生效"。
     if (!options.isolated) store.invalidate(SCOPES)
@@ -189,7 +185,7 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
       },
     )
     watch(
-      () => [route.meta.scope, route.meta.archived],
+      () => [route.meta.scope],
       () => {
         page.value = 1
         void run()

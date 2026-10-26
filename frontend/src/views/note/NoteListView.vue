@@ -4,12 +4,9 @@ import { useRoute } from 'vue-router'
 import {
   ChatDotRound,
   Document,
-  Folder,
   Key,
   List,
   Notebook,
-  OfficeBuilding,
-  Search,
   User,
   View,
 } from '@element-plus/icons-vue'
@@ -20,10 +17,10 @@ import type { TagOption } from '@/types/tag'
 import { formatHeaderDate } from '@/utils/date'
 
 /**
- * NoteListView — 列表壳（布局），7 个 scope 页共用。
- * - 标题**单一来源** `route.meta.title`（不接 title prop）；scope/archived 读 `route.meta`。
+ * NoteListView — 列表壳（布局），4 个 scope 页 + 后台全部日志共用。
+ * - 标题**单一来源** `route.meta.title`（不接 title prop）；scope 读 `route.meta`。
  * - 壳内渲染 `NoteFilterBar`（筛选条不设 #filters 插槽）+ `NoteList`（纯容器）。
- * - 插槽：`#above-list`（mine 且非 archived 的临时卡片）、`#composer`（唯一新建入口）、`#editor`（编辑宿主）。
+ * - 插槽：`#above-list`（mine 的临时卡片）、`#composer`（唯一新建入口）、`#editor`（编辑宿主）。
  * - 不发请求：数据与事件全部由页面透传。
  */
 const props = withDefaults(
@@ -41,7 +38,7 @@ const props = withDefaults(
     tagOptions?: TagOption[]
     tagLoading?: boolean
     tagError?: boolean
-    /** 是否显示顶部新建入口（仅 mine 且非 archived） */
+    /** 是否显示顶部新建入口（仅 mine） */
     showComposer?: boolean
   }>(),
   {
@@ -66,8 +63,6 @@ const emit = defineEmits<{
   (e: 'edit', id: number): void
   (e: 'pin', id: number): void
   (e: 'unpin', id: number): void
-  (e: 'archive', id: number): void
-  (e: 'unarchive', id: number): void
   (e: 'remove', id: number): void
 }>()
 
@@ -78,18 +73,15 @@ const headerDate = computed(() => formatHeaderDate())
 
 const SCOPE_ICONS: Record<string, unknown> = {
   mine: Notebook,
-  explore: Search,
   shared: View,
-  internal: OfficeBuilding,
   subordinate: User,
   all: List,
   visible: ChatDotRound,
   grants: Key,
-  archived: Folder,
   calendar: Document,
   detail: Document,
 }
-const scopeIcon = computed(() => SCOPE_ICONS[String(route.name === 'NoteArchived' ? 'archived' : scope.value)] ?? Document)
+const scopeIcon = computed(() => SCOPE_ICONS[scope.value] ?? Document)
 
 /** 403 空态：errorMode='empty' 时把错误转成空态文案，不给重试按钮。 */
 const isEmptyError = computed(() => props.errorMode === 'empty' && props.error != null)
@@ -154,8 +146,6 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
               @edit="(id) => emit('edit', id)"
               @pin="(id) => emit('pin', id)"
               @unpin="(id) => emit('unpin', id)"
-              @archive="(id) => emit('archive', id)"
-              @unarchive="(id) => emit('unarchive', id)"
               @remove="(id) => emit('remove', id)"
             />
           </div>

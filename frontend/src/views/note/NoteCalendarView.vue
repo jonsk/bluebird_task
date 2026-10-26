@@ -10,7 +10,7 @@ import type { NoteCalendarScope } from '@/types/note'
 
 /**
  * 日志日历（全页）：按月查看日志数量，点日跳列表并保留 scope。
- * - scope 选择器**不含 visible**（无独立落地页）；subordinate 开关关闭时隐藏入口；all 仅 ADMIN。
+ * - scope 选择器**不含 visible / all**（无落地页；全部日志在后台）；subordinate（员工日志）开关关闭时隐藏入口。
  * - 月份/scope/date 写 URL（`/notes/calendar?scope=&year=&month=&date=`），刷新/后退可恢复。
  */
 const router = useRouter()
@@ -18,18 +18,14 @@ const auth = useAuthStore()
 
 const SCOPE_LABELS: Record<NoteCalendarScope, string> = {
   mine: '我的日志',
-  explore: '探索',
   shared: '被授权日志',
-  internal: '本部门日志',
-  subordinate: '下属日志',
-  all: '全部日志',
+  subordinate: '员工日志',
 }
 
 const cal = useMonthCalendar()
 const scopeOptions = computed<NoteCalendarScope[]>(() => {
-  const list: NoteCalendarScope[] = ['mine', 'explore', 'shared', 'internal']
+  const list: NoteCalendarScope[] = ['mine', 'shared']
   if (auth.user?.managerCanReadSubordinate) list.push('subordinate')
-  if (auth.hasRole('ADMIN')) list.push('all')
   return list
 })
 

@@ -8,10 +8,8 @@ declare module 'vue-router' {
     roles?: RoleCode[]
     /** 左栏分组单一来源：'task' | 'note'（缺省按任务处理） */
     module?: 'task' | 'note'
-    /** note 列表 scope（7 值集合的子集；NoteListView/useNoteList 唯一输入） */
-    scope?: 'mine' | 'explore' | 'shared' | 'internal' | 'subordinate' | 'visible' | 'all'
-    /** note 归档分段：true = archived 查询 */
-    archived?: boolean
+    /** note 列表 scope（5 值集合的子集；NoteListView/useNoteList 唯一输入） */
+    scope?: 'mine' | 'shared' | 'subordinate' | 'visible' | 'all'
   }
 }
 
@@ -61,34 +59,16 @@ export const routes: RouteRecordRaw[] = [
         meta: { module: 'note', scope: 'mine', title: '我的日志', requiresAuth: true },
       },
       {
-        path: 'notes/explore',
-        name: 'NoteExplore',
-        component: () => import('@/views/note/NoteExploreView.vue'),
-        meta: { module: 'note', scope: 'explore', title: '探索', requiresAuth: true },
-      },
-      {
         path: 'notes/shared',
         name: 'NoteShared',
         component: () => import('@/views/note/NoteSharedView.vue'),
         meta: { module: 'note', scope: 'shared', title: '被授权日志', requiresAuth: true },
       },
       {
-        path: 'notes/internal',
-        name: 'NoteInternal',
-        component: () => import('@/views/note/NoteInternalView.vue'),
-        meta: { module: 'note', scope: 'internal', title: '本部门日志', requiresAuth: true },
-      },
-      {
         path: 'notes/subordinate',
         name: 'NoteSubordinate',
         component: () => import('@/views/note/NoteSubordinateView.vue'),
-        meta: { module: 'note', scope: 'subordinate', title: '下属日志', requiresAuth: true },
-      },
-      {
-        path: 'notes/all',
-        name: 'NoteAll',
-        component: () => import('@/views/note/NoteAllView.vue'),
-        meta: { module: 'note', scope: 'all', title: '全部日志', roles: ['ADMIN'], requiresAuth: true },
+        meta: { module: 'note', scope: 'subordinate', title: '员工日志', requiresAuth: true },
       },
       {
         path: 'notes/grants',
@@ -101,18 +81,6 @@ export const routes: RouteRecordRaw[] = [
         name: 'NoteCalendar',
         component: () => import('@/views/note/NoteCalendarView.vue'),
         meta: { module: 'note', title: '日志日历', requiresAuth: true },
-      },
-      {
-        path: 'notes/archived',
-        name: 'NoteArchived',
-        component: () => import('@/views/note/NoteArchivedView.vue'),
-        meta: { module: 'note', scope: 'mine', archived: true, title: '归档日志', requiresAuth: true },
-      },
-      {
-        path: 'notes/archived/all',
-        name: 'NoteArchivedAll',
-        component: () => import('@/views/note/NoteArchivedView.vue'),
-        meta: { module: 'note', scope: 'all', archived: true, title: '全部归档', roles: ['ADMIN'], requiresAuth: true },
       },
       {
         path: 'notes/:id(\\d+)',
@@ -149,6 +117,12 @@ export const routes: RouteRecordRaw[] = [
         name: 'adminCasdoor',
         component: () => import('@/views/admin/CasdoorConfig.vue'),
         meta: { title: 'Casdoor 对接', roles: ['ADMIN'] },
+      },
+      {
+        path: 'notes',
+        name: 'adminNotes',
+        component: () => import('@/views/note/NoteAllView.vue'),
+        meta: { module: 'note', scope: 'all', title: '全部日志', roles: ['ADMIN'] },
       },
       {
         path: 'logs',

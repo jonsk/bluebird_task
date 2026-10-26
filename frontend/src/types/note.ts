@@ -21,15 +21,14 @@ export type TaskSearchData = components['schemas']['TaskSearchData']
 export type TaskSearchItem = components['schemas']['TaskSearchItem']
 export type FileVO = components['schemas']['FileVO']
 
-export type NoteVisibility = 'PRIVATE' | 'INTERNAL' | 'PUBLIC'
 export type NoteGrantRole = 'VIEWER' | 'EDITOR'
 export type NoteGrantStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED'
 export type NoteGrantMode = 'OWNER' | 'SUPERIOR' | 'ADMIN'
 
-/** 7 个列表作用域（visible 仅用于引用选择器搜索与查询值，无独立列表页）。 */
-export type NoteScope = 'mine' | 'shared' | 'explore' | 'internal' | 'subordinate' | 'visible' | 'all'
+/** 5 个列表作用域（visible 仅用于内部可见性等价，无独立列表页）。 */
+export type NoteScope = 'mine' | 'shared' | 'subordinate' | 'visible' | 'all'
 /** 日历作用域（不含 visible）。 */
-export type NoteCalendarScope = Exclude<NoteScope, 'visible'>
+export type NoteCalendarScope = Exclude<NoteScope, 'visible' | 'all'>
 
 /** 排序（蛇形，与后端 NoteQueryService.applySort 对齐；pinned 恒为第一排序键）。 */
 export type NoteSort = 'log_date_desc' | 'log_date_asc' | 'created_desc' | 'updated_desc'
@@ -39,9 +38,7 @@ export interface NoteQuery {
   tagId?: number
   tagName?: string
   keyword?: string
-  visibility?: NoteVisibility
   pinned?: boolean
-  archived?: boolean
   start?: string
   end?: string
   date?: string

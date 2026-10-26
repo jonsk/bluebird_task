@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { StarFilled, Star, Folder, FolderOpened, Delete, Edit } from '@element-plus/icons-vue'
+import { StarFilled, Star, Delete, Edit } from '@element-plus/icons-vue'
 import type { NoteBrief } from '@/types/note'
 
 /**
@@ -13,8 +13,6 @@ const emit = defineEmits<{
   (e: 'edit', id: number): void
   (e: 'pin', id: number): void
   (e: 'unpin', id: number): void
-  (e: 'archive', id: number): void
-  (e: 'unarchive', id: number): void
   (e: 'remove', id: number): void
 }>()
 
@@ -39,7 +37,6 @@ function stop(e: Event): void {
       <span v-if="note.pinned" class="note-card__badge note-card__badge--pin">
         <el-icon><StarFilled /></el-icon> 置顶
       </span>
-      <span v-if="note.archived" class="note-card__badge note-card__badge--arch">已归档</span>
     </div>
 
     <p class="note-card__summary">{{ note.contentSummary || '（无内容）' }}</p>
@@ -60,15 +57,6 @@ function stop(e: Event): void {
         :title="note.pinned ? '取消置顶' : '置顶'"
         data-test="note-card-pin"
         @click="note.pinned ? emit('unpin', note.id!) : emit('pin', note.id!)"
-      />
-      <el-button
-        v-if="note.canEdit"
-        text
-        size="small"
-        :icon="note.archived ? FolderOpened : Folder"
-        :title="note.archived ? '取消归档' : '归档'"
-        data-test="note-card-archive"
-        @click="note.archived ? emit('unarchive', note.id!) : emit('archive', note.id!)"
       />
       <el-button
         v-if="note.canEdit"
@@ -130,10 +118,6 @@ function stop(e: Event): void {
 .note-card__badge--pin {
   color: #b88230;
   background: #fdf6ec;
-}
-.note-card__badge--arch {
-  color: var(--bb-text-muted);
-  background: var(--bg-hover);
 }
 .note-card__summary {
   margin: 8px 0;

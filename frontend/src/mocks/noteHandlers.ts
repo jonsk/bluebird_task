@@ -28,9 +28,7 @@ interface NoteRow {
   id: number
   content: string
   logDate: string
-  visibility: 'PRIVATE' | 'INTERNAL' | 'PUBLIC'
   pinned: boolean
-  archived: boolean
   ownerId: number
   ownerName: string
   deptId: number | null
@@ -94,7 +92,7 @@ const TAG_NAMES: Record<number, string> = { 1: '重要', 2: '紧急', 3: '日常
 
 const names = (ids: number[]): TagVO[] => ids.map((id) => ({ id, name: TAG_NAMES[id] ?? `标签${id}` }))
 
-/** 初始日志：覆盖 mine / explore / shared / internal / subordinate / archived 的可见性组合。 */
+/** 初始日志：覆盖 mine（1001/1002）/ shared（李四授权）/ subordinate（李四、张三）/ all（后台）。 */
 // 起始值需大于 fixture 最大 id（1007），否则新建日志会与既有卡片撞 id
 let noteSeq = 1100
 let refSeq = 5000
@@ -104,9 +102,7 @@ const notes: NoteRow[] = [
     id: 1001,
     content: '今天把工作日志的前端骨架搭起来了：列表壳、筛选条、右栏当日日志。',
     logDate: '2026-09-28',
-    visibility: 'INTERNAL',
     pinned: true,
-    archived: false,
     ownerId: ME,
     ownerName: ME_NAME,
     deptId: ME_DEPT,
@@ -118,9 +114,7 @@ const notes: NoteRow[] = [
     id: 1002,
     content: '私有草稿：明天再补日志的移动端适配方案。',
     logDate: '2026-09-27',
-    visibility: 'PRIVATE',
     pinned: false,
-    archived: false,
     ownerId: ME,
     ownerName: ME_NAME,
     deptId: ME_DEPT,
@@ -129,26 +123,10 @@ const notes: NoteRow[] = [
     deleted: false,
   },
   {
-    id: 1003,
-    content: '归档：旧的日志接口草案，已被新契约取代。',
-    logDate: '2026-09-25',
-    visibility: 'INTERNAL',
-    pinned: false,
-    archived: true,
-    ownerId: ME,
-    ownerName: ME_NAME,
-    deptId: ME_DEPT,
-    tags: [],
-    version: 1,
-    deleted: false,
-  },
-  {
     id: 1004,
     content: '李四的日志：完成日志列表的懒加载与缓存淘汰。',
     logDate: '2026-09-28',
-    visibility: 'INTERNAL',
     pinned: false,
-    archived: false,
     ownerId: 12,
     ownerName: '李四',
     deptId: 10,
@@ -158,11 +136,9 @@ const notes: NoteRow[] = [
   },
   {
     id: 1005,
-    content: '张三的公开日志：部门树递归查询的几个坑。',
+    content: '张三的日志：部门树递归查询的几个坑。',
     logDate: '2026-09-26',
-    visibility: 'PUBLIC',
     pinned: false,
-    archived: false,
     ownerId: 11,
     ownerName: '张三',
     deptId: 10,
@@ -172,11 +148,9 @@ const notes: NoteRow[] = [
   },
   {
     id: 1006,
-    content: '王五的公开日志：市场部 Q3 复盘方法论。',
+    content: '王五的日志：市场部 Q3 复盘方法论。',
     logDate: '2026-09-24',
-    visibility: 'PUBLIC',
     pinned: false,
-    archived: false,
     ownerId: 8,
     ownerName: '王五',
     deptId: 20,
@@ -188,9 +162,7 @@ const notes: NoteRow[] = [
     id: 1007,
     content: '李四的日志：被授权给管理员查看的联调记录。',
     logDate: '2026-09-20',
-    visibility: 'INTERNAL',
     pinned: false,
-    archived: false,
     ownerId: 12,
     ownerName: '李四',
     deptId: 10,
@@ -300,29 +272,25 @@ function permsOf(n: NoteRow): { canEdit: boolean; canManage: boolean } {
   return { canEdit: false, canManage: false }
 }
 
-/** 可见性判定：与后端 NoteQueryService 的 scope 语义保持一致（够前端联调即可）。 */
-function inScope(n: NoteRow, scope: string, archived: boolean): boolean {
-  if (n.archived !== archived) return false
+/**
+ * 可见性判定：与后端 `NoteVisibilitySqlBuilder.scopePredicate` 对齐
+ * （owner / 已授权 / 下属，下属受 `managerCanReadSubordinate` 门控）。
+ */
+function inScope(n: NoteRow, scope: string): boolean {
   switch (scope) {
     case 'mine':
       return n.ownerId === ME
-    case 'explore':
-      return n.visibility === 'PUBLIC' && n.ownerId !== ME
     case 'shared':
       return n.ownerId !== ME && approvedGrantsFor(ME).some((g) => g.grantorId === n.ownerId)
-    case 'internal':
-      return n.visibility !== 'PRIVATE' && n.deptId === ME_DEPT
     case 'subordinate':
-      return (n.ownerId === ME || isSubordinateOf(n.ownerId)) && n.visibility !== 'PRIVATE'
+      return isSubordinateOf(n.ownerId)
     case 'all':
       return IS_ADMIN
     case 'visible':
-    default: {
+    default:
       if (n.ownerId === ME) return true
-      if (n.visibility === 'PUBLIC') return true
-      if (n.visibility === 'INTERNAL' && n.deptId === ME_DEPT) return true
-      return approvedGrantsFor(ME).some((g) => g.grantorId === n.ownerId)
-    }
+      if (approvedGrantsFor(ME).some((g) => g.grantorId === n.ownerId)) return true
+      return isSubordinateOf(n.ownerId)
   }
 }
 
@@ -336,9 +304,7 @@ function brief(n: NoteRow) {
     id: n.id,
     contentSummary: summaryOf(n.content),
     logDate: n.logDate,
-    visibility: n.visibility,
     pinned: n.pinned,
-    archived: n.archived,
     ownerId: n.ownerId,
     ownerName: n.ownerName,
     tags: n.tags,
@@ -350,13 +316,13 @@ function brief(n: NoteRow) {
 
 /**
  * 字段级可编辑性：与后端 `NoteAuthService.fieldPermissions` 同规则
- * （owner/ADMIN 全 true；未归档 EDITOR 仅正文+日期；其余全 false）。
+ * （owner/ADMIN 全 true；EDITOR 仅正文+日期；其余全 false）。
  */
-function fieldPermsOf(n: NoteRow): { content: boolean; logDate: boolean; visibility: boolean; tagIds: boolean } {
+function fieldPermsOf(n: NoteRow): { content: boolean; logDate: boolean; tagIds: boolean } {
   const p = permsOf(n)
-  if (p.canManage) return { content: true, logDate: true, visibility: true, tagIds: true }
-  if (p.canEdit) return { content: true, logDate: true, visibility: false, tagIds: false }
-  return { content: false, logDate: false, visibility: false, tagIds: false }
+  if (p.canManage) return { content: true, logDate: true, tagIds: true }
+  if (p.canEdit) return { content: true, logDate: true, tagIds: false }
+  return { content: false, logDate: false, tagIds: false }
 }
 
 function detailOf(n: NoteRow) {
@@ -491,7 +457,7 @@ export const noteHandlers = [
     const scope = url.searchParams.get('scope') ?? 'mine'
     if (scope === 'all' && !isAdminRequest(request)) return fail(10003, '无权限', 403)
     if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
-    const base = notes.filter((n) => alive(n) && inScope(n, scope, false))
+    const base = notes.filter((n) => alive(n) && inScope(n, scope))
     if (scope === 'mine') {
       return ok(
         Object.keys(TAG_NAMES).map((id) => ({
@@ -516,7 +482,7 @@ export const noteHandlers = [
     if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
     const counter = new Map<string, number>()
     for (const n of notes) {
-      if (!alive(n) || !inScope(n, scope, false)) continue
+      if (!alive(n) || !inScope(n, scope)) continue
       const [y, m] = n.logDate.split('-').map(Number)
       if (y !== year || m !== month) continue
       counter.set(n.logDate, (counter.get(n.logDate) ?? 0) + 1)
@@ -528,7 +494,6 @@ export const noteHandlers = [
     const url = new URL(request.url)
     const q = url.searchParams
     const scope = q.get('scope') ?? 'mine'
-    const archived = q.get('archived') === 'true'
     const page = Number(q.get('page') ?? 1)
     const size = Number(q.get('size') ?? 20)
     const keyword = (q.get('keyword') ?? '').trim().toLowerCase()
@@ -540,13 +505,12 @@ export const noteHandlers = [
     if (scope === 'all' && !isAdminRequest(request)) return fail(10003, '无权限', 403)
     if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
 
-    let list = notes.filter((n) => alive(n) && inScope(n, scope, archived))
+    let list = notes.filter((n) => alive(n) && inScope(n, scope))
     if (keyword) list = list.filter((n) => n.content.toLowerCase().includes(keyword))
     if (tagId) list = list.filter((n) => n.tags.some((t) => t.id === tagId))
     if (tagName) list = list.filter((n) => n.tags.some((t) => t.name === tagName))
     if (date) list = list.filter((n) => n.logDate === date)
     if (q.get('pinned') === 'true') list = list.filter((n) => n.pinned)
-    if (q.get('visibility')) list = list.filter((n) => n.visibility === q.get('visibility'))
 
     const sorted = sortNotes(list, q.get('sort') ?? 'log_date_desc')
     const start = (page - 1) * size
@@ -568,7 +532,6 @@ export const noteHandlers = [
     const body = (await request.json()) as {
       content?: string
       logDate?: string
-      visibility?: NoteRow['visibility']
       tagIds?: number[]
     }
     if (!body.content?.trim()) return fail(10001, '内容不能为空', 400)
@@ -576,9 +539,7 @@ export const noteHandlers = [
       id: ++noteSeq,
       content: body.content,
       logDate: body.logDate ?? '2026-09-28',
-      visibility: body.visibility ?? 'PRIVATE',
       pinned: false,
-      archived: false,
       ownerId: ME,
       ownerName: ME_NAME,
       deptId: ME_DEPT,
@@ -601,7 +562,6 @@ export const noteHandlers = [
     const body = (await request.json()) as {
       content?: string
       logDate?: string
-      visibility?: NoteRow['visibility']
       tagIds?: number[]
       version?: number
     }
@@ -611,7 +571,6 @@ export const noteHandlers = [
     }
     if (body.content !== undefined) n.content = body.content
     if (body.logDate !== undefined) n.logDate = body.logDate
-    if (body.visibility !== undefined) n.visibility = body.visibility
     if (body.tagIds !== undefined) n.tags = names(body.tagIds)
     n.version += 1
     return ok(detailOf(n))
@@ -637,19 +596,6 @@ export const noteHandlers = [
     n.pinned = false
     return ok(null)
   }),
-  http.post(`${AUTH}/notes/:id/archive`, ({ params }) => {
-    const n = notes.find((x) => String(x.id) === params.id)
-    if (!n) return fail(10004, '资源不存在', 404)
-    n.archived = true
-    return ok(null)
-  }),
-  http.post(`${AUTH}/notes/:id/unarchive`, ({ params }) => {
-    const n = notes.find((x) => String(x.id) === params.id)
-    if (!n) return fail(10004, '资源不存在', 404)
-    n.archived = false
-    return ok(null)
-  }),
-
   // ---- 附件 ----
   http.get(`${AUTH}/notes/:id/attachments`, ({ params }) => {
     return ok(attachments.filter((a) => String(a.noteId) === params.id))

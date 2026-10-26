@@ -7,6 +7,7 @@ import {
   Connection,
   DataBoard,
   Document,
+  List,
   Setting,
   SwitchButton,
   User,
@@ -38,6 +39,7 @@ const ALL_NAV: AdminNavItem[] = [
   { name: 'adminOverview', path: '/admin', label: '概览', icon: DataBoard, roles: ['ADMIN', 'AUDITOR', 'USER_MANAGER'] },
   { name: 'adminUsers', path: '/admin/users', label: '用户与机构', icon: User, roles: ['ADMIN', 'USER_MANAGER'] },
   { name: 'adminCasdoor', path: '/admin/casdoor', label: 'Casdoor 对接', icon: Connection, roles: ['ADMIN'] },
+  { name: 'adminNotes', path: '/admin/notes', label: '全部日志', icon: List, roles: ['ADMIN'] },
   { name: 'adminLogs', path: '/admin/logs', label: '日志', icon: Document, roles: ['ADMIN', 'AUDITOR'] },
   { name: 'adminSettings', path: '/admin/settings', label: '常规设置', icon: Setting, roles: ['ADMIN'] },
 ]

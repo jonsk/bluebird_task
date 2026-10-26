@@ -53,6 +53,7 @@ const NAV_KEY: Record<string, string> = {
 const ADMIN_NAV: Record<string, string> = {
   '/admin/users': 'adminUsers',
   '/admin/casdoor': 'adminCasdoor',
+  '/admin/notes': 'adminNotes',
   '/admin/logs': 'adminLogs',
   '/admin/settings': 'adminSettings',
 }

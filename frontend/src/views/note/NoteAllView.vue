@@ -2,7 +2,7 @@
 import NoteListView from './NoteListView.vue'
 import { useNoteScopePage } from '@/composables/useNoteScopePage'
 
-/** 全部日志（仅 ADMIN）：不分 visibility；页面级 403 空态兜底角色缓存过期。 */
+/** 全部日志（后台 /admin/notes，仅 ADMIN）：页面级 403 空态兜底角色缓存过期。 */
 const {
   notes,
   query,
@@ -20,8 +20,6 @@ const {
   onEdit,
   onPin,
   onUnpin,
-  onArchive,
-  onUnarchive,
   onRemove,
 } = useNoteScopePage({ emptyText: '暂无工作日志', adminOnly: true })
 </script>
@@ -47,8 +45,6 @@ const {
     @edit="onEdit"
     @pin="onPin"
     @unpin="onUnpin"
-    @archive="onArchive"
-    @unarchive="onUnarchive"
     @remove="onRemove"
   />
 </template>

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RefreshRight, Search } from '@element-plus/icons-vue'
-import type { NoteQuery, NoteQueryPatch, NoteScope, NoteVisibility, NoteSort } from '@/types/note'
+import type { NoteQuery, NoteQueryPatch, NoteScope, NoteSort } from '@/types/note'
 import type { TagOption } from '@/types/tag'
 import BbTagPicker from '@/components/bb/BbTagPicker.vue'
 
 /**
- * NoteFilterBar — 关键词 / 标签 / 可见性 / 置顶 / 排序 / 日期。
+ * NoteFilterBar — 关键词 / 标签 / 置顶 / 排序 / 日期。
  * 所有变更 emit('change', patch) 由外壳（useNoteList）统一写入；本组件不请求。
  */
 const props = withDefaults(
@@ -26,11 +26,6 @@ const emit = defineEmits<{
   (e: 'retry-tags'): void
 }>()
 
-const VISIBILITY_LABELS: Record<NoteVisibility, string> = {
-  PRIVATE: '私有',
-  INTERNAL: '部门内',
-  PUBLIC: '公开',
-}
 const SORT_LABELS: Record<NoteSort, string> = {
   log_date_desc: '日志日期 ↓',
   log_date_asc: '日志日期 ↑',
@@ -89,16 +84,6 @@ function onPinned(v: boolean | string | number): void {
         <span>标签加载失败</span>
         <el-button size="small" :icon="RefreshRight" @click="emit('retry-tags')">重试</el-button>
       </div>
-
-      <el-select
-        :model-value="query.visibility"
-        clearable
-        placeholder="可见性"
-        class="note-filter-bar__sel"
-        @change="(v: NoteVisibility | undefined) => emit('change', { visibility: v || undefined })"
-      >
-        <el-option v-for="(label, val) in VISIBILITY_LABELS" :key="val" :label="label" :value="val" />
-      </el-select>
 
       <el-switch
         :model-value="pinnedChecked"

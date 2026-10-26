@@ -5,13 +5,13 @@ import { getNote, createNote, updateNote } from '@/api/note'
 import { BizError, HttpError } from '@/api/http'
 import { ERROR_CODE } from '@/utils/errorCode'
 import { todayInShanghai } from '@/utils/date'
-import type { NoteDetailVO, NoteVisibility, TagVO } from '@/types/note'
+import type { NoteDetailVO, TagVO } from '@/types/note'
 import type { TagOption } from '@/types/tag'
 import BbTagPicker from '@/components/bb/BbTagPicker.vue'
 
 /**
  * NoteEditor — 新建 / 编辑日志。
- * 新建：content / logDate(默认上海当天) / visibility(PRIVATE) / tagIds(BbTagPicker)。
+ * 新建：content / logDate(默认上海当天) / tagIds(BbTagPicker)。
  * 编辑：GET 详情回显，提交带 version（乐观锁 10006 冲突提示并保留草稿）。
  * 标签三态：options===undefined → 禁用保存并提示；[]=可保存空；非空=可保存。
  */
@@ -19,12 +19,12 @@ const props = withDefaults(
   defineProps<{
     noteId?: number | null
     ownerTags?: TagVO[]
-    initial?: { content?: string; logDate?: string; visibility?: NoteVisibility; tagIds?: number[] } | null
+    initial?: { content?: string; logDate?: string; tagIds?: number[] } | null
     /**
-     * 字段级可编辑性（后端 `fieldPermissions` 原样透传：content/logDate/visibility/tagIds）。
+     * 字段级可编辑性（后端 `fieldPermissions` 原样透传：content/logDate/tagIds）。
      * 新建或未传时全字段可改；编辑态以 `GET /notes/{id}` 下发的值为准（后端是唯一事实来源）。
      */
-    fieldPermissions?: { content?: boolean; logDate?: boolean; visibility?: boolean; tagIds?: boolean }
+    fieldPermissions?: { content?: boolean; logDate?: boolean; tagIds?: boolean }
   }>(),
   { noteId: null, ownerTags: undefined, initial: null, fieldPermissions: () => ({}) },
 )
@@ -36,29 +36,28 @@ const props = withDefaults(
  * 3) 新建态不受限。
  */
 const loadedRole = ref<string | null>(null)
-const loadedPerms = ref<{ content?: boolean; logDate?: boolean; visibility?: boolean; tagIds?: boolean } | null>(null)
+const loadedPerms = ref<{ content?: boolean; logDate?: boolean; tagIds?: boolean } | null>(null)
 
 const locks = computed(() => {
   const explicit = loadedPerms.value ?? props.fieldPermissions ?? null
   // 空对象 = 未下发（默认值），此时回退到 grantRole 规则
   const perms = explicit && Object.keys(explicit).length > 0 ? explicit : null
   const editorFallback = perms == null && loadedRole.value === 'EDITOR'
-  const locked = (key: 'content' | 'logDate' | 'visibility' | 'tagIds'): boolean => {
+  const locked = (key: 'content' | 'logDate' | 'tagIds'): boolean => {
     if (perms == null) {
-      // 回退：只有 EDITOR 受限（归档日志由后端 404/50013 兜底）
-      return editorFallback && (key === 'visibility' || key === 'tagIds')
+      // 回退：只有 EDITOR 受限（仅正文与日期可改）
+      return editorFallback && key === 'tagIds'
     }
     return perms[key] === false
   }
   return {
     content: locked('content'),
     date: locked('logDate'),
-    visibility: locked('visibility'),
     tagIds: locked('tagIds'),
   }
 })
 
-function canEditField(key: 'content' | 'visibility' | 'tagIds' | 'logDate'): boolean {
+function canEditField(key: 'content' | 'tagIds' | 'logDate'): boolean {
   if (key === 'logDate') return !locks.value.date
   return !locks.value[key]
 }
@@ -78,7 +77,6 @@ const tagOptions = computed<TagOption[] | undefined>(() => {
 
 const content = ref('')
 const logDate = ref(todayInShanghai())
-const visibility = ref<NoteVisibility>('PRIVATE')
 const tagIds = ref<number[]>([])
 const version = ref<number | undefined>(undefined)
 const loading = ref(false)
@@ -91,7 +89,6 @@ async function loadDetail(): Promise<void> {
     const d = await getNote(props.noteId)
     content.value = d.content ?? ''
     logDate.value = d.logDate ?? todayInShanghai()
-    visibility.value = d.visibility ?? 'PRIVATE'
     tagIds.value = (d.tags ?? []).map((t) => t.id!).filter((id): id is number => id != null)
     version.value = d.version
     loadedRole.value = (d as { grantRole?: string | null }).grantRole ?? null
@@ -108,7 +105,6 @@ function applyNewDefaults(): void {
   const init = props.initial
   content.value = init?.content ?? ''
   logDate.value = init?.logDate ?? todayInShanghai()
-  visibility.value = init?.visibility ?? 'PRIVATE'
   tagIds.value = init?.tagIds ?? []
   version.value = undefined
 }
@@ -145,7 +141,6 @@ async function onSubmit(): Promise<void> {
       detail = await updateNote(props.noteId, {
         content: content.value,
         logDate: logDate.value,
-        visibility: visibility.value,
         tagIds: tagIds.value,
         version: version.value,
       })
@@ -153,7 +148,6 @@ async function onSubmit(): Promise<void> {
       detail = await createNote({
         content: content.value,
         logDate: logDate.value,
-        visibility: visibility.value,
         tagIds: tagIds.value,
       })
     }
@@ -204,11 +198,6 @@ function onCtrlEnter(e?: Event): void {
           placeholder="日志日期"
           :disabled="!canEditField('logDate')"
         />
-        <el-select v-model="visibility" class="note-editor__sel" :disabled="!canEditField('visibility')">
-          <el-option label="私有" value="PRIVATE" />
-          <el-option label="部门内" value="INTERNAL" />
-          <el-option label="公开" value="PUBLIC" />
-        </el-select>
         <BbTagPicker
           :options="tagOptions"
           v-model="tagIds"
@@ -220,11 +209,11 @@ function onCtrlEnter(e?: Event): void {
         当前为只读视图，无可编辑字段。
       </p>
       <p
-        v-else-if="!canEditField('visibility') || !canEditField('tagIds')"
+        v-else-if="!canEditField('tagIds')"
         class="note-editor__hint"
         data-test="note-editor-field-hint"
       >
-        作为协作者，仅可修改正文与日期；可见性与标签由作者维护。
+        作为协作者，仅可修改正文与日期；标签由作者维护。
       </p>
 
       <div class="note-editor__ops">
@@ -258,9 +247,6 @@ function onCtrlEnter(e?: Event): void {
   align-items: center;
   gap: 10px;
   margin-top: 10px;
-}
-.note-editor__sel {
-  width: 120px;
 }
 .note-editor__tags {
   flex: 1;

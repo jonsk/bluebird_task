@@ -1,22 +1,11 @@
 import { ElMessage } from 'element-plus'
-import { pinNote, unpinNote, archiveNote, unarchiveNote, deleteNote } from '@/api/note'
+import { pinNote, unpinNote, deleteNote } from '@/api/note'
 import { useNoteStore } from '@/stores/note'
 import { HttpError, BizError } from '@/api/http'
-import type { NoteVisibility, NoteScope } from '@/types/note'
+import type { NoteScope } from '@/types/note'
 
-/** 变更前 visibility → 受影响 scope 集合（用于缓存失效）。 */
-export function scopesForVisibility(v?: NoteVisibility): NoteScope[] {
-  switch (v) {
-    case 'PRIVATE':
-      return ['mine', 'all']
-    case 'INTERNAL':
-      return ['mine', 'internal', 'all']
-    case 'PUBLIC':
-      return ['mine', 'explore', 'shared', 'all']
-    default:
-      return ['mine', 'all']
-  }
-}
+/** 变更后受影响的 scope 集合（用于缓存失效；日志只有「我的 / 被授权 / 员工 / 全部」四处）。 */
+export const AFFECTED_SCOPES: NoteScope[] = ['mine', 'shared', 'subordinate', 'all']
 
 function hint(e: unknown): string {
   if (e instanceof BizError) return e.message
@@ -24,12 +13,12 @@ function hint(e: unknown): string {
   return (e as Error).message || '操作失败'
 }
 
-/** 笔记动作单点（7 页共用）：pin/archive/remove + 缓存失效 + toast。 */
+/** 日志动作单点（4 页共用）：pin/remove + 缓存失效 + toast。 */
 export function useNoteActions() {
   const store = useNoteStore()
 
-  function onChanged(visibility?: NoteVisibility): void {
-    store.invalidate(scopesForVisibility(visibility))
+  function onChanged(): void {
+    store.invalidate(AFFECTED_SCOPES)
   }
 
   async function togglePin(note: { id: number; pinned?: boolean }): Promise<void> {
@@ -43,27 +32,15 @@ export function useNoteActions() {
     }
   }
 
-  async function toggleArchive(note: { id: number; archived?: boolean; visibility?: NoteVisibility }): Promise<void> {
-    try {
-      if (note.archived) await unarchiveNote(note.id)
-      else await archiveNote(note.id)
-      ElMessage.success('操作成功')
-      // 归档额外清 mine/all 的 archived 查询（去重，避免重复遍历缓存）
-      store.invalidate(Array.from(new Set([...scopesForVisibility(note.visibility), 'mine', 'all'])))
-    } catch (e) {
-      ElMessage.error(hint(e))
-    }
-  }
-
-  async function remove(note: { id: number; visibility?: NoteVisibility }): Promise<void> {
+  async function remove(note: { id: number }): Promise<void> {
     try {
       await deleteNote(note.id)
       ElMessage.success('已删除')
-      onChanged(note.visibility)
+      onChanged()
     } catch (e) {
       ElMessage.error(hint(e))
     }
   }
 
-  return { onChanged, togglePin, toggleArchive, remove }
+  return { onChanged, togglePin, remove }
 }
