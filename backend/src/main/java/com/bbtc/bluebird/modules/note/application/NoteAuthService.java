@@ -8,6 +8,7 @@ import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteUserGrant;
 import com.bbtc.bluebird.modules.note.domain.Visibility;
+import com.bbtc.bluebird.modules.note.dto.NoteFieldPermissionsVO;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteUserGrantMapper;
 import com.bbtc.bluebird.modules.org.application.DepartmentPolicy;
@@ -132,6 +133,27 @@ public class NoteAuthService {
         }
         NoteUserGrant g = approvedGrant(note.getOwnerId(), me);
         return g == null ? null : g.getRole();
+    }
+
+    /**
+     * 字段级可编辑性（详情回传给前端，写路径校验的唯一镜像）。
+     *
+     * <p>与 {@link #assertWritable} / {@code NoteCommandService.update} 的分支一一对应：
+     * 归档 → 正文与日期也不可改（50013「已归档日志不允许编辑」）；
+     * EDITOR → 仅正文与日期；VIEWER 及其它只读可见者 → 全 false。
+     */
+    public NoteFieldPermissionsVO fieldPermissions(Note note, Long me) {
+        if (note == null || isTrue(note.getDeleted()) || me == null) {
+            return NoteFieldPermissionsVO.none();
+        }
+        if (canManage(note, me)) {
+            // owner / ADMIN：归档后仍可改（业务上允许 owner 归档后修订）
+            return NoteFieldPermissionsVO.all();
+        }
+        if (NoteUserGrant.EDITOR.equals(grantRole(note, me)) && !isTrue(note.getArchived())) {
+            return new NoteFieldPermissionsVO(true, true, false, false);
+        }
+        return NoteFieldPermissionsVO.none();
     }
 
     /** 写操作前置：不可见 404；归档日志的 EDITOR 50013；只读角色 403。 */

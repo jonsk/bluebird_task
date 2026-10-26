@@ -3441,6 +3441,14 @@ export interface components {
             attachments?: components["schemas"]["NoteAttachmentVO"][];
             /** @description owner 完整标签；仅 canEdit / canManage 时返回 */
             ownerTags?: components["schemas"]["TagVO"][] | null;
+            fieldPermissions?: components["schemas"]["NoteFieldPermissionsVO"];
+        };
+        /** @description 字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应： owner/ADMIN 四项全 true；未归档的 EDITOR 仅 content/logDate 为 true（改 visibility/tagIds → 50013）； 归档日志对 EDITOR 全 false（50013 已归档只读）；VIEWER 等只读可见者全 false。 */
+        NoteFieldPermissionsVO: {
+            content?: boolean;
+            logDate?: boolean;
+            visibility?: boolean;
+            tagIds?: boolean;
         };
         NoteListData: {
             list?: components["schemas"]["NoteBrief"][];

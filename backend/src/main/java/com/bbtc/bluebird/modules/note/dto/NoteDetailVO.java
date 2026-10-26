@@ -19,4 +19,6 @@ public class NoteDetailVO extends NoteVO {
     private List<NoteAttachmentVO> attachments = new ArrayList<>();
     /** owner 完整标签；仅 canEdit / canManage 时返回。 */
     private List<TagVO> ownerTags;
+    /** 字段级可编辑性（正文/日期/可见性/标签），前端据此禁用控件 */
+    private NoteFieldPermissionsVO fieldPermissions = NoteFieldPermissionsVO.none();
 }

@@ -520,6 +520,9 @@ paths:
     get:
       tags: [task]
       summary: 任务详情
+      description: >
+        不可见与不存在一律 **HTTP 404 + code 10004**（不暴露存在性，与 `/tasks/{id}/attachments` 一致）。
+        子任务随父任务可见性返回。
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses:
         '200':
@@ -528,6 +531,7 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/TaskDetailVO' } } }]
+        '404': { description: 任务不存在或对当前用户不可见（code 10004） }
     put:
       tags: [task]
       summary: 更新任务（须携带 `version`）
@@ -1228,6 +1232,18 @@ components:
               nullable: true
               description: owner 完整标签；仅 canEdit / canManage 时返回
               items: { $ref: '#/components/schemas/TagVO' }
+            fieldPermissions: { $ref: '#/components/schemas/NoteFieldPermissionsVO' }
+    NoteFieldPermissionsVO:
+      type: object
+      description: >
+        字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应：
+        owner/ADMIN 四项全 true；未归档的 EDITOR 仅 content/logDate 为 true（改 visibility/tagIds → 50013）；
+        归档日志对 EDITOR 全 false（50013 已归档只读）；VIEWER 等只读可见者全 false。
+      properties:
+        content: { type: boolean }
+        logDate: { type: boolean }
+        visibility: { type: boolean }
+        tagIds: { type: boolean }
     NoteListData:
       type: object
       properties:

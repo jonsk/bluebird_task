@@ -206,6 +206,7 @@ public class NoteQueryService {
         vo.setContent(note.getContent());
         vo.setOwnerTags(authService.canEdit(note, me) || authService.canManage(note, me)
                 ? ownerTags(note.getOwnerId()) : null);
+        vo.setFieldPermissions(authService.fieldPermissions(note, me));
         vo.setAttachments(attachmentVOs(note, me, admin));
         vo.setRelations(relationVOs(note, me));
         vo.setBacklinks(backlinkVOs(note, me));
