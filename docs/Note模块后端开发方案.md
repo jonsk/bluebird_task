@@ -1,5 +1,12 @@
 # Note 模块后端开发方案
 
+> **⚠️ 二轮减法（2026-10-26，已落地）：授权日志整体下线。**
+> 删除内容：`/api/v1/note-grants` 6 个端点、`note_user_grant` 表（V8 DROP）、`scope=shared`、`VIEWER/EDITOR` 角色与 `NoteUserGrantService` 状态机、
+> 前端「被授权日志 / 授权管理」两页与 `NoteGrantForm`、错误码 50007–50011 / 50013–50015。
+> 现行可见性只有三条：**自己 ∨（上级 ∧ 开关）∨ ADMIN**；可写只有**自己 ∨ ADMIN**。
+> 本文后续章节凡出现「授权 / 被授权 / EDITOR / shared」字样，均为**历史设计记录**，实现以 `docs/减法评估-授权日志.md` 的执行结果为准。
+
+
 > 本文档为 note 模块**后端**实现契约：数据模型、API、权限、错误码、实施与验收。
 > 前端实现见《Note 模块前端开发方案》；总览与取舍背景见《Note 模块集成方案》。
 
@@ -47,7 +54,6 @@
 | 日志日期         | `log_date` 字段                                 |
 | 标签           | 手动选择，共用 `tag` 表 + `note_tag`                  |
 | 可见性          | PRIVATE / INTERNAL（本部门含子树）/ PUBLIC            |
-| 用户级授权        | owner 把**所有**日志权限授予指定用户（VIEWER/EDITOR），三种发起方式 |
 | 下属可见         | 复用 `manager-can-read-subordinate` 开关          |
 | 置顶 / 归档 / 删除 | 见 §3.4                                        |
 | 附件           | 关联 attachment，补访问控制                           |
@@ -59,7 +65,6 @@
 | 日历视图       | 按 `log_date` 聚合                  |
 | 探索页        | 浏览 PUBLIC 日志                     |
 | 引用         | note 互引（REFERENCE）+ note 引用 task |
-| 授权管理页      | 发起/确认/撤销，查看授权列表                  |
 | ADMIN 全量日志 | `scope=all`（仅 ADMIN）             |
 
 ### 第三层：缓做 / 不做
@@ -115,8 +120,6 @@ CREATE INDEX idx_nt_tag  ON note_tag(tag_id);
 CREATE TABLE note_user_grant (
     id          INTEGER PRIMARY KEY,
     grantor_id  INTEGER NOT NULL,               -- 授权人（日志 owner）
-    grantee_id  INTEGER NOT NULL,               -- 被授权人
-    role        TEXT    NOT NULL,               -- VIEWER | EDITOR
     status      TEXT    NOT NULL DEFAULT 'PENDING', -- PENDING|APPROVED|REJECTED|REVOKED
     mode        TEXT    NOT NULL DEFAULT 'OWNER',   -- OWNER | SUPERIOR | ADMIN
     created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -150,7 +153,6 @@ CREATE TABLE note_relation (
     target_type     TEXT    NOT NULL DEFAULT 'NOTE', -- NOTE | TASK
     target_id       INTEGER NOT NULL,
     created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')), -- 引用时间（非 note 创建时间，可晚于 note）
-    created_by      INTEGER,                                                          -- 引用人（EDITOR/ADMIN 也能添加，非必为 source owner；为空时 UI 显示"—"）
     UNIQUE (source_note_id, target_type, target_id)
 );
 CREATE INDEX idx_nr_source ON note_relation(source_note_id);
@@ -260,7 +262,6 @@ isVisible(note, currentUser):
 | scope         | 语义                                                       |
 | ------------- | -------------------------------------------------------- |
 | `mine`        | 我创建的（默认）                                                 |
-| `shared`      | 被授权给我的（grantee=me 的 grantor 的日志）                         |
 | `explore`     | PUBLIC                                                   |
 | `internal`    | `visibleDeptIds(me)` 覆盖部门的 INTERNAL 日志（方案 2）             |
 | `subordinate` | `owner ∈ subordinates(me)`（开关开时；开关关→403）                 |
@@ -286,7 +287,6 @@ backend/src/main/java/com/bbtc/bluebird/modules/note/
 ├── domain/
 │   ├── Note.java                      # 主实体，@Version + 逻辑删除
 │   ├── NoteTag.java
-│   ├── NoteUserGrant.java             # + mode
 │   ├── NoteAttachmentRef.java
 │   ├── NoteRelation.java
 │   └── Visibility.java
@@ -294,18 +294,15 @@ backend/src/main/java/com/bbtc/bluebird/modules/note/
 │   ├── NoteCommandService.java        # 创建/更新/删除/归档/置顶 + 字段级权限 + 标签 + 级联清理 + dept_id 刷新
 │   ├── NoteQueryService.java          # 列表/详情/日历/统计（7 scope 用 NoteVisibilitySqlBuilder）
 │   ├── NoteAuthService.java           # isVisible/isWritable + visibleDeptIds + 下属 + 归档 + deleted
-│   ├── NoteUserGrantService.java      # 授权（mode + createdBy 视图 + 自动通过记录 approved_by）
 │   ├── NoteRelationService.java       # 引用（backlinks、自引用禁止、TASK 可见性）
 │   └── NoteAttachmentService.java     # 关联附件（assertCanBind、引用计数、note 下载校验）
 ├── controller/
 │   ├── NoteController.java
-│   ├── NoteUserGrantController.java
 │   └── NoteCalendarController.java
 ├── dto/
 │   ├── NoteCreateReq.java
 │   ├── NoteUpdateReq.java             # + version（PATCH）
 │   ├── NoteQuery.java                 # scope 7 种 + tag + keyword + dateRange + pinned + archived + date + sort
-│   ├── NoteVO.java                    # + version + tags(本 note 已选) + canEdit/canManage/grantRole（**不含 ownerTags**，见 前端文档 §6）
 │   ├── NoteDetailVO.java              # NoteVO + relations/backlinks/attachments + ownerTags（唯一含 ownerTags 处）
 │   ├── NoteBacklinkVO.java            # backlinks 来源（sourceNoteId/sourceSummary/sourceOwner*/createdBy/createdByName，见 前端文档 §6）
 │   ├── NoteBrief.java                 # + version
@@ -313,13 +310,10 @@ backend/src/main/java/com/bbtc/bluebird/modules/note/
 │   ├── NoteAttachmentVO.java          # note 附件（id=关联id/attachmentId/downloadUrl/canRemoveRef/canDelete/createdBy，见 前端文档 §6）
 │   ├── NoteAttachmentBindReq.java     # {attachmentId:number}（请求体，见 §5.4）
 │   ├── NoteRelationCreateReq.java     # {targetType:'NOTE'|'TASK', targetId:number}（请求体，见 §5.5）
-│   ├── NoteUserGrantReq.java          # mode + role + 目标用户（按 mode 决定哪些由服务端推导）
-│   ├── NoteUserGrantVO.java           # + mode + createdBy
 │   └── NoteCalendarDay.java
 ├── infrastructure/
 │   ├── NoteMapper.java
 │   ├── NoteTagMapper.java
-│   ├── NoteUserGrantMapper.java
 │   ├── NoteAttachmentRefMapper.java
 │   └── NoteRelationMapper.java
 └── util/
@@ -346,7 +340,6 @@ backend/src/main/java/com/bbtc/bluebird/modules/note/
 | 方法          | 路径                                        | 说明                           | 权限                                          |
 | ----------- | ----------------------------------------- | ---------------------------- | ------------------------------------------- |
 | POST        | `/api/v1/notes`                           | 创建                           | 登录                                          |
-| PUT         | `/api/v1/notes/{id}`                      | 更新（携带 version）               | owner / EDITOR grant / ADMIN                |
 | DELETE      | `/api/v1/notes/{id}`                      | 软删除 + 级联                     | owner / ADMIN                               |
 | GET         | `/api/v1/notes`                           | 列表（scope + 过滤）               | 登录                                          |
 | GET         | `/api/v1/notes/{id}`                      | 详情                           | 按可见性（不可见→404）                               |
@@ -356,7 +349,6 @@ backend/src/main/java/com/bbtc/bluebird/modules/note/
 
 **字段级权限**：
 
-| 字段/操作                  | owner | EDITOR grant | ADMIN |
 | ---------------------- | ----- | ------------ | ----- |
 | content / log_date     | 写     | 写            | 写     |
 | visibility             | 写     | 禁止           | 写     |
@@ -367,20 +359,13 @@ backend/src/main/java/com/bbtc/bluebird/modules/note/
 | 引用移除                   | 写     | 禁止           | 写     |
 | pin / archive / delete | 写     | 禁止           | 写     |
 
-**PATCH 语义**：`tagIds=null` 不改；`[]` 清空；`visibility` 省略不变；EDITOR 判定基于"值是否与当前一致"。
 
 **写权限算法**——`NoteAuthService` 明确三档：
 
-| 动作                                                               | owner | EDITOR grant | ADMIN | 归档 note                         | 已删除 note |
 | ---------------------------------------------------------------- | ----- | ------------ | ----- | ------------------------------- | -------- |
-| `canEdit`                                                        | true  | true（字段受限）   | true  | false（EDITOR）/true（owner/admin） | false    |
 | `canManage`（visibility/pin/archive/delete/tagIds/引用移除/附件移除）      | true  | false        | true  | owner/admin true                | false    |
-| `isWritable`（= canEdit && !deleted && !(archived && 角色==EDITOR)） | true  | 仅未归档         | true  | EDITOR false；owner/admin true   | false    |
 
-- **EDITOR 可写字段**：`content/log_date`、附件新增、引用新增；**不可写**：visibility、tagIds、附件移除、引用移除、pin/archive/delete。
-- **archived 时 EDITOR 一律不可写**（含 content）；owner/admin 仍可读写归档项（unarchive）。
 - **deleted 一律不可写**（任何角色）。
-- `canEdit`/`canManage` 与 §5.1 字段级权限表一致；`grantRole=EDITOR` 的用户在 `archived=1` 时 `canEdit=false`。
 
 **列表查询参数**：
 
@@ -426,7 +411,6 @@ GET /api/v1/notes?
 
 | 方法 | 路径 | 说明 | 权限 |
 | --- | --- | --- | --- |
-| GET | `/api/v1/users?scope=subordinate` | 返回当前用户的下属用户列表（`PageResult<UserVO>`），供 `BbUserPicker scope='subordinate'` 与 `NoteGrantForm mode=SUPERIOR` 使用 | 登录 |
 
 - **响应 schema**：`ApiResult<PageResult<UserVO>>`（`{list: UserVO[], total, page, size}`），仅返回当前用户直接下属（非递归）。
 - **权限**：任何登录用户可调；`managerCanReadSubordinate=false`（开关关闭）时返回**空列表 `[]`**（非 403——该端点是用户选择器数据源，空列表表示"无下属可选"，403 会破坏表单初始化；scope=subordinate 的 403 只针对 note 列表/日历查询）。
@@ -434,64 +418,8 @@ GET /api/v1/notes?
 
 ### 5.2 用户级授权
 
-| 方法     | 路径                                 | 说明                                                                                                                                                                    | 权限                                    |
-| ------ | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| POST   | `/api/v1/note-grants`              | 发起授权（body 含 mode；三 mode 均显式写 `created_by=发起人`）                                                                                                                        | 登录                                    |
-| GET    | `/api/v1/note-grants`              | 列表（`tab=created\|granted\|incoming\|all` 意图参数 + status/role/mode 过滤，`direction` 仅行内展示；转义 `\|` + 统一 4 列） | 登录（`tab=all` 仅 ADMIN）                 |
-| POST   | `/api/v1/note-grants/{id}/approve` | PENDING→APPROVED                                                                                                                                                      | **grantor==me**（SUPERIOR 行的下属 A）      |
-| POST   | `/api/v1/note-grants/{id}/reject`  | PENDING→REJECTED                                                                                                                                                      | **grantor==me**                       |
-| POST   | `/api/v1/note-grants/{id}/upgrade` | VIEWER→EDITOR                                                                                                                                                         | **grantor==me**（仅 APPROVED）           |
-| DELETE | `/api/v1/note-grants/{id}`         | 撤销（→REVOKED）：**撤 PENDING = `grantor==me OR created_by==me` 或 ADMIN；撤 APPROVED = `grantor==me` 或 ADMIN**（发起人可撤回自己的 PENDING）                                  | grantor / created_by(PENDING) / ADMIN |
-
-**发起请求体（mode 区分）**：
-
-```json
-// OWNER（owner 主动）
-{ "mode": "OWNER", "granteeId": 5, "role": "VIEWER" }
-// SUPERIOR（上级发起，看下属）
-{ "mode": "SUPERIOR", "grantorId": 8, "role": "VIEWER" }
-// ADMIN（代授权）
-{ "mode": "ADMIN", "grantorId": 8, "granteeId": 5, "role": "VIEWER" }
-```
-
-**mode 必填与冲突校验**：
-
-- `OWNER`：必填 `granteeId/role`，`grantorId` 必须为空（服务端强制 grantor=me）；`created_by=me`。
-- `SUPERIOR`：必填 `grantorId/role`，grantee 服务端推导=me，校验 `subordinates(me).contains(grantorId)`；**body 若携带 `granteeId` → 400（`NOTE_GRANT_MODE_INVALID`）**，该模式 grantee 恒由服务端推导，禁止客户端指定；**`created_by=me`（发起人=上级），`grantor_id=body`（下属），弥合"发起人≠grantor"**。
-- `ADMIN`：必填 `grantorId/granteeId/role`，仅 ADMIN，`created_by=me`。
-- mode 缺失/未知→400；mode 与角色不符→403。**模式×字段组合校验收敛为显式校验表（请求体 3 模式 × 字段），写入 OpenAPI 与单测。服务端推导 + 自动通过记录**：
-
-| mode     | grantor  | grantee | status   | created_by        | approved_at/by                                                     |
-| -------- | -------- | ------- | -------- | ----------------- | ------------------------------------------------------------------ |
-| OWNER    | me       | body    | APPROVED | **me（发起人）**       | **approved_by=me, approved_at=now**                                |
-| SUPERIOR | body(下属) | me(上级)  | PENDING  | **me（上级，发起人）**    | **下属 grantor 确认后 → APPROVED；approved_by=grantor, approved_at=now** |
-| ADMIN    | body     | body    | APPROVED | **me（ADMIN，发起人）** | **approved_by=ADMIN, approved_at=now**                             |
-
-> OWNER/ADMIN 自动通过、SUPERIOR 由 grantor 确认后通过，**均写 `approved_by/approved_at`**；撤销一律写 `revoked_by/revoked_at`（撤销者），补 `SUPERIOR` 的 revoked_by 审计。
->
-> **SUPERIOR 与下属开关的关系**：`mode=SUPERIOR` 是**显式授权**、**不受 `managerCanReadSubordinate` 开关约束**——开关关闭仍可发起 `mode=SUPERIOR`；已 APPROVED 的 SUPERIOR grant 在开关关闭时**仍生效**；开关重开后历史 grant 继续生效。开关只控制 isVisible 第 7 步的"无 grant 自动可见"（见 §3.3 关键规则 8）。
-
-**校验**：不能给自己授权；`@RepeatSubmit` + 每 grantor 最多 5 条 PENDING；grantor/grantee 均 ACTIVE。**拒绝/撤销形成独立的 REJECTED/REVOKED 历史行（`uq_nug_active` 部分索引只约束 PENDING/APPROVED，允许多历史行并存）；再次发起一律创建新 PENDING 行，不复用历史行、不清空历史 approved/revoked 字段**（保留完整审计链，避免"复用哪一行"歧义）。
-
-**动作权限**：
-
-- `approve/reject`：**`grantor==me`**（SUPERIOR 行的下属 A，在 `tab=granted` 的 PENDING 行操作）；
-- `revoke PENDING`：**`grantor==me OR created_by==me`** 或 ADMIN（**发起人 S 可撤回自己发起的 SUPERIOR 申请**）；
-- `revoke APPROVED`：`grantor==me` 或 ADMIN（grantor A 经 `tab=granted` 可撤销已批准 SUPERIOR）；
-- `upgrade`：`grantor==me`（仅 APPROVED）。
-
-**direction/status/mode/tab**：**把"授权关系（grantor/grantee）"与"发起动作（created_by）"拆成两个维度，不用一个 `grantor` 同时承担**。`direction` 仅**行内展示**（`outgoing`=grantor_id=me、`incoming`=grantee_id=me、`none`=两者皆非，如 ADMIN 代授权行对 ADMIN），**不参与 Tab 过滤**。`tab` 为查询意图参数，**唯一过滤条件以下表为准（各 Tab 内唯一；同一行可跨 Tab 出现，不用"互斥"描述整个关系）**：
-
-| tab                            | 唯一过滤条件                                 | 按钮语义                                                                                                                                                                                                                    |
-| ------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `created`（我发起的）                | `created_by = me`                      | 发起人：OWNER/SUPERIOR/ADMIN 代授权均在此；可撤回自己发起的 PENDING；**APPROVED 行中：`grantor==me`（OWNER 行）可升级/撤销；`isAdmin && created_by==me`（ADMIN 代授权行，grantor=A）可撤销、不可升级；其余只读**                                             |
-| `granted`（我授权的， 方案 A） | `grantor_id = me`（**全状态**）             | 我作为授权方可见全部状态（PENDING/APPROVED/REJECTED/REVOKED）；PENDING 行内显"**确认/拒绝/撤回（grantor==me，撤回后进入 REVOKED）**"；APPROVED 可撤销/升级——保证 SUPERIOR 行通过后 grantor A 仍有入口收回 |
-| `incoming`（涉及我的）               | `grantee_id = me AND created_by <> me` | 只读/被授权；**加 `created_by<>me` 排除 S 自己发起的 SUPERIOR 行**（不重复）                                                                                                                                                                |
-| `all`                          | ADMIN 全量                               | 只读 + 可代撤销                                                                                                                                                                                                               |
-
-**SUPERIOR 行（grantor=A、grantee=S、created_by=S、status=PENDING）**：S 经 `tab=created` 出现且**可撤回自己的 PENDING**（`created_by==me`）；A 经 `tab=granted`（grantor=A）出现，PENDING 时**确认/拒绝/撤回（grantor==me，撤回进入 REVOKED）**、APPROVED 后仍在该 Tab **可撤销/升级**（A 作为唯一非 ADMIN grantor 必须始终有 UI 入口，不能批准后就消失）；S 的 `tab=incoming` **不重复**（incoming 加 `created_by<>me`，S 行 grantor=A 非 S 不在此）。**ADMIN 代授权行（grantor=A、grantee=B、created_by=admin、status=APPROVED）**：ADMIN（发起人）经 `tab=created` 出现并可代撤销；B 经 `tab=incoming` 出现；A 经 `tab=granted`（grantor=A）出现**并可撤销（`grantor==me`）**——SUPERIOR 与 ADMIN 代授权两种场景下 A 都是被授权日志的 owner（grantor），应在"我授权的"里看到并有权收回。**created / granted / incoming 三处各 Tab 内不重不漏（同一行可跨 Tab 出现，例如 OWNER 授权行 `grantor=created_by=me`、`grantee=他人`（不能给自己授权），在 created 与 granted 各出现一次属正常）。状态机**：upgrade 仅 APPROVED；DELETE 撤 PENDING 的权限见上（发起人/grantor/ADMIN）；grantee 本期不能主动放弃；`expires_at` 不加。
-
-**审计**：发起/确认/拒绝/撤销/升级均 `@OperateLog`。
+> **本节已整块下线（2026-10-26）**：授权日志能力被完整摘除（6 端点 / 表 / 状态机 / 前端页面）。
+> 保留本节仅作历史设计追溯；现行口径见 `docs/减法评估-授权日志.md`。
 
 ### 5.3 日历
 
@@ -515,7 +443,6 @@ GET /api/v1/notes?
 
 | 方法     | 路径                                                       | 说明                                                                                              | 权限                                                                                      |
 | ------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| POST   | `/api/v1/notes/{id}/attachments`                         | 关联附件（body `NoteAttachmentBindReq { attachmentId:number }`，单条绑定；多文件上传由前端逐个调 POST） | owner / EDITOR（**须 `NoteAuthService.isWritable`**，归档时 EDITOR 不可写；再校验附件 `assertCanBind`） |
 | GET    | `/api/v1/notes/{id}/attachments`                         | 附件列表                                                                                            | 按可见性（不可见404）                                                                            |
 | DELETE | `/api/v1/notes/{id}/attachments/{attachmentId}`          | 移除关联                                                                                            | owner / ADMIN                                                                           |
 | GET    | `/api/v1/notes/{id}/attachments/{attachmentId}/download` | 下载                                                                                              | note 可见 + 关联存在                                                                          |
@@ -605,7 +532,6 @@ GET /api/v1/notes?
      - 磁盘物理删除失败：记录日志并提示（磁盘删失败不回滚已删的行，避免隐藏孤儿；由 FieldCleanupJob 周期收尾）。
    ```
    > 本方法有**真实调用链**：仅被 `DELETE /tasks/{taskId}/attachments/{id}`（task 删除元动作）调用；**不在 `TaskApplicationService.update` 中触发**（update 不做全量替换，见规则 1）。`TaskAttachmentController` 删除端点补 `@OperateLog` 删除审计。
-3. `POST /notes/{id}/attachments`：先 **`NoteAuthService.isWritable(note)`**（归档时 EDITOR 不可写），再调 **`assertCanBind`**（创建者/ADMIN）；**不能只看可见性**。
 4. note 附件上传 `task_id=null`，仅经 `note_attachment_ref` 引用。
 5. **task 附件上传统一走专用端点（修复越权 + 依赖倒挂）**：新增 **`POST /api/v1/tasks/{taskId}/attachments`**（落 `TaskAttachmentController`）→ `TaskAuthService.assertWritable(taskId, me)` → `FileService.upload(file, taskId)`。**`assertWritable` 放在 Controller/Task 侧，`FileService.upload` 保持只落盘、不依赖 `TaskAuthService`**（避免 file→task 模块依赖倒挂）。
 
@@ -624,7 +550,6 @@ GET /api/v1/notes?
 
 | 方法     | 路径                                          | 说明                                                                                             | 权限                                                |
 | ------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| POST   | `/api/v1/notes/{id}/relations`              | 添加引用（body `NoteRelationCreateReq { targetType:'NOTE' \| 'TASK', targetId:number }`） | owner / EDITOR（**须 `isWritable`**，归档时 EDITOR 不可写） |
 | GET    | `/api/v1/notes/{id}/relations`              | 我引用了谁                                                                                          | 按可见性                                              |
 | GET    | `/api/v1/notes/{id}/backlinks`              | 谁引用了我（过滤不可见）                                                                                   | 按可见性                                              |
 | DELETE | `/api/v1/notes/{id}/relations/{relationId}` | 移除引用                                                                                           | owner / ADMIN                                     |
@@ -633,7 +558,6 @@ GET /api/v1/notes?
 
 - 仅 REFERENCE；target_type NOTE/TASK；禁止自引用。
 - **请求体**：`NoteRelationCreateReq { targetType:'NOTE'|'TASK', targetId:number }`（`targetType` 枚举非法→400）、`NoteAttachmentBindReq { attachmentId:number }`（关联附件用，删除/下载传 `attachmentId`）。校验：附件存在且 `assertCanBind`、target 存在且当前用户可见（task 走 `isVisible`，note 走 `isVisible`/可见性过滤）、自引用→**400**（参数校验错误：自引用是请求参数错误而非目标不存在）。
-- 添加时先 **`isWritable(note)`**（归档时 EDITOR 不可写），再校验目标存在且当前用户可见。
 - **添加幂等**：`note_relation` 有 `UNIQUE(source_note_id, target_type, target_id)`，重复添加（冲突）→ **返回现有 `NoteRelationVO`，不 409**，与附件关联幂等口径一致。
 - **读时 TASK 目标重新校验**（走 `TaskAuthService.isVisible(task, me)`，任务不可见 → 404）；不可见时**统一隐藏该条**（不显示占位，避免泄露 task 存在性，写入 DTO 语义）。
 - NOTE 目标过滤 deleted/archived/invisible。
@@ -672,8 +596,6 @@ POST /api/v1/notes  { content, logDate, visibility, tagIds }
 ```
 PUT /api/v1/notes/{id}  { content, logDate, visibility, tagIds, version }
     ├── 乐观锁 version 校验
-    ├── NoteAuthService 校验可写（owner / EDITOR / ADMIN）
-    ├── 字段级权限：EDITOR 禁止变更 visibility/tagIds（比较是否变化）
     ├── dept_id 刷新：
     │     oldVisibility != INTERNAL && newVisibility == INTERNAL
     │     → dept_id = deptIdOf(owner)；owner 无部门则拒绝（NOTE_DEPT_REQUIRED）
@@ -725,8 +647,6 @@ GET /api/v1/notes?scope=xxx
 | ----------------------------------------------------------------- | ----------------------------------- | ------------------------ |
 | owner 自己的 PRIVATE                                                 | 出现                                  | true                     |
 | 他人 PRIVATE，无 grant                                                | 不出现                                 | false                    |
-| grant VIEWER（他人 note）                                             | 出现                                  | true                     |
-| **grant EDITOR（他人 note）**                                         | 出现（EDITOR 仅字段受限，不影响可见）              | true                     |
 | INTERNAL 父看子                                                      | 出现                                  | true                     |
 | INTERNAL 子看父                                                      | 不出现                                 | false                    |
 | PUBLIC                                                            | 出现                                  | true                     |
@@ -739,23 +659,12 @@ GET /api/v1/notes?scope=xxx
 | 已归档、非 owner                                                       | 不出现                                 | false                    |
 | 已归档、owner/admin                                                   | 不出现（visible 定义）                     | true（isVisible）          |
 
-> 该矩阵写入阶段二单元测试，保证实现期不回归；含 grant EDITOR 与 deleted=1 场景。
+> 该矩阵写入阶段二单元测试，保证实现期不回归；含下属开关开/关与 deleted=1 场景。
 
 ### 6.4 授权流程（mode + 自动通过记录）
 
-```
-场景 1 mode=OWNER：POST /note-grants { granteeId:B, role:VIEWER }
-  → grantor=me, status=APPROVED, approved_by=me, approved_at=now
-场景 2 mode=SUPERIOR：POST /note-grants { grantorId:A, role:VIEWER }
-  → 校验 subordinates(B).contains(A) → grantee=B, status=PENDING
-  → A approve → APPROVED
-场景 3 mode=ADMIN：POST /note-grants { grantorId:A, granteeId:B }
-  → created_by=ADMIN, status=APPROVED, approved_by=ADMIN
-  → 审计 + ADMIN 在 tab=created（created_by=me）可见、可代撤销（`direction` 不参与 Tab 过滤）；**grantor A 经 tab=granted 可见含 PENDING 行并确认/拒绝/撤回（grantor==me）**
-
-撤销：DELETE → REVOKED（撤 PENDING 也可）
-升级：POST /upgrade → EDITOR（仅 APPROVED）
-```
+> **本节已整块下线（2026-10-26）**：授权日志能力被完整摘除（6 端点 / 表 / 状态机 / 前端页面）。
+> 保留本节仅作历史设计追溯；现行口径见 `docs/减法评估-授权日志.md`。
 
 ### 6.5 附件与删除完整性（canBind 分离 + 权限矩阵）
 
@@ -777,7 +686,6 @@ GET /api/v1/notes?scope=xxx
 
 ## 7. 权限模型
 
-| 可见性      | 登录用户 | owner | grant VIEWER | grant EDITOR | 同部门(含子树) | 下属（开关开） | 下属（开关关） | ADMIN |
 | -------- | ---- | ----- | ------------ | ------------ | -------- | ------- | ------- | ----- |
 | PRIVATE  | 否    | 读/写   | 读            | 读/写*         | 否        | 读（方案A）  | 否       | 读/写   |
 | INTERNAL | 同部门读 | 读/写   | 读            | 读/写*         | 读        | 读       | 否       | 读/写   |
@@ -785,7 +693,6 @@ GET /api/v1/notes?scope=xxx
 | 已归档      | 否    | 读/写   | 否            | 否            | 否        | 否       | 否       | 读/写   |
 | 已删除      | 否    | 否     | 否            | 否            | 否        | 否       | 否       | 否     |
 
-\* EDITOR 字段级受限。
 
 同部门列：`note.dept_id ∈ visibleDeptIds(currentUserDept)`（方案 2，本级+子级）。
 
@@ -798,7 +705,6 @@ GET /api/v1/notes?scope=xxx
 5. **归档提前**：owner/admin 后立即判断 archived。
 6. **dept_id**：`CurrentUserDeptService.deptIdOf`，禁 `UserContext.deptId`。
 7. **ADMIN 有 `scope=all`**（含 `scope=all&archived=true` 列全部/他人归档）+ 可按 ID 访问。
-8. **AUDITOR 视为普通 note 用户（方案 A）**：`isVisible`/创建/列表/详情/授权等接口**不因 AUDITOR 角色额外拒绝**——可读自己的、PUBLIC、被授权的日志，可创建/编辑自己的日志；导航显示 note 分组（见 前端文档 §5.2），不隐藏、不灰态。AUDITOR 的"审计"职责限定在审计模块自身，与 note 访问权限解耦。
 9. **`scope=visible` 与 isVisible 同源**，可读不可见一律不进列表。
 
 ## 8. 错误码
@@ -842,9 +748,7 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 - [ ] NoteCommandService（CRUD + 字段级权限 + log_date + 级联删除 + PATCH + dept_id 刷新）
 - [ ] NoteQueryService（7 scope + NoteVisibilitySqlBuilder + 批量装配 + version）
 - [ ] NoteAuthService（isVisible + visibleDeptIds + 下属 + 归档 + deleted）
-- [ ] NoteUserGrantService（mode + createdBy 视图 + 自动通过记录 approved_by）
 - [ ] ErrorCode / LogicDeleteGuard
-- [ ] NoteController / NoteUserGrantController
 
 ### 10.2 阶段二：后端完善（前端并行启动）
 
@@ -853,10 +757,8 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 - [ ] AttachmentAccessService（**实体无关**的 canBind/canReadGeneric/canDelete）+ `AttachmentReferenceGuard`（Note/TaskReferenceGuard 实现）+ FileService（增量绑定/经 guard 双引用保护/FileController 收紧/FieldCleanupJob 改造）
 - [ ] **TaskAuthService 新增 `isVisible(Long,Long)` 重载（不可见→404）；TaskAttachmentController（task 专用上传/下载/预览/删除端点 + canRemoveFromTask）+ unbindTaskAttachments 契约（@Transactional + 错误码 50020）+ 返回类型统一（upload→FileVO）+ TaskQueryService/TaskVO.downloadUrl + BbAttachmentList 改造（下载走 axios blob、删除按钮 `canRemoveFromTask && !disabled`）**
 - [ ] NoteAttachmentService（关联附件 `isWritable` + assertCanBind + 引用计数 + note 下载 + canUpload/canRemoveRef + **返回 NoteAttachmentVO（含 note 专用 downloadUrl）+ 关联幂等**）
-- [ ] NoteRelationService（`isWritable`、添加/backlinks 幂等、自引用、TASK 可见→404、scope=visible 搜索、backlinks 404；**backlinks 返回 NoteBacklinkVO（source 字段 + createdBy/createdByName 引用人）；`note_relation` 写 `created_at/created_by`，EDITOR 添加引用时 `created_by`=EDITOR；NoteRelationVO 增 createdByName**）
 - [ ] TagService + TaskTagCleaner + NoteTagCleaner（`cleanByTagId` 事务）
 - [ ] SpaRoutes（`/notes`、`/notes/**`）/ 日历接口（7 scope 与列表共用，all 非 admin 403；`scope=all&archived=true` ADMIN 归档；**`internal/visible` 部门树用递归 CTE `dept_id IN (SELECT id FROM dept_tree)`，不做内存并集）
-- [ ] openapi.yaml（FileVO downloadUrl/createdBy/canDelete/canRemoveFromTask + NoteAttachmentVO/NoteRelationVO/**NoteBacklinkVO**/NoteDetailVO/NoteBrief 含 canManage + NoteUserGrantVO + `GET /tasks/search` 响应 `{list,total,page,size}` + `UserVO.managerCanReadSubordinate` + **`GET /note-grants` `tab=created|granted|incoming|all`（改用 granted，含 `NoteUserGrantVO.direction:'outgoing'|'incoming'|'none'`） + `GET /files/config`（`maxSize:number` 字节、`allowedExt=[]`=不限制） + `note_relation.created_at/created_by`+ `NoteRelationVO/NoteBacklinkVO.createdByName` + 创建/更新返回 NoteDetailVO** + 50020/50021 错误码 + `isVisible(Long,Long)` 重载；前后端类型同步）
 
 > 前端启动项（列表壳/容器、composable、store、`http.ts`、mock 等）见前端文档 §8.1。
 
@@ -883,7 +785,6 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | ---- | ------ | ------------- | ----------------------------------------------------- | --------------------------------------------------------- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
 | 1    | POST   | `/notes`      | owner                                                 | `{content,logDate,visibility:PRIVATE,tagIds:[]}`          | 200     | 0     | `NoteDetailVO{id,version,contentSummary,ownerTags,attachments,relations}`                                                                                                                                                                                                                                                                                       | e2e  |
 | 1a   | POST   | `/notes`      | 未登录                                                   | —                                                         | 401     | —     | 跳登录（不返回 `ApiResult`）                                                                                                                                                                                                                                                                                                                                            | e2e  |
-| 1b   | POST   | `/notes`      | 登录（任何登录用户含 EDITOR 均可创建自己的 note，§5.1 "创建权限=登录"） | `{content:"...",logDate:今天,visibility:PRIVATE,tagIds:[]}` | 200     | 0     | `NoteDetailVO`                                                                                                                                                                                                  | e2e  |
 | 1c   | POST   | `/notes`      | 登录                                                    | `content` 超 20000 字符                                      | 200     | 50002 | `NOTE_CONTENT_TOO_LONG`（内容上限校验失败，精确码 50002）                                                                                                                                                                                                                                                                      | e2e  |
 | 1d   | POST   | `/notes`      | 登录                                                    | `logDate:"2026-13-15"`（ISO 形状但月份非法）                       | 400     | —     | 参数格式错误（标准 Spring `@DateTimeFormat(iso=ISO.DATE)` 使用严格解析，`LocalDate.parse("2026-02-30")`/`"2026-13-15"` 均抛 `DateTimeParseException` → 400，不进入 Service 层 50012；`2026-02-30` 属不可解析，非业务非法）                                                                                                                                 | e2e  |
 | 1d-1 | POST   | `/notes`      | 登录                                                    | `logDate:"abc"`（非 ISO 字符串）                                | 400     | —     | 参数格式错误                                                                                                                                                                                                                                                                             | e2e  |
@@ -892,11 +793,8 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | 2    | POST   | `/notes`      | 登录                                                    | `visibility:INTERNAL` 但 owner 无部门                         | 200     | 50017 | `NOTE_DEPT_REQUIRED`                                                                                                                                                                                                                                                                                                                                            | e2e  |
 | 4    | PUT    | `/notes/{id}` | owner，version 旧                                       | `{...version:旧}`                                          | 200     | 10006 | `VERSION_CONFLICT`（提示查看最新，保留草稿）                                                                                                                                                                                                                                                                                                                                 | e2e  |
 | 4a   | PUT    | `/notes/{id}` | owner，version 正确                                      | `{content:"新内容",version:当前}`                              | 200     | 0     | `NoteDetailVO{content,version(递增)}`                                                                                                                                                                                                                                                                                               | e2e  |
-| 5    | PUT    | `/notes/{id}` | EDITOR 改 visibility                                   | `{visibility:PUBLIC}`                                     | 200     | 50013 | `NOTE_FIELD_FORBIDDEN`（EDITOR 字段级受限）                                                                                                                                                                                                                                                                                                                            | e2e  |
-| 5a   | PUT    | `/notes/{id}` | VIEWER（canEdit=false）                                 | `{content:"..."}`                                         | 403     | —     | 权限拒绝                                                                                                                                                                                                                                                                                                                                                            | e2e  |
 | 6    | GET    | `/notes/{id}` | 不可见用户                                                 | —                                                         | 404     | —     | 404 不返回 body code                                                                                                                                                                                                                                                                                                                                 | e2e  |
 | 6a   | GET    | `/notes/{id}` | owner                                                 | —                                                         | 200     | 0     | `NoteDetailVO{content,ownerTags,canEdit,canManage}`                                                                                                                                                                                                                                                                                                             | e2e  |
-| 7    | DELETE | `/notes/{id}` | EDITOR（canManage=false）                               | —                                                         | 403     | —     | 权限拒绝（EDITOR 不可删除）                                                                                                                                                                                                                                                                                                                                               | e2e  |
 | 7a   | DELETE | `/notes/{id}` | owner                                                 | —                                                         | 200     | 0     | 软删除+级联（`note_tag`/`note_attachment_ref`/`note_relation`（source+target 两侧）清理 + `UPDATE note SET deleted=1`，§3.4；**不清理 `note_user_grant`**——属用户级全量授权，删单条 note 撤销会导致该 grantor 对所有其他日志的授权一并失效，属严重授权数据破坏）；**附加断言**：删除后 `note_user_grant` 中该 grantor 的 APPROVED 行**仍存在**，grantee 仍可访问该 grantor 的其他 note（验证不误级联） | e2e  |
 | 7b   | DELETE | `/notes/{id}` | 不可见用户                                                 | —                                                         | 404     | —     | 404 不返回 body code                                                                                                                                                                                                                                                                                                                                        | e2e  |
 
@@ -923,38 +821,14 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | #   | 方法     | 路径                      | 角色/前置                   | 请求 | 期望 HTTP | 期望业务码 | 期望响应关键字段                  | 测试类型 |
 | --- | ------ | ----------------------- | ----------------------- | -- | ------- | ----- | ------------------------- | ---- |
 | 13  | POST   | `/notes/{id}/pin`       | owner                   | —  | 200     | 0     | `pinned=true`，列表置顶        | e2e  |
-| 13a | POST   | `/notes/{id}/pin`       | EDITOR（canManage=false） | —  | 403     | —     | 权限拒绝（pin 属管理权）            | e2e  |
 | 13b | POST   | `/notes/{id}/pin`       | 不可见用户                   | —  | 404     | —     | 404（不可见一律 404，不泄露存在性）          | e2e  |
 | 14  | DELETE | `/notes/{id}/pin`       | owner                   | —  | 200     | 0     | `pinned=false`            | e2e  |
-| 14a | DELETE | `/notes/{id}/pin`       | EDITOR                  | —  | 403     | —     | 权限拒绝                      | e2e  |
 | 15  | POST   | `/notes/{id}/archive`   | owner                   | —  | 200     | 0     | `archived=true`，列表隐藏（可取消） | e2e  |
-| 15a | POST   | `/notes/{id}/archive`   | EDITOR                  | —  | 403     | —     | 权限拒绝（archive 属管理权）        | e2e  |
 | 16  | POST   | `/notes/{id}/unarchive` | owner                   | —  | 200     | 0     | `archived=false`，恢复列表     | e2e  |
-| 16a | POST   | `/notes/{id}/unarchive` | EDITOR                  | —  | 403     | —     | 权限拒绝                      | e2e  |
 
-##### D. 授权 note-grants
 
 | #   | 方法     | 路径                          | 角色/前置                             | 请求    | 期望 HTTP | 期望业务码 | 期望响应关键字段                                                                                                                                                                                | 测试类型 |
 | --- | ------ | --------------------------- | --------------------------------- | ----- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| 17  | POST   | `/note-grants`              | OWNER mode，granteeId=me           | 自授权   | 200     | 50008 | `NOTE_GRANT_SELF`                                                                                                                                                                       | e2e  |
-| 18  | POST   | `/note-grants`              | SUPERIOR mode，body 带 granteeId    | —     | 400     | —     | 参数格式错误 | e2e  |
-| 19  | POST   | `/note-grants`              | grantor 已有 5 条 PENDING            | 第 6 条 | 400     | —     | 参数校验失败（每 grantor 最多 5 PENDING）                                                                                                                                                          | e2e  |
-| 20  | POST   | `/note-grants`              | 重复 active grant                   | —     | 200     | 50007 | `NOTE_GRANT_DUPLICATE`                                                                                                                                                                  | e2e  |
-| 21  | POST   | `/note-grants/{id}/approve` | 非 grantor                         | —     | 403     | —     | 权限拒绝（仅 grantor 可 approve）                                                                                                                                                               | e2e  |
-| 22  | POST   | `/note-grants/{id}/approve` | grantor，状态非 PENDING               | —     | 200     | 50014 | `NOTE_GRANT_FLOW_FORBIDDEN`                                                                                                                                                             | e2e  |
-| 22a | POST   | `/note-grants/{id}/reject`  | grantor，状态 PENDING                | —     | 200     | 0     | `status=REJECTED`                                                                                                                                                                       | e2e  |
-| 22b | POST   | `/note-grants/{id}/reject`  | grantor，状态非 PENDING               | —     | 200     | 50014 | `NOTE_GRANT_FLOW_FORBIDDEN`                                                                                                                                                             | e2e  |
-| 22c | POST   | `/note-grants/{id}/upgrade` | grantor，VIEWER→EDITOR，状态 APPROVED | —     | 200     | 0     | `role=EDITOR`                                                                                                                                                                           | e2e  |
-| 22d | POST   | `/note-grants/{id}/upgrade` | grantor，状态非 APPROVED              | —     | 200     | 50014 | `NOTE_GRANT_FLOW_FORBIDDEN`                                                                                                                                                             | e2e  |
-| 23  | DELETE | `/note-grants/{id}`         | created_by=me 撤 APPROVED          | —     | 403     | —     | 权限拒绝（撤 APPROVED 仅 grantor/ADMIN）                                                                                                                                                        | e2e  |
-| 23a | DELETE | `/note-grants/{id}`         | created_by=me 撤 PENDING           | —     | 200     | 0     | `status=REVOKED`（发起人可撤自己 PENDING）                                                                                                                                             | e2e  |
-| 23b | DELETE | `/note-grants/{id}`         | grantor 撤 APPROVED                | —     | 200     | 0     | `status=REVOKED`                                                                                                                                                                        | e2e  |
-| 23c | DELETE | `/note-grants/{id}`         | ADMIN 撤任意                         | —     | 200     | 0     | `status=REVOKED`（ADMIN 代撤销，approved_by 记录）                                                                                                                                              | e2e  |
-| 24  | GET    | `/note-grants?tab=all`      | 非 ADMIN                           | —     | 403     | —     | 权限拒绝（tab=all 仅 ADMIN）                                                                                                                                                                   | e2e  |
-| 24a | GET    | `/note-grants?tab=created`  | 登录                                | —     | 200     | 0     | `created_by=me` 全状态列表（**含 SUPERIOR 行 S 发起的 `created_by=S`、ADMIN 代授权行 `created_by=ADMIN`**，§5.2；**非 `grantor_id=me`**，否则漏 SUPERIOR/ADMIN 代授权）                                    | e2e  |
-| 24b | GET    | `/note-grants?tab=granted`  | 登录                                | —     | 200     | 0     | `grantor_id=me` 全状态列表（**我作为授权方**，§5.2；**与 `tab=created`（`created_by=me`）是不同维度**：created 含 SUPERIOR/ADMIN 代授权行，granted 不含）                    | e2e  |
-| 24c | GET    | `/note-grants?tab=incoming` | 登录                                | —     | 200     | 0     | `grantee_id=me AND created_by<>me` 列表                                                                                                                                                   | e2e  |
-| 24d | GET    | `/note-grants?tab=all`      | ADMIN                             | —     | 200     | 0     | 全部授权列表                                                                                                                                                  | e2e  |
 
 ##### E. 日历
 
@@ -970,14 +844,12 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | #   | 方法     | 路径                                       | 角色/前置                   | 请求                  | 期望 HTTP | 期望业务码 | 期望响应关键字段                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 测试类型 |
 | --- | ------ | ---------------------------------------- | ----------------------- | ------------------- | ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
 | 27  | POST   | `/notes/{id}/attachments`                | 不可见用户                   | `{attachmentId:1}`  | 404     | —     | 404 不返回 body code                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | e2e  |
-| 27a | POST   | `/notes/{id}/attachments`                | EDITOR，note 已归档         | `{attachmentId:1}`  | 200     | 50013 | `NOTE_FIELD_FORBIDDEN`（归档时 EDITOR 不可写）                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | e2e  |
 | 27b | POST   | `/notes/{id}/attachments`                | owner                   | `{attachmentId:1}`  | 200     | 0     | `NoteAttachmentVO{attachmentId,createdAt}`                                                                                                                                                                                                                                                                                                                                                                                                                                                             | e2e  |
 | 27c | POST   | `/notes/{id}/attachments`                | 可见用户，附件创建者≠me 且非 ADMIN  | `{attachmentId:他人}` | 403     | —     | `assertCanBind` 失败（HTTP 级权限拒绝；附件创建者≠me 且非 ADMIN → 403）。①同一附件**允许被多个 note 引用**（`note_attachment_ref` 唯一约束为 `UNIQUE(note_id, attachment_id)`，不禁止一附件多 note）；②`assertCanBind` 不看引用（§12 #22 / §6.5），只校验创建者/ADMIN；③ 不存在"附件已绑他人 note → 50018"规则：`assertCanBind` 不看引用，`note_attachment_ref` 允许一附件多 note；④ 50018=`NOTE_ATTACHMENT_CANNOT_BIND`（权限层，但 HTTP 走 403 不进业务码），50019=`NOTE_ATTACHMENT_BOUND`（task 绑定场景，非 note） | e2e  |
 | 28  | GET    | `/notes/{id}/attachments`                | 不可见用户                   | —                   | 404     | —     | 404 不返回 body code                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | e2e  |
 | 28a | GET    | `/notes/{id}/attachments`                | 可见用户                    | —                   | 200     | 0     | `NoteAttachmentVO[]`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | e2e  |
 | 29  | GET    | `/notes/{id}/attachments/{aid}/download` | 不可见用户                   | —                   | 404     | —     | 404 不返回 body code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | e2e  |
 | 29a | GET    | `/notes/{id}/attachments/{aid}/download` | 可见用户                    | —                   | 200     | 0     | blob 二进制（200 文件 / **HTTP 403 + JSON body** / **HTTP 401 + JSON body** / 200 JSON 10002 续签，见 §5.4）                                                                                                                                                                                                                                                                                                                                                                                                                                             | e2e  |
-| 30  | DELETE | `/notes/{id}/attachments/{aid}`          | EDITOR（canManage=false） | —                   | 403     | —     | 权限拒绝（移除属管理权）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | e2e  |
 | 30a | DELETE | `/notes/{id}/attachments/{aid}`          | owner                   | —                   | 200     | 0     | 解除关联（`canRemoveRef`，有 task 引用只解 note 关联不物理删）                                                                                                                                                                                                                                                                                                                                                                                                                                                           | e2e  |
 
 ##### G. Files 通用端点
@@ -1021,12 +893,10 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | 39  | POST   | `/notes/{id}/relations`              | 目标 NOTE 不可见     | `{targetType:NOTE,targetId:他人不可见}` | 200     | 50006 | `NOTE_RELATION_TARGET_NOT_FOUND`                   | e2e  |
 | 39a | POST   | `/notes/{id}/relations`              | owner，正常引用 task | `{targetType:TASK,targetId:1}`     | 200     | 0     | `NoteRelationVO{id,targetType,targetId,createdAt}` | e2e  |
 | 39b | POST   | `/notes/{id}/relations`              | 重复引用同一目标        | —                                  | 200     | 0     | 幂等（不报错，返回已存在 relation）                             | e2e  |
-| 39c | POST   | `/notes/{id}/relations`              | EDITOR，note 已归档 | —                                  | 200     | 50013 | `NOTE_FIELD_FORBIDDEN`（归档时 EDITOR 不可写）             | e2e  |
 | 40  | GET    | `/notes/{id}/relations`              | 可见用户            | —                                  | 200     | 0     | `NoteRelationVO[]`（我引用了谁，按可见性过滤目标）                 | e2e  |
 | 40a | GET    | `/notes/{id}/relations`              | 不可见用户           | —                                  | 404     | —     | 404 不返回 body code                                   | e2e  |
 | 41  | GET    | `/notes/{id}/backlinks`              | 不可见用户           | —                                  | 404     | —     | 404 不返回 body code                                        | e2e  |
 | 41a | GET    | `/notes/{id}/backlinks`              | 可见用户            | —                                  | 200     | 0     | `NoteBacklinkVO[]`（谁引用了我，过滤不可见来源）                  | e2e  |
-| 42  | DELETE | `/notes/{id}/relations/{relationId}` | EDITOR（非 owner） | —                                  | 403     | —     | 权限拒绝（移除引用属 owner/ADMIN）                            | e2e  |
 | 42a | DELETE | `/notes/{id}/relations/{relationId}` | owner           | —                                  | 200     | 0     | 解除引用                                               | e2e  |
 
 ##### J. Task 搜索（note→TASK 引用选择器）
@@ -1057,7 +927,7 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | 46c | GET | `/notes/tags?scope=all`    | 非 ADMIN          | scope=all            | 403     | —     | 权限拒绝（scope=all 仅 ADMIN） | e2e  |
 | 46d | GET | `/notes/tags?scope=xxx`    | 登录               | scope=非法值           | 400     | —     | 参数校验失败（scope 枚举外）                       | e2e  |
 
-> **验收**：矩阵共 **45 主行 + 73 子行 = 118 行**覆盖 **36 个 method+path 端点**（A Note CRUD 5 端点（含 `GET /notes` 列表）/ B 列表 1 端点（与 A 的 `GET /notes` 同一端点，不重复计入 36）/ C pin+archive+unarchive 4 端点 / D note-grants 6 端点 / E 日历 1 端点 / F note 附件 4 端点 / G files 通用 5 端点 / H task 附件 4 端点 / I relations+backlinks 4 端点 / J tasks/search 1 端点 / K tags 1 端点 / **L notes/tags facet 1 端点**）。**分支覆盖策略**：**关键端点**（Note CRUD / note-grants / note 附件 / task 附件 / files 删除）覆盖**成功 + 主权限失败（403/404，按端点定义）+ 主业务失败（500xx/409，按端点定义）三类必备分支**——并非所有组都同时有 403 和 500xx（如 `GET /notes/{id}` 无 403、files 删除主业务失败是 409 非 500xx），而是按端点实际语义覆盖其主失败分支；**401 未认证分支不由每个端点独立覆盖**，而是**由全局鉴权测试组统一覆盖**（即全局拦截器对所有非白名单端点统一返回 401，无需为每个端点重复造 401 用例；矩阵仅在代表性端点如 `POST /notes` 1a、`GET /tasks/search` 44b 保留 401 断言作为全局鉴权契约的回归点）；**其余端点**（列表 / 日历 / tasks/search / tags / files config / **notes/tags facet**）至少覆盖**成功 + 主失败分支**（如 403/400/500xx/409 任一；facet 覆盖成功+空数组+scope 非法 403+非 ADMIN 调 scope=all 403）。已补最低分支：`PUT /notes/{id}` owner 成功（4a）、`POST /notes` content/log_date/tagIds 校验（1c/d/e）、`GET /tasks/search` 401（44b）、`DELETE /tags/{id}` 404/403（45b/c）、`GET /note-grants?tab=all` ADMIN 成功（24d）。HTTP 状态与业务码分列，断言不混淆；附件/关系/backlinks 的 404 分支均有独立断言（不返回空数组）；`/files/config`、通用 `/files`、`/tasks/search`、task 专用附件 4 端点、**notes/tags facet** 均有 mock + e2e/单测。测试报告按矩阵输出通过/失败，不能只写"全场景已覆盖"。
+> **验收**：矩阵共 **105 行**（二轮减法后；原 118 行）覆盖 **30 个 method+path 端点**（A Note CRUD 5 端点（含 `GET /notes` 列表）/ B 列表 1 端点（与 A 的 `GET /notes` 同一端点，不重复计入 36）/ C pin+archive+unarchive 4 端点 / D note-grants 6 端点 / E 日历 1 端点 / F note 附件 4 端点 / G files 通用 5 端点 / H task 附件 4 端点 / I relations+backlinks 4 端点 / J tasks/search 1 端点 / K tags 1 端点 / **L notes/tags facet 1 端点**）。**分支覆盖策略**：**关键端点**（Note CRUD / note-grants / note 附件 / task 附件 / files 删除）覆盖**成功 + 主权限失败（403/404，按端点定义）+ 主业务失败（500xx/409，按端点定义）三类必备分支**——并非所有组都同时有 403 和 500xx（如 `GET /notes/{id}` 无 403、files 删除主业务失败是 409 非 500xx），而是按端点实际语义覆盖其主失败分支；**401 未认证分支不由每个端点独立覆盖**，而是**由全局鉴权测试组统一覆盖**（即全局拦截器对所有非白名单端点统一返回 401，无需为每个端点重复造 401 用例；矩阵仅在代表性端点如 `POST /notes` 1a、`GET /tasks/search` 44b 保留 401 断言作为全局鉴权契约的回归点）；**其余端点**（列表 / 日历 / tasks/search / tags / files config / **notes/tags facet**）至少覆盖**成功 + 主失败分支**（如 403/400/500xx/409 任一；facet 覆盖成功+空数组+scope 非法 403+非 ADMIN 调 scope=all 403）。已补最低分支：`PUT /notes/{id}` owner 成功（4a）、`POST /notes` content/log_date/tagIds 校验（1c/d/e）、`GET /tasks/search` 401（44b）、`DELETE /tags/{id}` 404/403（45b/c）、`GET /note-grants?tab=all` ADMIN 成功（24d）。HTTP 状态与业务码分列，断言不混淆；附件/关系/backlinks 的 404 分支均有独立断言（不返回空数组）；`/files/config`、通用 `/files`、`/tasks/search`、task 专用附件 4 端点、**notes/tags facet** 均有 mock + e2e/单测。测试报告按矩阵输出通过/失败，不能只写"全场景已覆盖"。
 
 ## 12. 决策结论
 
@@ -1070,7 +940,6 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | 5 | 下属可见 | 开关即授权；`manager-can-read-subordinate` 开则上级读下属 |
 | 6 | note↔task 引用 | 本期只做 note 侧引用 task |
 | 7 | 授权默认值 | status 默认 PENDING + `uq_nug_active` + mode |
-| 8 | EDITOR 权限 | 默认 VIEWER；EDITOR 字段级受限 |
 | 9 | 归档检查 | owner/admin 后立即判断 |
 | 10 | dept_id 来源 | `CurrentUserDeptService.deptIdOf`，禁 UserContext.deptId |
 | 11 | 日志日期 | `log_date`，一天多条 |
@@ -1094,7 +963,6 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | 29 | /files 权限 | 最小权限：通用只创建者/ADMIN；**新增 task 专用附件端点**，note/task 走各自专用端点 |
 | 30 | task 附件端点 | 新增 task 专用 `download\|preview` 端点，**落点 `TaskAttachmentController`（类级 `/api/v1/tasks`）**，校验 task 归属 + `isVisible(Long,Long)`（新增重载），404 兜底；下载一律 axios blob（不 `<a href>` 直连）；task 删除按钮按后端 **`canRemoveFromTask`**（=`assertWritable && (createdBy==me \|\| isAdmin)`） |
 | 31 | 调岗可见性 | 已存在 INTERNAL 保持原快照（历史留档）——原部门同事在 owner 调岗后仍可见旧日志，这是有意的历史留档 |
-| 32 | visible 语义 | `visible = isVisible && archived=0`；建 **15 行** Java/SQL 等值测试矩阵（grant EDITOR、deleted=1 含 owner、空 visibleDeptIds 拆行）；admin visible 与 all 结果集相同；空 visibleDeptIds 禁 `IN ()` |
 | 33 | task 附件更新链路 | **task PUT 不做全量替换**：`fileIds==null` 与 `[]` 同义均**不动附件**；附件增删走独立入口；`bindToTask` 增量绑定（新增校验 canBind、已属本 task no-op、其他 task 409） |
 | 34 | SUPERIOR 与开关 | `mode=SUPERIOR` 是显式授权，**不受 `managerCanReadSubordinate` 开关约束**；开关只控自动可见 |
 | 35 | task 附件可删范围 | **本期仅上传者/ADMIN 可删**；`FileVO.canDelete`=可否物理删（创建者/ADMIN，**不含引用保护**），task 删除按钮用 **`canRemoveFromTask`**（`assertWritable && (createdBy==me \|\| isAdmin)`）；task owner 删除他人附件不在本期范围（未来项见 §13） |
@@ -1109,25 +977,19 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | 44 | task 附件删除按钮 | 后端返回 `canRemoveFromTask`（`assertWritable && (createdBy==me \|\| isAdmin)`），按钮 `v-if="canRemoveFromTask && !disabled"`，不用单独 `canDelete` |
 | 45 | ADMIN 归档列表 | `scope=all` 支持 `archived=true` 查全部/他人归档（ADMIN 专用），补齐 §7 中 ADMIN 可读已归档的列表入口 |
 | 46 | task 可见性 404 | `TaskAuthService` 新增 `isVisible(Long taskId, Long userId)` 重载；任务不可见→404，不直接复用抛 403 的 `assertVisible` |
-| 47 | 附件/引用写前校验 | `POST /notes/{id}/attachments`、`POST /notes/{id}/relations` 必须先 `NoteAuthService.isWritable`（归档时 EDITOR 不可写），再看角色 |
 | 48 | 部门集规模与引用幂等 | **部门树下推数据库（SQLite 递归 CTE `dept_id IN (SELECT id FROM dept_tree)`，保证全局排序/分页/总数/日历一致）；降级用单条 OR 分组或临时表 JOIN，禁止"多次查后内存并集"**；`note_relation` 重复添加幂等返回现有记录（不 409），与附件关联幂等口径一致 |
 | 49 | note→TASK 引用选择器 | task 无 `visible` scope、`scope=all` 不表示 isVisible，故**新增轻量端点 `GET /tasks/search?keyword=&page=&size=`**（内部按 `isVisible(taskId,me)` 过滤）；前端 ≥2 字触发、300ms 防抖、最多 20 条、可滚动加载、已引用禁选、NOTE/TASK 双 Tab、目标已失效显示 404 兜底 |
 | 50 | 前端列表架构 | 对齐任务模块"统一视图+共享列表+Pinia"：**`NoteListView`（壳）→ `NoteList`（容器）→ `NoteCard`（卡片）→ `useNoteList`（查询/分页/竞态）→ `stores/note`（跨页状态）**；7 个 scope 页只留"scope 配置+标题+权限分支"，杜绝 7 份复制；**动作（open/edit/pin/archive/delete/刷新/toast）统一抽 `useNoteActions()`**；补页面需求表（前端文档 §7.1） |
 | 51 | 列表权限字段 | `NoteBrief` 增 **`canManage`**；列表/详情同口径——编辑=`canEdit`（含归档规则，**不叠加 `!archived`**）、置顶/归档/删除/标签=`canManage`；前端禁 `canEdit` 控管理按钮、禁 `ownerId===me` 推导；补六身份卡片按钮矩阵 |
-| 52 | 授权 VO 契约 | **`NoteUserGrantVO`** 全字段（id/双人/role/status/mode/direction/createdBy/审批/撤销/can*），`direction` 与 `can*` 由后端计算；ADMIN 全量视图只读+可代撤销 |
 | 53 | blob 解析与续签 | **只保留一个解析点，收敛到 `http.ts` 成功拦截器**（blob+content-type json → `blob.text()` 解析，10002/20005 复用 `doRefresh()`+`_retried` 重放，其余抛 `BizError`）；`fetchAttachment` 只取路径/断言 Blob/文件名，**不二次解析**（消解 helper 与拦截器双重消费/职责冲突） |
 | 54 | 日历契约 | `useMonthCalendar(loader,{initialScope})` 返回 `scope/setScope`；`BbMiniCalendar.loader(year,month,scope?)` + `watch(scope,load)` + 高度走 `--bb-calendar-height` CSS 变量 + 竞态取消；**点日跳转保留当前 scope**（`/notes/{scope}?date=`，非固定 `/notes`）；`/notes/calendar?scope=&year=&month=&date=` URL 契约；NoteCalendarView scope 选择器按角色显隐 |
-| 55 | 导航与角色 | 导航项**补"探索"**；**AUDITOR 视为普通 note 用户（方案 A）**——导航显示 note 分组、可读自己/PUBLIC/被授权、可创建，不隐藏不灰态（见 §7/isVisible）；note 分组折叠状态持久化；`UserVO` 新增 `managerCanReadSubordinate` 下发（隐藏"下属"入口），并保留 `scope=subordinate` 开关关→403 兜底 |
 | 56 | task 搜索响应 | `GET /tasks/search` 返回 **`PageResult 风格 {list,total,page,size}`**（非裸数组）；`status` 复用任务枚举；keyword 匹配 title、大小写不敏感、`<2` 字符返回空 list（不 400）；已删除不返回；已完成任务可返回并标记 |
 | 57 | 上传签名统一 | **删 `uploadFile(file, taskId?)` 的 `taskId` 可选参**（通用 `/files` 已拒 taskId→400），新增 `uploadTaskFile(taskId, file)`；全仓库清旧调用点 |
 | 58 | ownerTags 口径 | **`NoteVO`/`NoteBrief` 均不含 `ownerTags`，仅 `NoteDetailVO` 含**（且仅 `canEdit \|\| canManage` 返回），消解三处不一致 |
 | 59 | 前端先行开发约定 | OpenAPI 先冻结 note schema + `UserVO.managerCanReadSubordinate`；MSW handlers/fixtures 为前端交付物（blob 3 用例 + 八角色数据）；冻结前允许临时手写过渡类型但交付以 `gen:types` 为准 + CI 校验；任务页 BbMiniCalendar 回归纳入现有 e2e |
 | 60 | 行内编辑数据源 | **行内编辑先 `GET /notes/{id}` 取 `NoteDetailVO`（全文+ownerTags+version）再编辑**，绝不把 `NoteBrief` 摘要当全文（否则保存截短全文不可恢复）；`NoteEditor` 编辑态只收 `NoteDetailVO` |
 | 61 | backlinks VO | 新增 **`NoteBacklinkVO`**（sourceNoteId/sourceSummary/sourceOwner*/relationId/createdBy/createdByName 引用人）；`NoteDetailVO.backlinks: NoteBacklinkVO[]`，relations 用 `NoteRelationVO`（target 语义），两语义不混用 |
-| 62 | 编辑权限规则 | **编辑内容 = `canEdit`**（`canEdit` 已含归档 EDITOR=false/owner-admin=true），**删除 `&& !archived`**（避免挡掉归档 owner/admin）；管理操作 = `canManage` |
 | 63 | 上传签名/限制 | **统一 `uploadFile(file, opts?)` / `uploadTaskFile(taskId, file, opts?)`，`opts={onProgress,signal}`**（进度/取消入口）；`maxSize/allowedExt` 从后端 `/files/config` 下发，前端不硬编码 100MB/四类 |
-| 64 | 授权 Tab 查询 | `GET /note-grants` 用意图参数 `tab=created\|granted\|incoming\|all`（单端点覆盖四 Tab）；**"我发起的"=`tab=created`（`created_by=me`）**、**"我授权的"=`tab=granted`（`grantor_id=me` 全状态，含"待我确认"职责，确认/拒绝在 PENDING 行内展示）**、**"涉及我的"=`tab=incoming`（`grantee_id=me AND created_by<>me`）**、ADMIN `tab=all`；SUPERIOR 行（grantor=A/grantee=S/created_by=S/PENDING）S 在 created 可撤回、A 在 granted 可确认/拒绝且在 APPROVED 后可撤销/升级、S 的 incoming 不重复 |
-| 65 | AUDITOR 角色 | **方案 A（普通 note 用户）**：不因 AUDITOR 拒绝 note 读/写，可读自己/PUBLIC/被授权（不存在"默认不可读"与导航"隐藏或灰态"两种口径） |
 | 66 | 标签数据源 | note 侧显式 **`metaStore.loadTags()`**（NoteHomeView/NoteListView 初始化，或 DefaultLayout note 路由分支）；详情编辑他人优先 `ownerTags`；`ownerTags===undefined` 才禁用保存，**空数组是合法值**（可保存无标签） |
 | 67 | scope 单一来源 | **列表页 scope 以 `route.meta.scope` 为唯一来源，URL 不写 `scope`（日历页例外）**；`stores/note` 缓存 key 用 `scope+query`；归档分段用两路由 `/notes/archived` 与 `/notes/archived/all` |
 | 68 | NoteEditor 字段初始化 | **编辑态 `note` 初始化读取全部可编辑字段** `content/logDate/visibility/tagIds/version/ownerTags`（5 个渲染/保存字段不落到组件默认值），`modelValue` 仍只受控 content；**创建态默认值由前端先行**：`logDate=今天(Asia/Shanghai)`、`visibility=PRIVATE`、`tagIds=[]`，不得默认 PUBLIC |
@@ -1137,7 +999,6 @@ TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请
 | 72 | composer 归属（方案 A） | **页面 owns 交互**：`NoteListView` 只做布局壳，提供 `#composer`/`#above-list`/`#editor` 具名插槽、读 `route.meta`；**壳内渲染 `NoteFilterBar`（`#filters` 插槽已移除，筛选条由壳内部用 `filterConfig`+`query`+`@change` 渲染）**；`NoteHomeView` 经插槽放入 `NoteEditor` 并持有 `POST`/保存/临时卡片附件区状态；`NoteList` 事件由页面外层处理并经公共 **`useNoteActions()`** 承载 |
 | 73 | note_relation 字段 | `note_relation` 增 **`created_at`（引用时间）+`created_by`（引用人，可空）**——阶段一 V6 建表即定，避免返工；`note_attachment_ref` 不加列，`NoteAttachmentVO.createdAt/createdBy=上传时间/上传者（取自 attachment）`；**`NoteRelationVO`/`NoteBacklinkVO` 增 `createdName/createdByName`（引用人姓名，可空显示"—"）** |
 | 74 | 新建后状态（方案 A） | **保存后保留顶部"刚创建"临时卡片**（noteId+附件区+完成/放弃按钮，独立于列表，经 `#above-list` 插槽渲染；`pendingCreatedNoteId` 跨路由恢复），同时清空筛选+按当前排序重拉第一页+toast；不跳 logDate 页、不本地插入；下一条先完成/放弃第一条防串条 |
-| 75 | 授权单端点 | `GET /note-grants?tab=created\|granted\|incoming\|all` 一个端点覆盖全部 Tab，**删除独立 `/pending`、`/all`**；`direction` 仅行内展示（含 `none`），不参与 Tab 过滤 |
 
 > 本表是前后端共用契约（75 项取舍），与《Note 模块前端开发方案》§10 保持一致；后端实现涉及的行在前文各节展开。
 
