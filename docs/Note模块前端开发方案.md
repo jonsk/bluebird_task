@@ -1215,9 +1215,6 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 - 版本冲突的 e2e 覆盖依赖 mock 一次性钩子 `bb_mock_force_conflict`（单页内无法并行制造真实版本落后），真实后端冲突路径由 `NoteFlowTest` step 6 保证。
 - 矩阵用例 **117 + 4 全部脚本化**（`#19` 用 `MTX-上限-L1..L6` 六级部门链 + 6 个上级账号构造，第 6 条断言 400/10001）。
 - `GET /tasks/{id}` 已统一为「不可见/不存在 → HTTP 404 + 10004」（原 200 + 10003），子任务沿用「随父任务」口径。
-- 右栏“当日日志”为 isolated 实例（size=5），不参与主列表分页与缓存（符合 §7.2）。
-- 行内编辑宿主仅 `NoteHomeView` 提供，其余 6 页 `edit` 跳详情（符合 §7.2 宿主规则）。
-- MSW mock 的 scope 语义是前端侧近似实现，不是后端权限矩阵的完整镜像（多账号身份只做权限门控，不做数据隔离）。
 
 ### 12.5 测试覆盖补充（本轮）
 
@@ -1260,7 +1257,7 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 - `useNoteActions.toggleArchive` 的失效 scope 去重（`Set`），避免重复遍历缓存。
 
 **CI**：`.github/workflows/ci.yml` 增加前端类型检查、单测、后端 `mvn verify`，并新增手动触发的验收矩阵 job（`workflow_dispatch` + `run_acceptance=true`，启动后端 + SQLite → seed → `matrix_main.py`，产物上传）。
-- 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **39 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope）。后续改动 note 后端须重跑 `mvn test` 全量。
+- 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **42 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope；`PermissionFieldTest` 3 例：详情字段位、task 详情 404、子任务随父任务）。后续改动 note 后端须重跑 `mvn test` 全量。
 - 版本冲突的 e2e 覆盖依赖 mock 一次性钩子 `bb_mock_force_conflict`（单页内无法并行制造真实版本落后），真实后端冲突路径由 `NoteFlowTest` step 6 保证。
 
 ## 11. 后续可扩展
