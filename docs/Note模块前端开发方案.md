@@ -1,5 +1,23 @@
 # Note 模块前端开发方案
 
+> ⚠️ **2026-10-26 功能减法已执行**：本文 §2–§9 的表格保留减法前的设计原貌（含「探索 / 本部门日志 / 归档日志 / 前台全部日志 / visibility 三档」），
+> 落地实现已按 §0 收敛，冲突时以 **§0 + §12** 为准；评估依据见 `docs/减法评估-工作日志.md`（已执行，标注见文末）。
+
+## 0. 功能减法（2026-10-26，已落地）
+
+| 项 | 减法前 | 减法后 |
+| --- | --- | --- |
+| 列表 scope | `mine/shared/explore/internal/subordinate/visible/all`（7） | `mine/shared/subordinate/visible/all`（5）；`explore`/`internal` 传参 → **400/10001「非法 scope」** |
+| 页面 | 我的 / 探索 / 被授权 / 本部门 / 员工(下属) / 全部 / 归档 / 全部归档 / 授权管理 / 日历 / 详情（11） | 我的 / 被授权 / 员工日志 / 授权管理 / 日历 / 详情（6）+ 后台「全部日志」`/admin/notes`（8 个视图文件） |
+| 归档 | `archived` 字段 + `POST /notes/{id}/archive`、`/unarchive` | **能力整体下线**：字段、端点、按钮、徽标、矩阵用例全删；旧数据由 `V7__note_simplify.sql` 归一化（`archived=0`，列保留不再读写） |
+| 可见性 | `PRIVATE/INTERNAL/PUBLIC` 三档（部门内、公开） | **仅 `PRIVATE`（仅自己 + 被授权者 + 制度性例外：上级读下属）**；`Visibility` 枚举、`visibility` 字段、编辑器下拉、筛选条全部删除 |
+| 全部日志 | 前台左栏（仅 ADMIN 可见） | **后台** `/admin/notes`（AdminLayout 侧栏「全部日志」，`meta.roles=['ADMIN']`）；前台工作日志组只剩普通入口 |
+| 文案 | 「下属日志」 | 「员工日志」（路由 `/notes/subordinate`、`data-test`、后端配置键 `app.security.manager-can-read-subordinate` 均不改） |
+| 字段级权限 | `fieldPermissions: {content, logDate, visibility, tagIds}` | `{content, logDate, tagIds}`（3 项） |
+
+> 影响面：`Note` 实体/DTO/查询/控制器/权限服务/SQL 构建器、`openapi.yaml` + `api.d.ts`、路由与左栏、8 个视图、10 个 note 组件、mock、e2e、单测、矩阵脚本、V7 迁移。
+> 语义提醒：「员工日志」是 **owner 维度**（上级读下属，受开关约束），与「仅自己」不矛盾——下属分支是 motivate 的**制度性例外**，`isVisible` 保留该分支。
+
 > 本文档为 note 模块**前端**实现契约：页面、路由、组件契约、交互、单测与验收。
 >   
 > 数据模型、API schema 与后端判定规则见《Note 模块后端开发方案》；总览见《Note 模块集成方案》。
@@ -1167,27 +1185,27 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 | 板块 | 文件 | 状态 |
 | --- | --- | --- |
 | 契约类型 | `frontend/src/types/note.ts`、`types/api.d.ts`（`pnpm gen:types`） | 已实现 |
-| API 层 | `api/note.ts`（26 端点）、`api/calendar.ts`、`api/file.ts`、`api/http.ts`（`HttpError extends BizError`、`getBlob`） | 已实现 |
+| API 层 | `api/note.ts`（24 端点；减法删 archive/unarchive）、`api/calendar.ts`、`api/file.ts`、`api/http.ts`（`HttpError extends BizError`、`getBlob`） | 已实现 |
 | 状态层 | `stores/note.ts`（列表缓存 + 查询状态 + 会话快照/`reset(uid)`）、`composables/useNoteList.ts` | 已实现 |
 | 组合式 | `useNoteScopePage`、`useNoteFacets`、`useNoteDetail`、`useNoteGrants`、`useNoteActions`、`useMonthCalendar`、`useFileConfig` | 已实现 |
-| 路由 | `router/routes.ts` 11 条（`/notes`、explore/shared/internal/subordinate/all/archived/archived-all/grants/calendar/`:id`）+ `RouteMeta(module/scope/archived)` | 已实现 |
+| 路由 | `router/routes.ts` note 6 条（`/notes`、`shared`、`subordinate`、`grants`、`calendar`、`:id`）+ 后台 `adminNotes`（`/admin/notes`，ADMIN）+ `RouteMeta(module/scope)`（`archived` 已删） | 已实现 |
 | 导航 | `BbFilterRail` 双模块分组（任务 / 工作日志），折叠持久化 + 切模块必展开 | 已实现 |
-| 视图 | `views/note/` 11 个（`NoteListView` 壳 + 7 列表 + 详情 + 授权 + 日历） | 已实现 |
+| 视图 | `views/note/` 8 个（`NoteListView` 壳 + 4 列表〔我的/被授权/员工/后台全部〕+ 详情 + 授权 + 日历） | 已实现 |
 | 组件 | `components/note/`（Card/List/FilterBar/Editor/MiniList/CreatedDraftCard/NotFound/AttachmentList/RelationPicker/GrantForm） | 已实现 |
 | 共享组件 | `BbMiniCalendar`（通用化 loader/scope/height/selected）、`BbUserPicker`（multiple/subordinate）、`BbTagPicker` | 已实现 |
 | Mock | `src/mocks/noteHandlers.ts`（note 全端点 + 任务附件 H 组端点） | 已实现 |
-| E2E | `e2e/note-flow.spec.ts`（10 条）+ `visual.spec.ts` 3 张日志基线 | 已实现 |
-| 单测 | `noteStore`(14)、`useMonthCalendar`(4)、`noteRoute`(8)、`useNoteList`(9)，共 54 条 / 9 文件 | 已实现 |
+| E2E | `e2e/note-flow.spec.ts`（20 条）+ `note-permission.spec.ts`（5 条）+ `visual*.spec.ts` 8 张日志基线 | 已实现 |
+| 单测 | 19 文件 / 110 例（`noteStore`、`useMonthCalendar`、`noteRoute`、`useNoteList`、`useNoteActions`、`useNoteFacets`、`useNoteScopePage`、`NoteCard`、`NoteEditor`、`BbFilterRail` 等） | 已实现 |
 
 ### 12.2 验收执行记录
 
 | 命令 | 结果 |
 | --- | --- |
 | `pnpm exec vue-tsc --noEmit` | 通过（0 error） |
-| `pnpm test` | 19 files / 121 tests 全通过（新增 6 个 composable + 4 个组件用例，见 §8.4 / §12.5） |
-| `pnpm test:e2e` | **63 passed**（task-flow 18 + note-flow 20 + note-permission 5 + visual 14 + visual-narrow 5 + filter-rail 1） |
+| `pnpm test` | 19 files / **110 tests** 全通过（减法删除 `scopesForVisibility`/`toggleArchive`/归档按钮用例 11 例） |
+| `pnpm test:e2e` | **63 passed**（task-flow 18 + note-flow 20 + note-permission 5 + visual 14 + visual-narrow 5 + filter-rail 1）；减值后 N-04/N-14/N-20/P-01~P-05 已改写为「三 scope / 无归档按钮 / 后台全部日志」 |
 | 后端全量 `mvn -o test` | **42 tests / 0 failures**（`NoteFlowTest` 1 + `NoteAuthMatrixTest` 1 + `NoteSubFlowTest` 8 + `PermissionFieldTest` 3 + 其他模块 29），BUILD SUCCESS |
-| 真实后端联调（8080 + 5173，`VITE_USE_MOCK=false`） | mine=4 / internal=11 / subordinate=11 / shared=4 / explore=3 / all=13(admin)；新建→临时卡片→上传→下载→完成；行内编辑；404 空态；403 `?from=`；日历月计数 |
+| 真实后端联调（8080 + 5173，`VITE_USE_MOCK=false`） | mine=4 / shared=4 / subordinate=11 / all=13(admin，改为 `/admin/notes` 入口)；新建→临时卡片→上传→下载→完成；行内编辑；404 空态；403 `?from=`；日历月计数（日历 scope 不再含 all） |
 
 ### 12.3 实现期修正的真实缺陷
 
@@ -1206,19 +1224,19 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 ### 12.4 已知未做 / 偏差
 
 - ~~附件上传**并发多选**未做~~ → **已做**：`input[multiple]`，批量预校验后 `Promise.all` 并发上传+绑定，单文件失败不影响其他文件（`NoteAttachmentList`，单测覆盖 7 例）。
-- **`fieldPermissions` 已升级为后端权限位**：`NoteDetailVO.fieldPermissions`（`content`/`logDate`/`visibility`/`tagIds`）由 `NoteAuthService.fieldPermissions()` 计算（后端唯一事实来源，与写路径 50013 校验一一对应）；前端只消费、不再自行推导，未下发时回退 `grantRole` 规则兼容旧响应。
+- **`fieldPermissions` 已升级为后端权限位**：`NoteDetailVO.fieldPermissions`（`content`/`logDate`/`tagIds`，减法后 3 项）由 `NoteAuthService.fieldPermissions()` 计算（后端唯一事实来源，与写路径 50013 校验一一对应）；前端只消费、不再自行推导，未下发时回退 `grantRole` 规则兼容旧响应。
 - 右栏“当日日志”为 isolated 实例（size=5），不参与主列表分页与缓存（符合 §7.2）。
-- 行内编辑宿主仅 `NoteHomeView` 提供，其余 6 页 `edit` 跳详情（符合 §7.2 宿主规则）。
+- 行内编辑宿主仅 `NoteHomeView` 提供，其余页 `edit` 跳详情（符合 §7.2 宿主规则）。
 - MSW mock 的数据归属仍是 admin 视角；多账号身份（`src/mocks/identity.ts`）只做**权限门控**（`scope=all` 需 ADMIN、`scope=subordinate` 需开关），不做数据隔离。
-- **契约门禁 `node scripts/check-contract.mjs` 基线为红（54 项，`exit=1`）**：HEAD 与本次工作区跑出完全相同的条目，说明与 Note 改动无关。三类存量偏差：①`Task/02` 声明的 `categories` 接口（6 个）后端未实现、openapi 亦无（后由 note tags 承担）；②openapi 已落地的 Note/Task/Admin/Org 等 41 个端点未回填 `Task/01`/`Task/02` 接口表；③7 个无 body 写操作（archive/pin/approve/reject/upgrade 等）未列入 `BODY_EXEMPT`。修复需回填设计文档接口表并补豁免，属独立批次。
+- **契约门禁 `node scripts/check-contract.mjs` 基线为红（50 项，`exit=1`，减法前 54 项）**：HEAD 与本次工作区跑出完全相同的条目，说明与 Note 改动无关。三类存量偏差：①`Task/02` 声明的 `categories` 接口（6 个）后端未实现、openapi 亦无（后由 note tags 承担）；②openapi 已落地的 Note/Task/Admin/Org 等 41 个端点未回填 `Task/01`/`Task/02` 接口表；③7 个无 body 写操作（archive/pin/approve/reject/upgrade 等）未列入 `BODY_EXEMPT`。修复需回填设计文档接口表并补豁免，属独立批次。
 - 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **42 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope）。后续改动 note 后端须重跑 `mvn test` 全量。
 - 版本冲突的 e2e 覆盖依赖 mock 一次性钩子 `bb_mock_force_conflict`（单页内无法并行制造真实版本落后），真实后端冲突路径由 `NoteFlowTest` step 6 保证。
-- 矩阵用例 **117 + 4 全部脚本化**（`#19` 用 `MTX-上限-L1..L6` 六级部门链 + 6 个上级账号构造，第 6 条断言 400/10001）。
+- 矩阵用例 **119 + 4 全部脚本化**（减法后 `#2/#5/#11/#12/#12b/#12c/#15/#15a/#16/#16a/#46e` 改为「下线/字段忽略/端点不存在」回归口径）（`#19` 用 `MTX-上限-L1..L6` 六级部门链 + 6 个上级账号构造，第 6 条断言 400/10001）。
 - `GET /tasks/{id}` 已统一为「不可见/不存在 → HTTP 404 + 10004」（原 200 + 10003），子任务沿用「随父任务」口径。
 
 ### 12.5 测试覆盖补充（本轮）
 
-**单测（Vitest，19 文件 / 121 例）**：本轮新增 67 例，覆盖此前只有契约无测试的对象。
+**单测（Vitest，19 文件 / 110 例）**：上一轮新增 67 例；本轮减法删除 11 例（`scopesForVisibility` 4、`toggleArchive` 1、归档按钮 1、scope/导航断言 5），并改写其余断言。
 
 | 文件 | 例数 | 关注点 |
 | --- | --- | --- |
@@ -1226,27 +1244,27 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 | `useNoteFacets.spec.ts` | 6 | 按 scope 取数 / 60s 缓存命中 / retry 清缓存重拉 / 未加载不发请求 / 失败不写缓存 / 竞态 |
 | `useNoteGrants.spec.ts` | 5 | 分页参数透传 / setPage / 失败不清列表 / 竞态 / 重载清 error |
 | `useFileConfig.spec.ts` | 4 | 默认回退常量 / 成功覆盖 / 失败回退 / 竞态 |
-| `useNoteActions.spec.ts` | 10 | visibility→scope 失效集合（4 例）/ pin/archive/remove 端点与缓存失效 / BizError、HttpError、兜底 toast |
+| `useNoteActions.spec.ts` | 6 | pin/remove 端点与 `AFFECTED_SCOPES` 缓存失效 / BizError、HttpError、兜底 toast |
 | `useNoteScopePage.spec.ts` | 7 | adminOnly、emptyOn403 的 403 空态文案 / 非 403 仍错误卡片 / onEdit 宿主与跳详情 / onRemove 取消与确认 / 找不到行静默 |
-| `NoteCard.spec.ts` | 10 | 点击 open / canEdit·canManage 按钮矩阵 / pin·unpin / archive·unarchive / `is-on` 与徽标 / 操作区不冒泡 / 标签 / active |
+| `NoteCard.spec.ts` | 9 | 点击 open / canEdit·canManage 按钮矩阵 / pin·unpin / `is-on` 与徽标 / 操作区不冒泡 / 标签 / active（归档按钮已删） |
 | `NoteAttachmentList.spec.ts` | 7 | 多选并发上传 / 单文件文案 / 部分失败 / 预校验拦截 / 移除用 `attachmentId` / `canRemoveRef`·`canUpload` 显隐 |
-| `BbFilterRail.spec.ts` | 6 | 普通用户·下属·ADMIN 的日志导航项 / 两组存在 / 折叠持久化 + 切模块强制展开 / 路由高亮与 push |
-| `NoteEditor.spec.ts` | 6 | 编辑态按后端 `fieldPermissions` 锁定：owner 全可编辑 / EDITOR 锁可见性+标签 / VIEWER 正文只读 / 未下发时回退 `grantRole` / 新建态不受限 / 详情失败不阻塞渲染 |
+| `BbFilterRail.spec.ts` | 6 | 日志组只剩我的/被授权/授权管理、ADMIN 也不出现「全部日志」/ 两组存在 / 折叠持久化 + 切模块强制展开 / 路由高亮与 push |
+| `NoteEditor.spec.ts` | 6 | 编辑态按后端 `fieldPermissions` 锁定：owner 全可编辑 / EDITOR 锁标签 / VIEWER 正文只读 / 未下发时回退 `grantRole` / 新建态不受限 / 详情失败不阻塞渲染（可见性下拉已删） |
 
 **e2e（Playwright，63 例）**
 
-- `note-permission.spec.ts`（5 例，新增）：非管理员访问 `/notes/all` → 路由守卫跳 `/403?from=`；普通用户左栏无「全部日志 / 下属日志」；无下属权限访问 `/notes/subordinate` → 403 空态「未开启「上级可读下属日志」…」且不再叠加「标签加载失败」；ADMIN 可见并进入「全部日志」；AUDITOR 无「全部日志」但可进探索。
+- `note-permission.spec.ts`（5 例）：非管理员访问 `/admin/notes` → 路由守卫跳 `/403` 并保留 `from`；普通用户左栏无「全部日志 / 员工日志」；无下属权限访问 `/notes/subordinate` → 403 空态「未开启「上级可读员工日志」…」且不再叠加「标签加载失败」；ADMIN 从后台进入「全部日志」；AUDITOR 无后台入口、被授权日志正常。
 - `visual-narrow.spec.ts`（5 例，新增）：1280×800 下我的日志、日志详情、筛选空态（无分页）、行内编辑、授权管理列表。
 - 依赖 `src/mocks/identity.ts`：mock 登录支持 `admin/admin123`、`common|nodept|auditor`（`Test@1234`）；token 可反解身份，刷新后身份不丢；`scope=all` 非 ADMIN、`scope=subordinate` 无开关时返回 403（`/notes`、`/notes/tags`、`/notes/calendar` 三处一致）。
 
 **后端（`mvn -o test`，42 例）**
 
 - `PermissionFieldTest`（3 例，新增）：
-  1. `noteDetailExposesFieldPermissions`：owner/ADMIN 四项 true、EDITOR 仅 content+logDate（且改 visibility → 50013）、VIEWER 四项 false、归档后 EDITOR 变 404、归档后 owner 仍全 true；
+  1. `noteDetailExposesFieldPermissions`：owner/ADMIN 三项 true、EDITOR 仅 content+logDate（且改 tagIds → 50013）、VIEWER 三项 false；
   2. `taskDetailIs404WhenNotVisible`：无关用户与不存在 id 均 **HTTP 404 + 10004**，owner/ADMIN 正常；
   3. `subtasksFollowParentVisibility`：CC 可见父任务时子任务随父返回，但无关用户直接访问子任务 id → 404。
 
-**矩阵（`scripts/acceptance`，117 + 4）**
+**矩阵（`scripts/acceptance`，119 + 4）**
 
 - `#19`（每 grantor 最多 5 条 PENDING）已自动化：`seed_accounts.py` 建 `MTX-上限-L1..L6` 六级部门链并指定 6 个负责人，6 人都把 `mtxcap` 视为下属；前 5 条 SUPERIOR PENDING 成功，第 6 条断言 **400/10001**。
 
@@ -1254,7 +1272,7 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 
 - 403 空态文案改为使用页面策展文案（`emptyText`），不再直出后端 `message`（原为「无权限」）。
 - 403 时不再叠加「标签加载失败」（新增 `useNoteScopePage.tagError`，7 个 scope 页统一使用）。
-- `useNoteActions.toggleArchive` 的失效 scope 去重（`Set`），避免重复遍历缓存。
+- `useNoteActions` 失效 scope 收敛为 `AFFECTED_SCOPES = ['mine','shared','subordinate','all']`（原 `toggleArchive` 已删）。
 
 **CI**：`.github/workflows/ci.yml` 增加前端类型检查、单测、后端 `mvn verify`，并新增手动触发的验收矩阵 job（`workflow_dispatch` + `run_acceptance=true`，启动后端 + SQLite → seed → `matrix_main.py`，产物上传）。
 - 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **42 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope；`PermissionFieldTest` 3 例：详情字段位、task 详情 404、子任务随父任务）。后续改动 note 后端须重跑 `mvn test` 全量。
