@@ -7,7 +7,6 @@ import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteUserGrant;
-import com.bbtc.bluebird.modules.note.domain.Visibility;
 import com.bbtc.bluebird.modules.note.dto.NoteFieldPermissionsVO;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteUserGrantMapper;
@@ -60,8 +59,9 @@ public class NoteAuthService {
     }
 
     /**
-     * 可见性判定（§3.3）：
-     * deleted → admin → owner → archived → grant → INTERNAL 部门 → PUBLIC → 下属（开关）。
+     * 可见性判定：deleted → admin → owner → 已授权 → 下属（开关）。
+     *
+     * <p>日志不再有「部门可见 / 公开」两档；上级读下属由开关决定，属制度性例外。
      */
     public boolean isVisible(Note note, Long me) {
         if (note == null || isTrue(note.getDeleted())) {
@@ -76,19 +76,7 @@ public class NoteAuthService {
         if (me.equals(note.getOwnerId())) {
             return true;
         }
-        if (isTrue(note.getArchived())) {
-            return false;
-        }
         if (hasApprovedGrant(note.getOwnerId(), me)) {
-            return true;
-        }
-        if (Visibility.INTERNAL.name().equals(note.getVisibility()) && note.getDeptId() != null) {
-            Set<Long> depts = departmentPolicy.visibleDeptIds(me);
-            if (depts.contains(note.getDeptId())) {
-                return true;
-            }
-        }
-        if (Visibility.PUBLIC.name().equals(note.getVisibility())) {
             return true;
         }
         if (managerCanReadSubordinate && note.getOwnerId() != null) {
@@ -97,7 +85,7 @@ public class NoteAuthService {
         return false;
     }
 
-    /** 编辑权：owner/admin 恒可；grant EDITOR 仅未归档；其余 false。 */
+    /** 编辑权：owner/admin 恒可；grant EDITOR 可编辑；其余 false。 */
     public boolean canEdit(Note note, Long me) {
         if (note == null || isTrue(note.getDeleted())) {
             return false;
@@ -105,10 +93,10 @@ public class NoteAuthService {
         if (isAdmin() || me.equals(note.getOwnerId())) {
             return true;
         }
-        return NoteUserGrant.EDITOR.equals(grantRole(note, me)) && !isTrue(note.getArchived());
+        return NoteUserGrant.EDITOR.equals(grantRole(note, me));
     }
 
-    /** 管理权：visibility/tagIds/pin/archive/delete/引用移除/附件移除。 */
+    /** 管理权：tagIds/pin/delete/引用移除/附件移除。 */
     public boolean canManage(Note note, Long me) {
         if (note == null || isTrue(note.getDeleted())) {
             return false;
@@ -139,7 +127,6 @@ public class NoteAuthService {
      * 字段级可编辑性（详情回传给前端，写路径校验的唯一镜像）。
      *
      * <p>与 {@link #assertWritable} / {@code NoteCommandService.update} 的分支一一对应：
-     * 归档 → 正文与日期也不可改（50013「已归档日志不允许编辑」）；
      * EDITOR → 仅正文与日期；VIEWER 及其它只读可见者 → 全 false。
      */
     public NoteFieldPermissionsVO fieldPermissions(Note note, Long me) {
@@ -150,28 +137,21 @@ public class NoteAuthService {
             // owner / ADMIN：归档后仍可改（业务上允许 owner 归档后修订）
             return NoteFieldPermissionsVO.all();
         }
-        if (NoteUserGrant.EDITOR.equals(grantRole(note, me)) && !isTrue(note.getArchived())) {
-            return new NoteFieldPermissionsVO(true, true, false, false);
+        if (NoteUserGrant.EDITOR.equals(grantRole(note, me))) {
+            return new NoteFieldPermissionsVO(true, true, false);
         }
         return NoteFieldPermissionsVO.none();
     }
 
-    /** 写操作前置：不可见 404；归档日志的 EDITOR 50013；只读角色 403。 */
+    /** 写操作前置：不可见 404；只读角色 403。 */
     public void assertWritable(Note note, Long me) {
         if (!isVisible(note, me)) {
-            // 归档日志对非 owner/ADMIN 不可见：已获 EDITOR 授权者明确被告知「归档只读」，而不是 404
-            if (isTrue(note.getArchived()) && NoteUserGrant.EDITOR.equals(grantRole(note, me))) {
-                throw new BusinessException(ErrorCode.NOTE_FIELD_FORBIDDEN, "已归档日志不允许编辑");
-            }
             throw HttpStatusException.notFound();
         }
         if (canManage(note, me)) {
             return;
         }
         if (NoteUserGrant.EDITOR.equals(grantRole(note, me))) {
-            if (isTrue(note.getArchived())) {
-                throw new BusinessException(ErrorCode.NOTE_FIELD_FORBIDDEN, "已归档日志不允许编辑");
-            }
             return;
         }
         throw HttpStatusException.forbidden();

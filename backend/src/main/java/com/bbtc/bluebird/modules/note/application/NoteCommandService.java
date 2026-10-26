@@ -10,7 +10,6 @@ import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
 import com.bbtc.bluebird.modules.note.domain.NoteRelation;
 import com.bbtc.bluebird.modules.note.domain.NoteTag;
 import com.bbtc.bluebird.modules.note.domain.NoteUserGrant;
-import com.bbtc.bluebird.modules.note.domain.Visibility;
 import com.bbtc.bluebird.modules.note.dto.NoteCreateReq;
 import com.bbtc.bluebird.modules.note.dto.NoteDetailVO;
 import com.bbtc.bluebird.modules.note.dto.NoteUpdateReq;
@@ -31,7 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** 日志写操作：创建/更新/删除/置顶/归档 + 字段级权限 + dept_id 刷新 + 级联清理。 */
+/** 日志写操作：创建/更新/删除/置顶 + 字段级权限 + 级联清理。 */
 @Service
 @RequiredArgsConstructor
 public class NoteCommandService {
@@ -54,22 +53,14 @@ public class NoteCommandService {
         Long me = UserContext.currentUserId();
         validateContent(req.content());
         validateLogDate(req.logDate());
-        Visibility visibility = req.visibility() == null
-                ? Visibility.PRIVATE : parseVisibility(req.visibility());
         validateTagOwnership(req.tagIds(), me);
-
-        Long deptId = currentUserDeptService.deptIdOf(me);
-        if (visibility == Visibility.INTERNAL && deptId == null) {
-            throw new BusinessException(ErrorCode.NOTE_DEPT_REQUIRED);
-        }
 
         Note note = new Note();
         note.setContent(req.content());
         note.setLogDate(req.logDate().toString());
-        note.setVisibility(visibility.name());
         note.setPinned(0);
-        note.setArchived(0);
         note.setOwnerId(me);
+        Long deptId = currentUserDeptService.deptIdOf(me);
         note.setDeptId(deptId);
         note.setVersion(0);
         note.setDeleted(0);
@@ -99,13 +90,6 @@ public class NoteCommandService {
             validateLogDate(req.logDate());
         }
 
-        Visibility newVisibility = null;
-        if (req.visibility() != null) {
-            newVisibility = parseVisibility(req.visibility());
-            if (editor && !newVisibility.name().equals(note.getVisibility())) {
-                throw new BusinessException(ErrorCode.NOTE_FIELD_FORBIDDEN, "无权修改可见性");
-            }
-        }
         if (req.tagIds() != null && editor && !sameTagIds(id, req.tagIds())) {
             throw new BusinessException(ErrorCode.NOTE_FIELD_FORBIDDEN, "无权修改标签");
         }
@@ -113,24 +97,11 @@ public class NoteCommandService {
             validateTagOwnership(req.tagIds(), note.getOwnerId());
         }
 
-        // dept_id 刷新：仅在「非 INTERNAL → INTERNAL」时刷新；其余保持快照
-        if (newVisibility == Visibility.INTERNAL
-                && !Visibility.INTERNAL.name().equals(note.getVisibility())) {
-            Long ownerDept = currentUserDeptService.deptIdOf(note.getOwnerId());
-            if (ownerDept == null) {
-                throw new BusinessException(ErrorCode.NOTE_DEPT_REQUIRED);
-            }
-            note.setDeptId(ownerDept);
-        }
-
         if (req.content() != null) {
             note.setContent(req.content());
         }
         if (req.logDate() != null) {
             note.setLogDate(req.logDate().toString());
-        }
-        if (newVisibility != null) {
-            note.setVisibility(newVisibility.name());
         }
         if (req.version() == null) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT, "缺少 version（乐观锁）");
@@ -167,13 +138,6 @@ public class NoteCommandService {
         noteMapper.updateById(note);
     }
 
-    @Transactional
-    public void archive(Long id, boolean archived) {
-        Note note = authService.requireManageable(id);
-        note.setArchived(archived ? 1 : 0);
-        noteMapper.updateById(note);
-    }
-
     /* ==================== 校验 ==================== */
 
     private void validateContent(String content) {
@@ -192,14 +156,6 @@ public class NoteCommandService {
         if (logDate.isAfter(LocalDate.now(ZONE).plusDays(LOG_DATE_FUTURE_DAYS))) {
             throw new BusinessException(ErrorCode.NOTE_LOG_DATE_INVALID);
         }
-    }
-
-    private Visibility parseVisibility(String value) {
-        Visibility v = Visibility.of(value);
-        if (v == null) {
-            throw HttpStatusException.badRequest("非法 visibility");
-        }
-        return v;
     }
 
     private void validateTagOwnership(List<Long> tagIds, Long ownerId) {

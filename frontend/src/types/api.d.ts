@@ -1447,7 +1447,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 任务详情 */
+        /**
+         * 任务详情
+         * @description 不可见与不存在一律 **HTTP 404 + code 10004**（不暴露存在性，与 `/tasks/{id}/attachments` 一致）。 子任务随父任务可见性返回。
+         */
         get: {
             parameters: {
                 query?: never;
@@ -1469,6 +1472,13 @@ export interface paths {
                             data?: components["schemas"]["TaskDetailVO"];
                         };
                     };
+                };
+                /** @description 任务不存在或对当前用户不可见（code 10004） */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -2260,19 +2270,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 工作日志分页（7 种 scope + 过滤/排序）
-         * @description `scope`：`mine`（默认）| `shared`（他人共享给我）| `explore`（PUBLIC）| `internal`（本部门 INTERNAL）| `subordinate`（下属日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（全部可见）| `all`（ADMIN）。 `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
+         * 工作日志分页（5 种 scope + 过滤/排序）
+         * @description `scope`：`mine`（默认）| `shared`（他人授权给我）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
          */
         get: {
             parameters: {
                 query?: {
-                    scope?: "mine" | "shared" | "explore" | "internal" | "subordinate" | "visible" | "all";
+                    scope?: "mine" | "shared" | "subordinate" | "visible" | "all";
                     tagId?: number;
                     tagName?: string;
                     keyword?: string;
-                    visibility?: "PRIVATE" | "INTERNAL" | "PUBLIC";
                     pinned?: boolean;
-                    archived?: boolean;
                     start?: string;
                     end?: string;
                     date?: string;
@@ -2595,80 +2603,6 @@ export interface paths {
                 200: components["responses"]["Ok"];
             };
         };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/notes/{id}/archive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 归档（owner/ADMIN） */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["Ok"];
-                /** @description 无管理权 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description 不可见 */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/notes/{id}/unarchive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 取消归档（owner/ADMIN） */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["Ok"];
-            };
-        };
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3411,10 +3345,7 @@ export interface components {
              * @description YYYY-MM-DD
              */
             logDate?: string;
-            /** @enum {string} */
-            visibility?: "PRIVATE" | "INTERNAL" | "PUBLIC";
             pinned?: boolean;
-            archived?: boolean;
             /** Format: int64 */
             ownerId?: number;
             ownerName?: string;
@@ -3443,11 +3374,10 @@ export interface components {
             ownerTags?: components["schemas"]["TagVO"][] | null;
             fieldPermissions?: components["schemas"]["NoteFieldPermissionsVO"];
         };
-        /** @description 字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应： owner/ADMIN 四项全 true；未归档的 EDITOR 仅 content/logDate 为 true（改 visibility/tagIds → 50013）； 归档日志对 EDITOR 全 false（50013 已归档只读）；VIEWER 等只读可见者全 false。 */
+        /** @description 字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应： owner/ADMIN 三项全 true；EDITOR 仅 content/logDate 为 true（改 tagIds → 50013）；VIEWER 等只读可见者全 false。 */
         NoteFieldPermissionsVO: {
             content?: boolean;
             logDate?: boolean;
-            visibility?: boolean;
             tagIds?: boolean;
         };
         NoteListData: {
@@ -3463,11 +3393,6 @@ export interface components {
              * @description YYYY-MM-DD（严格解析，非法 400）
              */
             logDate: string;
-            /**
-             * @default PRIVATE
-             * @enum {string}
-             */
-            visibility: "PRIVATE" | "INTERNAL" | "PUBLIC";
             tagIds?: number[];
         };
         /** @description 字段均可省略（null=不改）；提供 version 时做乐观锁校验 */
@@ -3475,8 +3400,6 @@ export interface components {
             content?: string;
             /** Format: date */
             logDate?: string;
-            /** @enum {string} */
-            visibility?: "PRIVATE" | "INTERNAL" | "PUBLIC";
             /** @description 提供即整体替换为给定集合 */
             tagIds?: number[];
             /** Format: int64 */

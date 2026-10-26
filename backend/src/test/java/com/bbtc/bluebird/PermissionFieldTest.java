@@ -99,11 +99,10 @@ class PermissionFieldTest {
         return objectMapper.readTree(s);
     }
 
-    private long createNote(SysUser u, String content, String visibility) throws Exception {
+    private long createNote(SysUser u, String content) throws Exception {
         String res = mvc.perform(auth(post("/api/v1/notes"), u)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"" + content + "\",\"logDate\":\"2026-10-20\",\"visibility\":\""
-                                + visibility + "\",\"tagIds\":[]}"))
+                        .content("{\"content\":\"" + content + "\",\"logDate\":\"2026-10-20\",\"tagIds\":[]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andReturn().getResponse().getContentAsString();
@@ -145,53 +144,39 @@ class PermissionFieldTest {
         SysUser viewer = user("fp-viewer", null, "COMMON");
         SysUser admin = user("fp-admin", null, "ADMIN");
 
-        long noteId = createNote(owner, "字段权限用例", "PRIVATE");
+        long noteId = createNote(owner, "字段权限用例");
 
-        // owner：四项全 true
+        // owner：三项全 true
         mvc.perform(auth(get("/api/v1/notes/" + noteId), owner))
                 .andExpect(jsonPath("$.data.fieldPermissions.content").value(true))
                 .andExpect(jsonPath("$.data.fieldPermissions.logDate").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.visibility").value(true))
                 .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(true));
 
-        // ADMIN：四项全 true（与 canManage 一致）
+        // ADMIN：三项全 true（与 canManage 一致）
         mvc.perform(auth(get("/api/v1/notes/" + noteId), admin))
                 .andExpect(jsonPath("$.data.fieldPermissions.content").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.visibility").value(true));
+                .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(true));
 
         // EDITOR（已批准）：仅正文与日期
         grant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + editor.getId() + ",\"role\":\"EDITOR\"}", null);
         mvc.perform(auth(get("/api/v1/notes/" + noteId), editor))
                 .andExpect(jsonPath("$.data.fieldPermissions.content").value(true))
                 .andExpect(jsonPath("$.data.fieldPermissions.logDate").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.visibility").value(false))
                 .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(false));
 
-        // 与写路径一致：EDITOR 改可见性 → 50013（HTTP 200）
+        // 与写路径一致：EDITOR 改标签 → 50013（HTTP 200）
         mvc.perform(auth(put("/api/v1/notes/" + noteId), editor)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"visibility\":\"PUBLIC\"}"))
+                        .content("{\"tagIds\":[999999],\"version\":0}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(50013));
 
-        // VIEWER：四项全 false
+        // VIEWER：三项全 false
         grant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + viewer.getId() + ",\"role\":\"VIEWER\"}", null);
         mvc.perform(auth(get("/api/v1/notes/" + noteId), viewer))
                 .andExpect(jsonPath("$.data.fieldPermissions.content").value(false))
                 .andExpect(jsonPath("$.data.fieldPermissions.logDate").value(false))
-                .andExpect(jsonPath("$.data.fieldPermissions.visibility").value(false))
                 .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(false));
-
-        // 归档后的 EDITOR：不可见（404），因此不存在「归档可编辑」的歧义
-        mvc.perform(auth(post("/api/v1/notes/" + noteId + "/archive"), owner))
-                .andExpect(jsonPath("$.code").value(0));
-        mvc.perform(auth(get("/api/v1/notes/" + noteId), editor))
-                .andExpect(status().isNotFound());
-
-        // owner 归档后仍全 true（允许修订）
-        mvc.perform(auth(get("/api/v1/notes/" + noteId), owner))
-                .andExpect(jsonPath("$.data.fieldPermissions.content").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.visibility").value(true));
     }
 
     /* ==================== 2. task 详情不可见 → 404 ==================== */

@@ -19,9 +19,7 @@ public class NoteVO {
     private String contentSummary;
     /** YYYY-MM-DD */
     private String logDate;
-    private String visibility;
     private boolean pinned;
-    private boolean archived;
     private Long ownerId;
     private String ownerName;
     private String ownerDept;

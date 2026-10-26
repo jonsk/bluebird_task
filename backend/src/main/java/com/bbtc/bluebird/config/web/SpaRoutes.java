@@ -29,7 +29,7 @@ public final class SpaRoutes {
             "/allTask",
             "/calendar",
             "/calendar/*",
-            // 工作日志（note）：列表/详情/探索/日历/授权/归档
+            // 工作日志（note）：列表/详情/日历/授权（探索、本部门、归档已下线）
             "/notes",
             "/notes/**",
             // 后台：/admin 本身 + 全部子页（* 只匹配一层，故必须用 **）
@@ -41,8 +41,8 @@ public final class SpaRoutes {
     public static final List<String> SAMPLE_PAGES = List.of(
             "/login", "/index", "/myJoin", "/myDo", "/myCollect",
             "/allTask", "/calendar/2026-10-01",
-            "/notes", "/notes/123", "/notes/explore", "/notes/calendar", "/notes/archived/all",
-            "/admin", "/admin/users", "/admin/casdoor", "/admin/logs", "/admin/settings",
+            "/notes", "/notes/123", "/notes/calendar", "/notes/shared", "/notes/subordinate", "/notes/grants",
+            "/admin", "/admin/users", "/admin/casdoor", "/admin/notes", "/admin/logs", "/admin/settings",
             "/403");
 
     private SpaRoutes() {

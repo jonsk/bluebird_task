@@ -111,11 +111,11 @@ class NoteFlowTest {
         return b.header("Authorization", token(u));
     }
 
-    private long createNote(SysUser u, String content, String visibility, String logDate) throws Exception {
+    private long createNote(SysUser u, String content, String logDate) throws Exception {
         String body = mvc.perform(auth(post("/api/v1/notes"), u)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"" + content + "\",\"logDate\":\"" + logDate
-                                + "\",\"visibility\":\"" + visibility + "\",\"tagIds\":[]}"))
+                                + "\",\"tagIds\":[]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andReturn().getResponse().getContentAsString();
@@ -144,7 +144,7 @@ class NoteFlowTest {
         String created = mvc.perform(auth(post("/api/v1/notes"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"今天完成了接口设计\",\"logDate\":\"2026-10-20\","
-                                + "\"visibility\":\"PRIVATE\",\"tagIds\":[]}"))
+                                + "\"tagIds\":[]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.version").value(0))
@@ -189,7 +189,7 @@ class NoteFlowTest {
                         .content("{\"content\":\"越权修改\",\"version\":0}"))
                 .andExpect(status().isForbidden());
 
-        // 5. 升级 EDITOR → 可改 content，但改 visibility 50013
+        // 5. 升级 EDITOR → 可改 content，但改标签 50013
         mvc.perform(auth(post("/api/v1/note-grants/" + grantId + "/upgrade"), owner))
                 .andExpect(jsonPath("$.data.role").value("EDITOR"));
         mvc.perform(auth(put("/api/v1/notes/" + noteId), other)
@@ -200,7 +200,7 @@ class NoteFlowTest {
                 .andExpect(jsonPath("$.data.content").value("协作者补充的内容"));
         mvc.perform(auth(put("/api/v1/notes/" + noteId), other)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"visibility\":\"PUBLIC\",\"version\":1}"))
+                        .content("{\"tagIds\":[999999],\"version\":1}"))
                 .andExpect(jsonPath("$.code").value(50013));
 
         // 6. 乐观锁：旧 version → 10006
@@ -231,7 +231,7 @@ class NoteFlowTest {
                 .andExpect(jsonPath("$.data[0].count").value(1));
 
         // 9. 引用（note → note，幂等）
-        long note2 = createNote(owner, "被引用的日志", "PRIVATE", "2026-10-21");
+        long note2 = createNote(owner, "被引用的日志", "2026-10-21");
         String rel1 = mvc.perform(auth(post("/api/v1/notes/" + noteId + "/relations"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetType\":\"NOTE\",\"targetId\":" + note2 + "}"))
@@ -293,7 +293,7 @@ class NoteFlowTest {
         org.junit.jupiter.api.Assertions.assertNotNull(attachmentMapper.selectById(attachmentId));
 
         // 11. 下属可见（开关开启）：sub 的 PRIVATE 日志 owner 可读
-        long subNote = createNote(sub, "下属的工作日志", "PRIVATE", "2026-10-22");
+        long subNote = createNote(sub, "下属的工作日志", "2026-10-22");
         mvc.perform(auth(get("/api/v1/notes/" + subNote), owner))
                 .andExpect(status().isOk());
         mvc.perform(auth(get("/api/v1/notes").param("scope", "subordinate"), owner))
@@ -306,21 +306,13 @@ class NoteFlowTest {
         mvc.perform(auth(get("/api/v1/notes").param("scope", "all"), admin))
                 .andExpect(status().isOk());
 
-        // 13. 归档：owner 可读写；非 owner 不可见
+        // 13. 归档能力已下线：端点不存在（未知 API 路径统一 200 + 10004），列表忽略 archived 参数
         mvc.perform(auth(post("/api/v1/notes/" + noteId + "/archive"), owner))
-                .andExpect(status().isOk());
-        mvc.perform(auth(get("/api/v1/notes").param("scope", "mine").param("archived", "true"), owner))
-                .andExpect(jsonPath("$.data.total").value(1));
-        mvc.perform(auth(get("/api/v1/notes/" + noteId), other))
-                .andExpect(status().isNotFound());
-        // 验收矩阵 27a：归档日志上 EDITOR 修改 → 明确「归档只读」50013，而不是 404
-        mvc.perform(auth(put("/api/v1/notes/" + noteId), other)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"归档后编辑\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(50013));
-        mvc.perform(auth(post("/api/v1/notes/" + noteId + "/unarchive"), owner))
-                .andExpect(status().isOk());
+                .andExpect(jsonPath("$.code").value(10004));
+        mvc.perform(auth(get("/api/v1/notes").param("scope", "mine").param("archived", "true"), owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
 
         // 14. 级联删除：删 note1 后引用/标签/附件关联清空，note2 保留
         mvc.perform(auth(delete("/api/v1/notes/" + noteId), owner))

@@ -129,11 +129,11 @@ class NoteSubFlowTest {
         return objectMapper.readTree(json);
     }
 
-    private long createNote(SysUser u, String content, String visibility, String logDate) throws Exception {
+    private long createNote(SysUser u, String content, String logDate) throws Exception {
         String json = mvc.perform(auth(post("/api/v1/notes"), u)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"" + content + "\",\"logDate\":\"" + logDate
-                                + "\",\"visibility\":\"" + visibility + "\",\"tagIds\":[]}"))
+                                + "\",\"tagIds\":[]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andReturn().getResponse().getContentAsString();
@@ -171,7 +171,7 @@ class NoteSubFlowTest {
         SysUser sub = user("sub", child.getId(), "COMMON");
         SysUser outsider = user("outsider", null, "COMMON");
 
-        long subNote = createNote(sub, "下属的私有日志", "PRIVATE", "2026-10-10");
+        long subNote = createNote(sub, "下属的私有日志", "2026-10-10");
 
         // 上级发起「读下属」授权：SUPERIOR 模式 → PENDING
         long grantId = createGrant(leader, "{\"mode\":\"SUPERIOR\",\"grantorId\":" + sub.getId()
@@ -206,7 +206,7 @@ class NoteSubFlowTest {
 
         // 另一条待确认授权：拒绝后不产生可见性
         SysUser sub2 = user("sub2", child.getId(), "COMMON");
-        long sub2Note = createNote(sub2, "另一位下属的日志", "PRIVATE", "2026-10-11");
+        long sub2Note = createNote(sub2, "另一位下属的日志", "2026-10-11");
         long grant2 = createGrant(leader, "{\"mode\":\"SUPERIOR\",\"grantorId\":" + sub2.getId()
                 + ",\"role\":\"VIEWER\"}");
         mvc.perform(auth(post("/api/v1/note-grants/" + grant2 + "/reject"), sub2))
@@ -257,7 +257,7 @@ class NoteSubFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("REVOKED"));
         // 撤销后 other 立即失去访问
-        long note = createNote(owner, "撤销后不可见", "PRIVATE", "2026-10-12");
+        long note = createNote(owner, "撤销后不可见", "2026-10-12");
         mvc.perform(auth(get("/api/v1/notes/" + note), other))
                 .andExpect(status().isNotFound());
 
@@ -275,7 +275,7 @@ class NoteSubFlowTest {
         SysUser owner = user("owner", null, "COMMON");
         SysUser viewer = user("viewer", null, "COMMON");
         SysUser stranger = user("stranger", null, "COMMON");
-        long note = createNote(owner, "带附件的日志", "PRIVATE", "2026-10-13");
+        long note = createNote(owner, "带附件的日志", "2026-10-13");
         createGrant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + viewer.getId() + ",\"role\":\"VIEWER\"}");
 
         long ownerFile = uploadFile(owner, "owner.txt", "owner-content");
@@ -333,7 +333,7 @@ class NoteSubFlowTest {
     void fileDeleteGuards() throws Exception {
         SysUser owner = user("owner", null, "COMMON");
         SysUser other = user("other", null, "COMMON");
-        long note = createNote(owner, "引用文件的日志", "PRIVATE", "2026-10-14");
+        long note = createNote(owner, "引用文件的日志", "2026-10-14");
         long file = uploadFile(owner, "ref.txt", "ref-content");
 
         // 非创建者读/删 → 403
@@ -364,8 +364,8 @@ class NoteSubFlowTest {
         SysUser hidden = user("hidden", null, "COMMON");
         SysUser stranger = user("stranger", null, "COMMON");
 
-        long note = createNote(owner, "引用方", "PRIVATE", "2026-10-15");
-        long hiddenNote = createNote(hidden, "被引用但不可见", "PRIVATE", "2026-10-16");
+        long note = createNote(owner, "引用方", "2026-10-15");
+        long hiddenNote = createNote(hidden, "被引用但不可见", "2026-10-16");
 
         // 引用不可见目标 → 50006
         mvc.perform(auth(post("/api/v1/notes/" + note + "/relations"), owner)
@@ -375,7 +375,7 @@ class NoteSubFlowTest {
                 .andExpect(jsonPath("$.code").value(50006));
 
         // 正常引用 → 列表 + backlinks
-        long target = createNote(owner, "被引用方", "PRIVATE", "2026-10-17");
+        long target = createNote(owner, "被引用方", "2026-10-17");
         String relJson = mvc.perform(auth(post("/api/v1/notes/" + note + "/relations"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetType\":\"NOTE\",\"targetId\":" + target + "}"))
@@ -422,7 +422,7 @@ class NoteSubFlowTest {
         String created = mvc.perform(auth(post("/api/v1/notes"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"带标签的日志\",\"logDate\":\"2026-10-18\","
-                                + "\"visibility\":\"PRIVATE\",\"tagIds\":[" + tag.getId() + "]}"))
+                                + "\"tagIds\":[" + tag.getId() + "]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.tags[0].name").value("级联标签"))
                 .andReturn().getResponse().getContentAsString();
@@ -467,7 +467,7 @@ class NoteSubFlowTest {
     void facetAndQueryValidation() throws Exception {
         SysUser owner = user("owner", null, "COMMON");
         SysUser stranger = user("stranger", null, "COMMON");
-        long note = createNote(owner, "facet 校验日志", "PRIVATE", "2026-10-19");
+        long note = createNote(owner, "facet 校验日志", "2026-10-19");
         createGrant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + stranger.getId() + ",\"role\":\"VIEWER\"}");
 
         // mine facet 带 id；shared facet 不带 id
@@ -519,9 +519,9 @@ class NoteSubFlowTest {
         SysUser owner = user("owner", null, "COMMON");
         SysUser admin = user("admin", null, "ADMIN");
 
-        createNote(owner, "日历日志 A", "PRIVATE", "2026-10-05");
-        createNote(owner, "日历日志 B", "PRIVATE", "2026-10-05");
-        createNote(owner, "日历日志 C", "PRIVATE", "2026-10-06");
+        createNote(owner, "日历日志 A", "2026-10-05");
+        createNote(owner, "日历日志 B", "2026-10-05");
+        createNote(owner, "日历日志 C", "2026-10-06");
 
         mvc.perform(auth(get("/api/v1/notes/calendar")
                         .param("year", "2026").param("month", "10").param("scope", "mine"), owner))
@@ -554,16 +554,8 @@ class NoteSubFlowTest {
         mvc.perform(auth(post("/api/v1/notes"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"未来日志\",\"logDate\":\"" + java.time.LocalDate.now().plusDays(30)
-                                + "\",\"visibility\":\"PRIVATE\",\"tagIds\":[]}"))
+                                + "\",\"tagIds\":[]}"))
                 .andExpect(jsonPath("$.code").value(50012));
-
-        // 无部门用户创建 INTERNAL → 50017
-        SysUser noDept = user("nodept", null, "COMMON");
-        mvc.perform(auth(post("/api/v1/notes"), noDept)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"部门日志\",\"logDate\":\"" + java.time.LocalDate.now()
-                                + "\",\"visibility\":\"INTERNAL\",\"tagIds\":[]}"))
-                .andExpect(jsonPath("$.code").value(50017));
 
         assertTrue(noteRelationMapper.selectCount(null) >= 0);
     }

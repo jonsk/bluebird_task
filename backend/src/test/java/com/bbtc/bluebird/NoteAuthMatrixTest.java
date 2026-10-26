@@ -28,7 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * §6.3 Java 侧可见性等值矩阵（15 行）：Grant EDITOR、deleted=1、空 visibleDeptIds 均覆盖。
+ * Java 侧可见性等值矩阵（做减法后）：owner / 授权 VIEWER·EDITOR / 下属开关 / ADMIN / deleted。
+ *
+ * <p>日志不再有 visibility（部门可见、公开）与 archived 两档，矩阵与
+ * {@code NoteVisibilitySqlBuilder.visiblePredicate} 逐分支对齐。
  */
 @SpringBootTest(properties = {
         "app.config.release=false",
@@ -91,15 +94,13 @@ class NoteAuthMatrixTest {
                 List.of(new SimpleGrantedAuthority("ROLE_" + u.getRoleCode()))));
     }
 
-    private Note note(Long ownerId, Long deptId, String visibility, int archived, int deleted) {
+    private Note note(Long ownerId, Long deptId, int deleted) {
         Note n = new Note();
         n.setId(1L);
         n.setContent("x");
         n.setLogDate("2026-10-20");
         n.setOwnerId(ownerId);
         n.setDeptId(deptId);
-        n.setVisibility(visibility);
-        n.setArchived(archived);
         n.setPinned(0);
         n.setDeleted(deleted);
         n.setVersion(0);
@@ -133,69 +134,47 @@ class NoteAuthMatrixTest {
         SysUser outsider = user("outsider", null, "COMMON");
         SysUser admin = user("admin", null, "ADMIN");
 
-        // 1. owner 自己的 PRIVATE
+        // 1. owner 自己的日志
         as(parent);
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), "PRIVATE", 0, 0), parent.getId()));
+        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), 0), parent.getId()));
 
-        // 2. 他人 PRIVATE，无 grant
+        // 2. 他人无授权 → false
         as(outsider);
-        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), "PRIVATE", 0, 0), outsider.getId()));
+        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), 0), outsider.getId()));
 
         // 3. grant VIEWER
         grant(parent.getId(), outsider.getId(), NoteUserGrant.VIEWER);
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), "PRIVATE", 0, 0), outsider.getId()));
+        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), 0), outsider.getId()));
 
         // 4. grant EDITOR（另一用户，避免与 3 冲突）
         SysUser editor = user("editor", null, "COMMON");
         grant(parent.getId(), editor.getId(), NoteUserGrant.EDITOR);
         as(editor);
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), "PRIVATE", 0, 0), editor.getId()));
+        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), 0), editor.getId()));
 
-        // 5. INTERNAL 父看子
-        as(parent);
-        assertTrue(authService.isVisible(note(childUser.getId(), child.getId(), "INTERNAL", 0, 0), parent.getId()));
-
-        // 6. INTERNAL 子看父
+        // 5. 同部门但无授权 → false（部门可见已下线）
         as(childUser);
-        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), "INTERNAL", 0, 0), childUser.getId()));
+        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), 0), childUser.getId()));
 
-        // 7. PUBLIC
-        as(outsider);
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), "PUBLIC", 0, 0), outsider.getId()));
-
-        // 8. 下属开关开（他名下属，PRIVATE）
+        // 6. 上级读下属（开关开）
         as(leader);
-        assertTrue(authService.isVisible(note(childUser.getId(), child.getId(), "PRIVATE", 0, 0), leader.getId()));
+        assertTrue(authService.isVisible(note(childUser.getId(), child.getId(), 0), leader.getId()));
 
-        // 9. 下属开关关
+        // 7. 上级读下属（开关关）→ false
         ReflectionTestUtils.setField(authService, "managerCanReadSubordinate", false);
-        assertFalse(authService.isVisible(note(childUser.getId(), child.getId(), "PRIVATE", 0, 0), leader.getId()));
+        assertFalse(authService.isVisible(note(childUser.getId(), child.getId(), 0), leader.getId()));
         ReflectionTestUtils.setField(authService, "managerCanReadSubordinate", true);
 
-        // 10. ADMIN 全量（含他人 PRIVATE）
+        // 8. 下属读上级 → false（方向单向）
+        as(childUser);
+        assertFalse(authService.isVisible(note(leader.getId(), root.getId(), 0), childUser.getId()));
+
+        // 9. ADMIN 全量（含他人日志）
         as(admin);
-        assertTrue(authService.isVisible(note(outsider.getId(), null, "PRIVATE", 0, 0), admin.getId()));
+        assertTrue(authService.isVisible(note(outsider.getId(), null, 0), admin.getId()));
 
-        // 11. visibleDeptIds 为空 + INTERNAL → false
-        SysUser noDept = user("nodept", null, "COMMON");
-        as(noDept);
-        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), "INTERNAL", 0, 0), noDept.getId()));
-
-        // 12. visibleDeptIds 为空 + PUBLIC → true
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), "PUBLIC", 0, 0), noDept.getId()));
-
-        // 13. deleted=1（含 owner）→ false
+        // 10. deleted=1（含 owner）→ false
         as(parent);
-        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), "PRIVATE", 0, 1), parent.getId()));
-
-        // 14. 已归档、非 owner → false
-        as(outsider);
-        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), "PUBLIC", 1, 0), outsider.getId()));
-
-        // 15. 已归档、owner / admin → true（isVisible 原始语义；列表 visible 另叠加 archived=0）
-        as(parent);
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), "PRIVATE", 1, 0), parent.getId()));
-        as(admin);
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), "PRIVATE", 1, 0), admin.getId()));
+        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), 1), parent.getId()));
     }
 }

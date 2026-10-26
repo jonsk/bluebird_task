@@ -41,23 +41,21 @@ public class NoteController {
     private final NoteCommandService commandService;
     private final NoteQueryService queryService;
 
-    @Operation(summary = "日志列表（7 种 scope）")
+    @Operation(summary = "日志列表（5 种 scope）")
     @GetMapping
     public ApiResult<PageResult<NoteBrief>> page(
             @RequestParam(defaultValue = "mine") String scope,
             @RequestParam(required = false) Long tagId,
             @RequestParam(required = false) String tagName,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String visibility,
             @RequestParam(required = false) Boolean pinned,
-            @RequestParam(required = false) Boolean archived,
             @RequestParam(required = false) String start,
             @RequestParam(required = false) String end,
             @RequestParam(required = false) String date,
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long size) {
-        NoteQuery query = new NoteQuery(scope, tagId, tagName, keyword, visibility, pinned, archived,
+        NoteQuery query = new NoteQuery(scope, tagId, tagName, keyword, pinned,
                 parseDate(start), parseDate(end), parseDate(date), sort, page, size);
         return ApiResult.ok(queryService.page(query));
     }
@@ -106,20 +104,6 @@ public class NoteController {
     @DeleteMapping("/{id}/pin")
     public ApiResult<Void> unpin(@PathVariable Long id) {
         commandService.pin(id, false);
-        return ApiResult.ok();
-    }
-
-    @Operation(summary = "归档")
-    @PostMapping("/{id}/archive")
-    public ApiResult<Void> archive(@PathVariable Long id) {
-        commandService.archive(id, true);
-        return ApiResult.ok();
-    }
-
-    @Operation(summary = "取消归档")
-    @PostMapping("/{id}/unarchive")
-    public ApiResult<Void> unarchive(@PathVariable Long id) {
-        commandService.archive(id, false);
         return ApiResult.ok();
     }
 

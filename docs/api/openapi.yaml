@@ -747,19 +747,17 @@ paths:
   /notes:
     get:
       tags: [note]
-      summary: 工作日志分页（7 种 scope + 过滤/排序）
+      summary: 工作日志分页（5 种 scope + 过滤/排序）
       description: >
-        `scope`：`mine`（默认）| `shared`（他人共享给我）| `explore`（PUBLIC）| `internal`（本部门 INTERNAL）|
-        `subordinate`（下属日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（全部可见）| `all`（ADMIN）。
+        `scope`：`mine`（默认）| `shared`（他人授权给我）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）|
+        `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。
         `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
       parameters:
-        - { name: scope, in: query, schema: { type: string, enum: [mine, shared, explore, internal, subordinate, visible, all], default: mine } }
+        - { name: scope, in: query, schema: { type: string, enum: [mine, shared, subordinate, visible, all], default: mine } }
         - { name: tagId, in: query, schema: { type: integer, format: int64 } }
         - { name: tagName, in: query, schema: { type: string } }
         - { name: keyword, in: query, schema: { type: string } }
-        - { name: visibility, in: query, schema: { type: string, enum: [PRIVATE, INTERNAL, PUBLIC] } }
         - { name: pinned, in: query, schema: { type: boolean } }
-        - { name: archived, in: query, schema: { type: boolean, default: false } }
         - { name: start, in: query, schema: { type: string, format: date } }
         - { name: end, in: query, schema: { type: string, format: date } }
         - { name: date, in: query, schema: { type: string, format: date } }
@@ -862,21 +860,6 @@ paths:
     delete:
       tags: [note]
       summary: 取消置顶
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { $ref: '#/components/responses/Ok' } }
-  /notes/{id}/archive:
-    post:
-      tags: [note]
-      summary: 归档（owner/ADMIN）
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses:
-        '200': { $ref: '#/components/responses/Ok' }
-        '403': { description: 无管理权 }
-        '404': { description: 不可见 }
-  /notes/{id}/unarchive:
-    post:
-      tags: [note]
-      summary: 取消归档（owner/ADMIN）
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses: { '200': { $ref: '#/components/responses/Ok' } }
   /notes/{id}/relations:
@@ -1200,9 +1183,7 @@ components:
         id: { type: integer, format: int64 }
         contentSummary: { type: string }
         logDate: { type: string, format: date, description: YYYY-MM-DD }
-        visibility: { type: string, enum: [PRIVATE, INTERNAL, PUBLIC] }
         pinned: { type: boolean }
-        archived: { type: boolean }
         ownerId: { type: integer, format: int64 }
         ownerName: { type: string }
         tags: { type: array, items: { $ref: '#/components/schemas/TagVO' } }
@@ -1237,12 +1218,10 @@ components:
       type: object
       description: >
         字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应：
-        owner/ADMIN 四项全 true；未归档的 EDITOR 仅 content/logDate 为 true（改 visibility/tagIds → 50013）；
-        归档日志对 EDITOR 全 false（50013 已归档只读）；VIEWER 等只读可见者全 false。
+        owner/ADMIN 三项全 true；EDITOR 仅 content/logDate 为 true（改 tagIds → 50013）；VIEWER 等只读可见者全 false。
       properties:
         content: { type: boolean }
         logDate: { type: boolean }
-        visibility: { type: boolean }
         tagIds: { type: boolean }
     NoteListData:
       type: object
@@ -1257,7 +1236,6 @@ components:
       properties:
         content: { type: string }
         logDate: { type: string, format: date, description: YYYY-MM-DD（严格解析，非法 400） }
-        visibility: { type: string, enum: [PRIVATE, INTERNAL, PUBLIC], default: PRIVATE }
         tagIds: { type: array, items: { type: integer, format: int64 } }
     NoteUpdateReq:
       type: object
@@ -1265,7 +1243,6 @@ components:
       properties:
         content: { type: string }
         logDate: { type: string, format: date }
-        visibility: { type: string, enum: [PRIVATE, INTERNAL, PUBLIC] }
         tagIds: { type: array, items: { type: integer, format: int64 }, description: 提供即整体替换为给定集合 }
         version: { type: integer, format: int64 }
     NoteRelationCreateReq:

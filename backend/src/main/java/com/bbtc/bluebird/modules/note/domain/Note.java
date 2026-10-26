@@ -10,7 +10,10 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 工作日志（note）。纯文本 + 工作日 log_date + 可见性 + 乐观锁 + 逻辑删除。
+ * 工作日志（note）。纯文本 + 工作日 log_date + 乐观锁 + 逻辑删除。
+ *
+ * <p>可见性固定为「仅自己 + 被授权者」，不再有 visibility/archived 分支；
+ * 上级读下属（员工日志）由 {@code scope=subordinate} 与开关决定，属制度性例外。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -23,12 +26,9 @@ public class Note extends BaseEntity {
     private String content;
     /** 工作日 YYYY-MM-DD（按日聚合，一天可多条）。 */
     private String logDate;
-    /** PRIVATE | INTERNAL | PUBLIC，见 {@link Visibility}。 */
-    private String visibility;
     private Integer pinned;
-    private Integer archived;
     private Long ownerId;
-    /** owner 部门快照（INTERNAL 用；仅在「转为 INTERNAL」时刷新）。 */
+    /** owner 部门快照（用于详情展示部门名）。 */
     private Long deptId;
 
     @Version

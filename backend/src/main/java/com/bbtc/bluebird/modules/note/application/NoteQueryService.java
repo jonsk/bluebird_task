@@ -17,7 +17,6 @@ import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
 import com.bbtc.bluebird.modules.note.domain.NoteRelation;
 import com.bbtc.bluebird.modules.note.domain.NoteTag;
 import com.bbtc.bluebird.modules.note.domain.NoteUserGrant;
-import com.bbtc.bluebird.modules.note.domain.Visibility;
 import com.bbtc.bluebird.modules.note.dto.NoteAttachmentVO;
 import com.bbtc.bluebird.modules.note.dto.NoteBacklinkVO;
 import com.bbtc.bluebird.modules.note.dto.NoteBrief;
@@ -57,7 +56,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 日志读查询：7 种 scope 列表、详情、日历、标签 facet。
+ * 日志读查询：5 种 scope 列表、详情、日历、标签 facet。
  *
  * <p>所有 scope 均通过 {@link NoteVisibilitySqlBuilder} 生成条件（与 isVisible 同源）。
  */
@@ -95,8 +94,6 @@ public class NoteQueryService {
 
         LambdaQueryWrapper<Note> w = Wrappers.lambdaQuery();
         w.apply(visibilitySql.scopePredicate(scope, me, admin));
-        applyArchived(w, scope, q.archived(), admin);
-        applyVisibility(w, scope, q.visibility());
         applyPinned(w, q.pinned());
         applyTag(w, scope, q.tagId(), q.tagName());
         applyKeyword(w, q.keyword());
@@ -106,33 +103,6 @@ public class NoteQueryService {
         IPage<Note> p = noteMapper.selectPage(new Page<>(page, size), w);
         List<NoteBrief> list = toBriefs(p.getRecords());
         return PageResult.of(list, p.getTotal(), p.getCurrent(), p.getSize());
-    }
-
-    private void applyArchived(LambdaQueryWrapper<Note> w, String scope, Boolean archived, boolean admin) {
-        boolean wantArchived = Boolean.TRUE.equals(archived);
-        if ("mine".equals(scope) || ("all".equals(scope) && admin)) {
-            w.eq(Note::getArchived, wantArchived ? 1 : 0);
-            return;
-        }
-        // 非 mine：archived=true 被忽略，一律未归档
-        w.eq(Note::getArchived, 0);
-    }
-
-    private void applyVisibility(LambdaQueryWrapper<Note> w, String scope, String visibility) {
-        if (!StringUtils.hasText(visibility)) {
-            return;
-        }
-        Visibility v = Visibility.of(visibility);
-        if (v == null) {
-            return; // 非法值按「忽略过滤」处理，不报错
-        }
-        if ("internal".equals(scope) && v != Visibility.INTERNAL) {
-            return;
-        }
-        if ("explore".equals(scope) && v != Visibility.PUBLIC) {
-            return;
-        }
-        w.eq(Note::getVisibility, v.name());
     }
 
     private void applyPinned(LambdaQueryWrapper<Note> w, Boolean pinned) {
@@ -235,7 +205,6 @@ public class NoteQueryService {
         QueryWrapper<Note> w = new QueryWrapper<>();
         w.select("note.log_date AS d", "COUNT(*) AS c");
         w.apply(visibilitySql.scopePredicate(s, me, admin));
-        w.eq("note.archived", 0);
         w.apply("note.deleted = 0");
         w.between("note.log_date", ym.atDay(1).toString(), ym.atEndOfMonth().toString());
         w.groupBy("note.log_date");
@@ -276,13 +245,9 @@ public class NoteQueryService {
             throw HttpStatusException.badRequest("非法 scope");
         }
         String predicate = visibilitySql.scopePredicate(s, me, admin);
-        StringBuilder noteFilter = new StringBuilder("SELECT note.id FROM note WHERE ")
-                .append(predicate).append(" AND note.deleted = 0");
-        if (!("all".equals(s) && admin)) {
-            noteFilter.append(" AND note.archived = 0");
-        }
+        String noteFilter = "SELECT note.id FROM note WHERE " + predicate + " AND note.deleted = 0";
         QueryWrapper<NoteTag> w = new QueryWrapper<>();
-        w.select("tag_id").inSql("note_id", noteFilter.toString());
+        w.select("tag_id").inSql("note_id", noteFilter);
         List<NoteTag> links = noteTagMapper.selectList(w);
         if (links.isEmpty()) {
             return List.of();
@@ -340,8 +305,8 @@ public class NoteQueryService {
             String role = roleFor(n, me, admin, roles);
             boolean canEdit = canEdit(n, me, admin, role);
             boolean canManage = canManage(n, me, admin);
-            out.add(new NoteBrief(n.getId(), summary(n.getContent()), n.getLogDate(), n.getVisibility(),
-                    isTrue(n.getPinned()), isTrue(n.getArchived()), n.getOwnerId(),
+            out.add(new NoteBrief(n.getId(), summary(n.getContent()), n.getLogDate(),
+                    isTrue(n.getPinned()), n.getOwnerId(),
                     ownerNames.get(n.getOwnerId()), tags.getOrDefault(n.getId(), List.of()),
                     canEdit, canManage, versionOf(n)));
         }
@@ -353,9 +318,7 @@ public class NoteQueryService {
         vo.setId(note.getId());
         vo.setContentSummary(summary(note.getContent()));
         vo.setLogDate(note.getLogDate());
-        vo.setVisibility(note.getVisibility());
         vo.setPinned(isTrue(note.getPinned()));
-        vo.setArchived(isTrue(note.getArchived()));
         vo.setOwnerId(note.getOwnerId());
         Map<Long, String> names = userNames(Set.of(note.getOwnerId()));
         vo.setOwnerName(names.get(note.getOwnerId()));
@@ -423,7 +386,7 @@ public class NoteQueryService {
         if (admin || (me != null && me.equals(n.getOwnerId()))) {
             return true;
         }
-        return NoteUserGrant.EDITOR.equals(role) && !isTrue(n.getArchived());
+        return NoteUserGrant.EDITOR.equals(role);
     }
 
     private boolean canManage(Note n, Long me, boolean admin) {
