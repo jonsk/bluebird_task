@@ -165,45 +165,31 @@ class NoteFlowTest {
                 .andExpect(jsonPath("$.data.list[0].canEdit").value(true))
                 .andExpect(jsonPath("$.data.list[0].canManage").value(true));
 
-        // 4. 授权 VIEWER → other 可读、scope=shared 可见
-        String grantJson = mvc.perform(auth(post("/api/v1/note-grants"), owner)
+        // 4. 授权能力已下线：note-grants 端点返回 200 + 10004（未映射），shared scope 非法
+        mvc.perform(auth(post("/api/v1/note-grants"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"mode\":\"OWNER\",\"granteeId\":" + other.getId() + ",\"role\":\"VIEWER\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.status").value("APPROVED"))
-                .andExpect(jsonPath("$.data.direction").value("outgoing"))
-                .andReturn().getResponse().getContentAsString();
-        long grantId = objectMapper.readTree(grantJson).path("data").path("id").asLong();
-
-        mvc.perform(auth(get("/api/v1/notes/" + noteId), other))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.grantRole").value("VIEWER"))
-                .andExpect(jsonPath("$.data.canEdit").value(false));
+                .andExpect(jsonPath("$.code").value(10004));
         mvc.perform(auth(get("/api/v1/notes").param("scope", "shared"), other))
-                .andExpect(jsonPath("$.data.total").value(1));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10001));
 
-        // VIEWER 试图写入 → 403
+        // 5. 他人仍不可见 → 404；写入 404（不暴露存在性）
+        mvc.perform(auth(get("/api/v1/notes/" + noteId), other))
+                .andExpect(status().isNotFound());
         mvc.perform(auth(put("/api/v1/notes/" + noteId), other)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"越权修改\",\"version\":0}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
 
-        // 5. 升级 EDITOR → 可改 content，但改标签 50013
-        mvc.perform(auth(post("/api/v1/note-grants/" + grantId + "/upgrade"), owner))
-                .andExpect(jsonPath("$.data.role").value("EDITOR"));
-        mvc.perform(auth(put("/api/v1/notes/" + noteId), other)
+        // 6. 乐观锁：owner 用 version=0 改一次（→1），旧 version 再提交 → 10006
+        mvc.perform(auth(put("/api/v1/notes/" + noteId), owner)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"协作者补充的内容\",\"version\":0}"))
+                        .content("{\"content\":\"第一次修改\",\"version\":0}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.version").value(1))
-                .andExpect(jsonPath("$.data.content").value("协作者补充的内容"));
-        mvc.perform(auth(put("/api/v1/notes/" + noteId), other)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tagIds\":[999999],\"version\":1}"))
-                .andExpect(jsonPath("$.code").value(50013));
-
-        // 6. 乐观锁：旧 version → 10006
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.version").value(1));
         mvc.perform(auth(put("/api/v1/notes/" + noteId), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"旧版本覆盖\",\"version\":0}"))
@@ -268,11 +254,11 @@ class NoteFlowTest {
                 .andReturn().getResponse().getContentAsString();
         long attachmentId = objectMapper.readTree(uploaded).path("data").path("id").asLong();
 
-        // 他人（EDITOR）不能绑定别人上传的附件 → 403
+        // 他人不可见 → 绑定附件 404（不暴露存在性；授权下线后不再有"可见但无绑定权"的角色）
         mvc.perform(auth(post("/api/v1/notes/" + noteId + "/attachments"), other)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attachmentId\":" + attachmentId + "}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
         mvc.perform(auth(post("/api/v1/notes/" + noteId + "/attachments"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attachmentId\":" + attachmentId + "}"))
@@ -323,8 +309,8 @@ class NoteFlowTest {
                 .andExpect(status().isOk());
         mvc.perform(auth(get("/api/v1/notes/" + note2 + "/backlinks"), owner))
                 .andExpect(jsonPath("$.data").isEmpty());
-        // 授权未被级联删除：other 仍可访问 owner 的其他日志
+        // 他人自始至终不可见（授权能力已下线）
         mvc.perform(auth(get("/api/v1/notes/" + note2), other))
-                .andExpect(status().isOk());
+                .andExpect(status().isNotFound());
     }
 }

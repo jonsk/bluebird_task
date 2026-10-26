@@ -13,7 +13,6 @@ Z = 'zhangli'
 
 
 def main():
-    R.reset_test_grants()
     R.run('12a', 'B', 'scope=subordinate 开关关闭', 403, None,
           lambda: R.api.req('GET', '/notes?scope=subordinate', Z))
     R.run('12c', 'B', 'scope=visible 开关关闭（静默省略）', 200, 0,

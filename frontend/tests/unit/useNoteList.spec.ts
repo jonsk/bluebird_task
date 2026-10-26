@@ -189,14 +189,14 @@ describe('note 缓存策略', () => {
 
   it('单 scope 最多 3 条，全局最多 20 条', () => {
     const store = useNoteStore()
-    const scopes5 = ['mine', 'shared', 'subordinate', 'visible', 'all'] as const
+    const scopes4 = ['mine', 'subordinate', 'visible', 'all'] as const
 
-    for (const s of scopes5) {
+    for (const s of scopes4) {
       for (let i = 0; i < 4; i += 1) store.cacheSet(`${s}|p${i}`, pageData([i], 1))
     }
 
     expect(store.cache.size).toBeLessThanOrEqual(20)
-    for (const s of scopes5) {
+    for (const s of scopes4) {
       expect([...store.cache.keys()].filter((k) => k.startsWith(`${s}|`)).length).toBeLessThanOrEqual(3)
     }
     // 保留较新的：p0 应被淘汰、p3 应保留
@@ -207,11 +207,11 @@ describe('note 缓存策略', () => {
   it('invalidate 按 scope 前缀清理，不误伤其他 scope', () => {
     const store = useNoteStore()
     store.cacheSet('mine|a', pageData([1], 1))
-    store.cacheSet('shared|a', pageData([2], 1))
+    store.cacheSet('subordinate|a', pageData([2], 1))
 
     store.invalidate(['mine'])
 
     expect(store.cache.has('mine|a')).toBe(false)
-    expect(store.cache.has('shared|a')).toBe(true)
+    expect(store.cache.has('subordinate|a')).toBe(true)
   })
 })

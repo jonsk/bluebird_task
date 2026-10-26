@@ -1,6 +1,6 @@
 # Note 模块 §9 接口验收矩阵 · 执行脚本
 
-对应 `docs/Note模块前端开发方案.md` §9（120 行用例，A–L 共 12 组；功能减法后已脚本化 **119 例主跑 + 4 例开关关闭**，0 例未自动化）。
+对应 `docs/Note模块前端开发方案.md` §9（120 行用例，A–L 共 12 组；二轮减法后已脚本化 **105 例主跑 + 4 例开关关闭**，0 例未自动化）。
 
 > 2026-10-26 功能减法：`explore`/`internal` scope、`archived` 参数与 archive/unarchive 端点已下线。
 > 相关用例改为回归口径：`#2/#5` 字段忽略与 EDITOR 改 tagIds、`#11/#12/#46e` scope 已下线 400、
@@ -31,7 +31,7 @@
 ```powershell
 cd scripts/acceptance
 py seed_accounts.py                 # 1. 准备账号（幂等）
-py matrix_main.py                   # 2. 主跑：期望 119 例全 PASS
+py matrix_main.py                   # 2. 主跑：期望 105 例全 PASS
 # 3. 关开关重启后端后：
 py matrix_toggle.py                 # 4. 期望 4 例全 PASS
 ```

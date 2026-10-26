@@ -5,8 +5,6 @@ import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
 import com.bbtc.bluebird.modules.note.application.NoteAuthService;
 import com.bbtc.bluebird.modules.note.domain.Note;
-import com.bbtc.bluebird.modules.note.domain.NoteUserGrant;
-import com.bbtc.bluebird.modules.note.infrastructure.NoteUserGrantMapper;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -20,7 +18,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,10 +25,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Java 侧可见性等值矩阵（做减法后）：owner / 授权 VIEWER·EDITOR / 下属开关 / ADMIN / deleted。
+ * Java 侧可见性等值矩阵（二轮减法后）：owner / 下属开关 / ADMIN / deleted。
  *
- * <p>日志不再有 visibility（部门可见、公开）与 archived 两档，矩阵与
- * {@code NoteVisibilitySqlBuilder.visiblePredicate} 逐分支对齐。
+ * <p>日志没有授权、没有 visibility（部门可见、公开）、没有 archived，
+ * 矩阵与 {@code NoteVisibilitySqlBuilder.visiblePredicate} 逐分支对齐。
  */
 @SpringBootTest(properties = {
         "app.config.release=false",
@@ -53,9 +50,6 @@ class NoteAuthMatrixTest {
 
     @Autowired
     DepartmentMapper departmentMapper;
-
-    @Autowired
-    NoteUserGrantMapper grantMapper;
 
     @AfterEach
     void clear() {
@@ -107,20 +101,6 @@ class NoteAuthMatrixTest {
         return n;
     }
 
-    private void grant(Long grantorId, Long granteeId, String role) {
-        NoteUserGrant g = new NoteUserGrant();
-        g.setGrantorId(grantorId);
-        g.setGranteeId(granteeId);
-        g.setRole(role);
-        g.setStatus(NoteUserGrant.APPROVED);
-        g.setMode(NoteUserGrant.MODE_OWNER);
-        g.setCreatedAt(Instant.now());
-        g.setCreatedBy(grantorId);
-        g.setApprovedAt(Instant.now());
-        g.setApprovedBy(grantorId);
-        grantMapper.insert(g);
-    }
-
     @Test
     void visibilityMatrix() {
         SysUser leader = user("leader", null, "COMMON");
@@ -138,21 +118,16 @@ class NoteAuthMatrixTest {
         as(parent);
         assertTrue(authService.isVisible(note(parent.getId(), root.getId(), 0), parent.getId()));
 
-        // 2. 他人无授权 → false
+        // 2. 他人（跨部门、非上下级）→ false
         as(outsider);
         assertFalse(authService.isVisible(note(parent.getId(), root.getId(), 0), outsider.getId()));
 
-        // 3. grant VIEWER
-        grant(parent.getId(), outsider.getId(), NoteUserGrant.VIEWER);
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), 0), outsider.getId()));
-
-        // 4. grant EDITOR（另一用户，避免与 3 冲突）
+        // 3. 授权能力已下线：曾有授权关系也不可见（表已不存在，无分支可走）
         SysUser editor = user("editor", null, "COMMON");
-        grant(parent.getId(), editor.getId(), NoteUserGrant.EDITOR);
         as(editor);
-        assertTrue(authService.isVisible(note(parent.getId(), root.getId(), 0), editor.getId()));
+        assertFalse(authService.isVisible(note(parent.getId(), root.getId(), 0), editor.getId()));
 
-        // 5. 同部门但无授权 → false（部门可见已下线）
+        // 4. 同部门但非上下级 → false（部门可见已下线）
         as(childUser);
         assertFalse(authService.isVisible(note(parent.getId(), root.getId(), 0), childUser.getId()));
 

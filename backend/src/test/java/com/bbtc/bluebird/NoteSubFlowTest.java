@@ -45,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Note 模块细分场景：授权状态机、附件绑定/解绑/删除守卫、引用可见性、标签级联与 facet、日历参数校验。
+ * Note 模块细分场景：授权下线后的可见性、附件绑定/解绑/删除守卫、引用可见性、标签级联与 facet、日历参数校验。
  *
  * <p>与 {@link NoteFlowTest} 互补：主流程只走一遍 happy path，这里覆盖各分支的错误码与副作用。
  */
@@ -140,16 +140,6 @@ class NoteSubFlowTest {
         return body(json).path("data").path("id").asLong();
     }
 
-    private long createGrant(SysUser creator, String bodyJson) throws Exception {
-        String json = mvc.perform(auth(post("/api/v1/note-grants"), creator)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(bodyJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andReturn().getResponse().getContentAsString();
-        return body(json).path("data").path("id").asLong();
-    }
-
     private long uploadFile(SysUser u, String name, String content) throws Exception {
         String json = mvc.perform(auth(multipart("/api/v1/files")
                         .file(new MockMultipartFile("file", name, "text/plain", content.getBytes())), u))
@@ -159,10 +149,10 @@ class NoteSubFlowTest {
         return body(json).path("data").path("id").asLong();
     }
 
-    /* ==================== 1. 授权状态机：SUPERIOR 待确认 → 确认/拒绝 ==================== */
+    /* ==================== 1. 授权下线后的跨人可见性 ==================== */
 
     @Test
-    void superiorGrantApprovalFlow() throws Exception {
+    void grantFeatureRemoved() throws Exception {
         SysUser leader = user("leader", null, "COMMON");
         Department root = dept("质量部", null, leader.getId());
         Department child = dept("质量一组", root.getId(), null);
@@ -173,113 +163,60 @@ class NoteSubFlowTest {
 
         long subNote = createNote(sub, "下属的私有日志", "2026-10-10");
 
-        // 上级发起「读下属」授权：SUPERIOR 模式 → PENDING
-        long grantId = createGrant(leader, "{\"mode\":\"SUPERIOR\",\"grantorId\":" + sub.getId()
-                + ",\"role\":\"VIEWER\"}");
-        mvc.perform(auth(get("/api/v1/note-grants").param("tab", "created"), leader))
-                .andExpect(jsonPath("$.data[0].status").value("PENDING"))
-                .andExpect(jsonPath("$.data[0].canRevoke").value(true));
-
-        // 待确认期间：授权行仍是 PENDING，且不产生 shared 可见
-        mvc.perform(auth(get("/api/v1/notes").param("scope", "shared"), leader))
-                .andExpect(jsonPath("$.data.total").value(0));
-
-        // 非 grantor 确认 → 403
-        mvc.perform(auth(post("/api/v1/note-grants/" + grantId + "/approve"), outsider))
-                .andExpect(status().isForbidden());
-
-        // grantor 确认 → APPROVED，上级可读、subordinate scope 命中
-        mvc.perform(auth(post("/api/v1/note-grants/" + grantId + "/approve"), sub))
+        // 1. 授权端点已下线：任何调用都是未映射 → 200 + 10004
+        mvc.perform(auth(post("/api/v1/note-grants"), leader)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mode\":\"SUPERIOR\",\"grantorId\":" + sub.getId() + ",\"role\":\"VIEWER\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("APPROVED"))
-                .andExpect(jsonPath("$.data.approvedBy").value(sub.getId()));
+                .andExpect(jsonPath("$.code").value(10004));
+        mvc.perform(auth(get("/api/v1/note-grants").param("tab", "created"), leader))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(10004));
+        mvc.perform(auth(delete("/api/v1/note-grants/1"), leader))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(10004));
+
+        // 2. scope=shared 已非法 → 400 + 10001
+        mvc.perform(auth(get("/api/v1/notes").param("scope", "shared"), leader))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10001));
+
+        // 3. 上级可见下属日志（开关开），但只读：详情 canEdit=false、角色为空
         mvc.perform(auth(get("/api/v1/notes/" + subNote), leader))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.grantRole").value("VIEWER"));
+                .andExpect(jsonPath("$.data.canEdit").value(false))
+                .andExpect(jsonPath("$.data.canManage").value(false))
+                .andExpect(jsonPath("$.data.role").doesNotExist())
+                .andExpect(jsonPath("$.data.fieldPermissions.content").value(false));
         mvc.perform(auth(get("/api/v1/notes").param("scope", "subordinate"), leader))
                 .andExpect(jsonPath("$.data.list[*].id").value(org.hamcrest.Matchers.hasItem(subNote)));
 
-        // 重复确认（非 PENDING）→ 50014
-        mvc.perform(auth(post("/api/v1/note-grants/" + grantId + "/approve"), sub))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(50014));
-
-        // 另一条待确认授权：拒绝后不产生可见性
-        SysUser sub2 = user("sub2", child.getId(), "COMMON");
-        long sub2Note = createNote(sub2, "另一位下属的日志", "2026-10-11");
-        long grant2 = createGrant(leader, "{\"mode\":\"SUPERIOR\",\"grantorId\":" + sub2.getId()
-                + ",\"role\":\"VIEWER\"}");
-        mvc.perform(auth(post("/api/v1/note-grants/" + grant2 + "/reject"), sub2))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("REJECTED"));
-        // 拒绝后该授权行不生效（仍为 REJECTED，非 APPROVED）
-        mvc.perform(auth(get("/api/v1/note-grants").param("tab", "created").param("status", "REJECTED"), leader))
-                .andExpect(jsonPath("$.data[0].id").value(grant2));
-        // 非 PENDING 再拒绝 → 50014
-        mvc.perform(auth(post("/api/v1/note-grants/" + grant2 + "/reject"), sub2))
-                .andExpect(jsonPath("$.code").value(50014));
-    }
-
-    /* ==================== 2. 授权变更规则：自授权/重复/升级/撤销 ==================== */
-
-    @Test
-    void grantMutationRules() throws Exception {
-        SysUser owner = user("owner", null, "COMMON");
-        SysUser other = user("other", null, "COMMON");
-        SysUser admin = user("admin", null, "ADMIN");
-
-        // 自授权 → 50008
-        mvc.perform(auth(post("/api/v1/note-grants"), owner)
+        // 4. 上级写入 → 403（可见但非 owner）
+        mvc.perform(auth(put("/api/v1/notes/" + subNote), leader)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"mode\":\"OWNER\",\"granteeId\":" + owner.getId() + ",\"role\":\"VIEWER\"}"))
-                .andExpect(jsonPath("$.code").value(50008));
-
-        long grantId = createGrant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + other.getId()
-                + ",\"role\":\"VIEWER\"}");
-
-        // 重复授权 → 50007
-        mvc.perform(auth(post("/api/v1/note-grants"), owner)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"mode\":\"OWNER\",\"granteeId\":" + other.getId() + ",\"role\":\"VIEWER\"}"))
-                .andExpect(jsonPath("$.code").value(50007));
-
-        // 升级 VIEWER → EDITOR
-        mvc.perform(auth(post("/api/v1/note-grants/" + grantId + "/upgrade"), owner))
-                .andExpect(jsonPath("$.data.role").value("EDITOR"));
-
-        // 撤销：非 grantor 的普通用户 → 403
-        SysUser stranger = user("stranger", null, "COMMON");
-        mvc.perform(auth(delete("/api/v1/note-grants/" + grantId), stranger))
+                        .content("{\"content\":\"越权修改\",\"version\":0}"))
                 .andExpect(status().isForbidden());
 
-        // ADMIN 代撤销 → 200 且记录 approvedBy
-        mvc.perform(auth(delete("/api/v1/note-grants/" + grantId), admin))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("REVOKED"));
-        // 撤销后 other 立即失去访问
-        long note = createNote(owner, "撤销后不可见", "2026-10-12");
-        mvc.perform(auth(get("/api/v1/notes/" + note), other))
+        // 5. 无上下级关系的普通用户 → 404（授权能力下线后无处可授）
+        mvc.perform(auth(get("/api/v1/notes/" + subNote), outsider))
                 .andExpect(status().isNotFound());
-
-        // tab=all 仅 ADMIN
-        mvc.perform(auth(get("/api/v1/note-grants").param("tab", "all"), owner))
-                .andExpect(status().isForbidden());
-        mvc.perform(auth(get("/api/v1/note-grants").param("tab", "all"), admin))
-                .andExpect(status().isOk());
     }
 
     /* ==================== 3. 附件绑定矩阵 ==================== */
 
     @Test
     void attachmentBindMatrix() throws Exception {
-        SysUser owner = user("owner", null, "COMMON");
-        SysUser viewer = user("viewer", null, "COMMON");
+        SysUser leader = user("leader", null, "COMMON");
+        Department root = dept("附件部", null, leader.getId());
+        Department child = dept("附件组", root.getId(), null);
+        leader.setDeptId(root.getId());
+        userMapper.updateById(leader);
+        SysUser owner = user("owner", child.getId(), "COMMON");
         SysUser stranger = user("stranger", null, "COMMON");
         long note = createNote(owner, "带附件的日志", "2026-10-13");
-        createGrant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + viewer.getId() + ",\"role\":\"VIEWER\"}");
 
         long ownerFile = uploadFile(owner, "owner.txt", "owner-content");
-        long viewerFile = uploadFile(viewer, "viewer.txt", "viewer-content");
+        long viewerFile = uploadFile(leader, "leader.txt", "leader-content");
 
         // 不可见用户绑定 → 404（不泄露存在性）
         mvc.perform(auth(post("/api/v1/notes/" + note + "/attachments"), stranger)
@@ -287,8 +224,8 @@ class NoteSubFlowTest {
                         .content("{\"attachmentId\":" + ownerFile + "}"))
                 .andExpect(status().isNotFound());
 
-        // 可见但非附件创建者、非 ADMIN → 403
-        mvc.perform(auth(post("/api/v1/notes/" + note + "/attachments"), viewer)
+        // 可见但非附件创建者、非 ADMIN → 403（上级只读视角）
+        mvc.perform(auth(post("/api/v1/notes/" + note + "/attachments"), leader)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attachmentId\":" + viewerFile + "}"))
                 .andExpect(status().isForbidden());
@@ -306,7 +243,7 @@ class NoteSubFlowTest {
                 .andExpect(status().isOk());
 
         // 下载：可见用户 200 且字节一致；不可见 404
-        String bytes = mvc.perform(auth(get("/api/v1/notes/" + note + "/attachments/" + ownerFile + "/download"), viewer))
+        String bytes = mvc.perform(auth(get("/api/v1/notes/" + note + "/attachments/" + ownerFile + "/download"), leader))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertEquals("owner-content", bytes);
@@ -316,8 +253,8 @@ class NoteSubFlowTest {
         mvc.perform(auth(get("/api/v1/notes/" + note + "/attachments"), stranger))
                 .andExpect(status().isNotFound());
 
-        // 移除关联：VIEWER（canRemoveRef=false）→ 403
-        mvc.perform(auth(delete("/api/v1/notes/" + note + "/attachments/" + ownerFile), viewer))
+        // 移除关联：上级只读（canRemoveRef=false）→ 403
+        mvc.perform(auth(delete("/api/v1/notes/" + note + "/attachments/" + ownerFile), leader))
                 .andExpect(status().isForbidden());
         // owner 移除 → 200，文件本身保留
         mvc.perform(auth(delete("/api/v1/notes/" + note + "/attachments/" + ownerFile), owner))
@@ -395,10 +332,15 @@ class NoteSubFlowTest {
         mvc.perform(auth(get("/api/v1/notes/" + target + "/backlinks"), stranger))
                 .andExpect(status().isNotFound());
 
-        // 可见但非 owner（VIEWER 授权）删除引用 → 403；不可见 → 404
-        SysUser viewer = user("viewer", null, "COMMON");
-        createGrant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + viewer.getId() + ",\"role\":\"VIEWER\"}");
-        mvc.perform(auth(delete("/api/v1/notes/" + note + "/relations/" + relId), viewer))
+        // 可见但非 owner（上级只读）删除引用 → 403；不可见 → 404
+        SysUser leader = user("leader", null, "COMMON");
+        Department root = dept("引用部", null, leader.getId());
+        Department child = dept("引用组", root.getId(), null);
+        leader.setDeptId(root.getId());
+        userMapper.updateById(leader);
+        owner.setDeptId(child.getId());
+        userMapper.updateById(owner);
+        mvc.perform(auth(delete("/api/v1/notes/" + note + "/relations/" + relId), leader))
                 .andExpect(status().isForbidden());
         mvc.perform(auth(delete("/api/v1/notes/" + note + "/relations/" + relId), stranger))
                 .andExpect(status().isNotFound());
@@ -468,9 +410,15 @@ class NoteSubFlowTest {
         SysUser owner = user("owner", null, "COMMON");
         SysUser stranger = user("stranger", null, "COMMON");
         long note = createNote(owner, "facet 校验日志", "2026-10-19");
-        createGrant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + stranger.getId() + ",\"role\":\"VIEWER\"}");
+        SysUser leader = user("leader", null, "COMMON");
+        Department root = dept("facet部", null, leader.getId());
+        Department child = dept("facet组", root.getId(), null);
+        leader.setDeptId(root.getId());
+        userMapper.updateById(leader);
+        owner.setDeptId(child.getId());
+        userMapper.updateById(owner);
 
-        // mine facet 带 id；shared facet 不带 id
+        // mine facet 带 id；subordinate facet 按标签名聚合、不带 id
         Tag tag = new Tag();
         tag.setName("facet标签");
         tag.setOwnerId(owner.getId());
@@ -481,7 +429,7 @@ class NoteSubFlowTest {
                 .andExpect(status().isOk());
         mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "mine"), owner))
                 .andExpect(jsonPath("$.data[0].id").value(tag.getId()));
-        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "shared"), stranger))
+        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "subordinate"), leader))
                 .andExpect(jsonPath("$.data[0].id").doesNotExist())
                 .andExpect(jsonPath("$.data[0].name").value("facet标签"));
 

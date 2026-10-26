@@ -3,11 +3,10 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 /**
  * NoteEditor：编辑态按后端 `fieldPermissions` 锁定字段
- * 1) owner（三项 true）→ 控件全部可用、无提示
- * 2) EDITOR（tagIds false）→ 标签禁用 + 协作者提示
- * 3) VIEWER（content false）→ 正文只读 + 只读提示
- * 4) 旧后端未下发 fieldPermissions → 回退 grantRole=EDITOR 的锁定规则
- * 5) 新建态 → 全字段可改
+ * 1) owner/ADMIN（三项 true）→ 控件全部可用、无提示
+ * 2) 只读可见者（三项 false）→ 正文只读 + 只读提示（理论上进不了编辑态，防御性）
+ * 3) 未下发 fieldPermissions → 视为全可改（能进编辑态的就是 owner/ADMIN）
+ * 4) 新建态 → 全字段可改
  *
  * 断言走组件 props（stub 上取 disabled / readonly），避免依赖 stub 的 DOM 细节。
  */
@@ -63,7 +62,7 @@ function detail(over: Record<string, unknown> = {}) {
     logDate: '2026-09-28',
     version: 1,
     tags: [],
-    grantRole: 'OWNER',
+    role: 'OWNER',
     fieldPermissions: { content: true, logDate: true, tagIds: true },
     ...over,
   }
@@ -101,26 +100,10 @@ describe('NoteEditor · fieldPermissions', () => {
     expect(w.find('[data-test="note-editor-readonly-hint"]').exists()).toBe(false)
   })
 
-  it('EDITOR：锁定标签，正文/日期可改，显示协作者提示', async () => {
+  it('只读可见者：正文只读、三字段全禁，显示只读提示', async () => {
     const w = await mountEdit(
       detail({
-        grantRole: 'EDITOR',
-        fieldPermissions: { content: true, logDate: true, tagIds: false },
-      }),
-    )
-    expect(flags(w)).toEqual({
-      contentReadonly: false,
-      dateDisabled: false,
-      tagsDisabled: true,
-    })
-    expect(w.find('[data-test="note-editor-field-hint"]').text()).toContain('作为协作者')
-    expect(w.find('[data-test="note-editor-readonly-hint"]').exists()).toBe(false)
-  })
-
-  it('VIEWER：正文只读、三字段全禁，显示只读提示', async () => {
-    const w = await mountEdit(
-      detail({
-        grantRole: 'VIEWER',
+        role: 'ADMIN',
         fieldPermissions: { content: false, logDate: false, tagIds: false },
       }),
     )
@@ -133,14 +116,14 @@ describe('NoteEditor · fieldPermissions', () => {
     expect(w.find('[data-test="note-editor-field-hint"]').exists()).toBe(false)
   })
 
-  it('旧后端未下发 fieldPermissions：回退到 grantRole=EDITOR 的锁定规则', async () => {
-    const payload = detail({ grantRole: 'EDITOR' }) as Record<string, unknown>
+  it('未下发 fieldPermissions：视为全可改', async () => {
+    const payload = detail() as Record<string, unknown>
     delete payload.fieldPermissions
     const w = await mountEdit(payload)
     expect(flags(w)).toEqual({
       contentReadonly: false,
       dateDisabled: false,
-      tagsDisabled: true,
+      tagsDisabled: false,
     })
   })
 

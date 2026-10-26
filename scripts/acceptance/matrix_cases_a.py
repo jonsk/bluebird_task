@@ -83,11 +83,11 @@ def build(api, U, FX, run, TODAY):
 
     def a5():
         n = api.new_note(Z)
-        return api.req('PUT', f"/notes/{n['id']}", L, {'version': n['version'],
-                                                       'content': n['contentSummary'], 'logDate': n['logDate'],
-                                                       'tagIds': [999999]})
+        return api.req('PUT', f"/notes/{n['id']}", Z, {'version': n['version'],
+                                                      'content': n['contentSummary'], 'logDate': n['logDate'],
+                                                      'tagIds': [999999]})
 
-    run('5', 'A', 'EDITOR 改 tagIds 被拒', 200, 50013, a5, lambda r: need(r, 50013))
+    run('5', 'A', 'owner 改 tagIds 为不存在标签', 200, 50003, a5, lambda r: need(r, 50003))
 
     def a5a():
         n = api.new_note(Z)
@@ -95,7 +95,7 @@ def build(api, U, FX, run, TODAY):
                                                                  'logDate': n['logDate'],
                                                                  'tagIds': []})
 
-    run('5a', 'A', 'VIEWER 编辑被拒', 403, None, a5a)
+    run('5a', 'A', '无关系用户编辑 → 404（授权已下线）', 404, None, a5a)
     run('6', 'A', '不可见用户读详情', 404, None, lambda: api.req('GET', f"/notes/{FX['z_private']['id']}", OUT))
     run('6a', 'A', 'owner 读详情', 200, 0, lambda: api.req('GET', f"/notes/{FX['z_note']['id']}", Z),
         lambda r: need(r, 0, lambda x: all(k in x.data for k in ('content', 'ownerTags', 'canEdit', 'canManage'))))
@@ -104,20 +104,17 @@ def build(api, U, FX, run, TODAY):
         n = api.new_note(Z)
         return api.req('DELETE', f"/notes/{n['id']}", L)
 
-    run('7', 'A', 'EDITOR 删除被拒', 403, None, a7)
+    run('7', 'A', '无关系用户删除 → 404', 404, None, a7)
 
     def a7a():
         n = api.new_note(Z)
         r = api.req('DELETE', f"/notes/{n['id']}", Z)
-        # 附加断言：grant 不级联清理，lisi 仍能读 zhangli 的其他日志
-        g = api.req('GET', '/note-grants?tab=granted', Z)
-        still = [x for x in (g.data or []) if x.get('status') == 'APPROVED' and int(x.get('grantorId')) == int(U[Z])]
-        assert still, '删除单条 note 后 grant 被误级联清理'
+        # 附加断言：授权能力已下线，他人始终读不到
         other = api.req('GET', f"/notes/{FX['z_note']['id']}", L)
-        assert other.status == 200, f'grantee 失去访问: {other.status}'
+        assert other.status == 404, f'他人不应可见: {other.status}'
         return r
 
-    run('7a', 'A', 'owner 软删除（grant 不级联）', 200, 0, a7a)
+    run('7a', 'A', 'owner 软删除（他人始终不可见）', 200, 0, a7a)
     run('7b', 'A', '不可见用户删除', 404, None,
         lambda: api.req('DELETE', f"/notes/{FX['z_private']['id']}", OUT))
 
@@ -137,8 +134,8 @@ def build(api, U, FX, run, TODAY):
     # 减法后 explore / internal 两个 scope 已下线，archive 查询参数被忽略
     run('11', 'B', 'scope=explore 已下线', 400, None, lambda: api.req('GET', '/notes?scope=explore', Z))
     run('12', 'B', 'scope=internal 已下线', 400, None, lambda: api.req('GET', '/notes?scope=internal', Z))
-    run('12b', 'B', 'shared 被授权列表', 200, 0, lambda: api.req('GET', '/notes?scope=shared&size=100', L),
-        lambda r: need(r, 0, lambda x: isinstance(x.data.get('list'), list)))
+    run('12b', 'B', 'scope=shared 已下线（授权摘除）', 400, None,
+        lambda: api.req('GET', '/notes?scope=shared&size=100', L))
     run('12c', 'B', 'archived 参数已废弃（被忽略）', 200, 0,
         lambda: api.req('GET', '/notes?scope=mine&archived=true', Z),
         lambda r: need(r, 0, lambda x: isinstance(x.data.get('list'), list)))
@@ -164,7 +161,7 @@ def build(api, U, FX, run, TODAY):
         n = api.new_note(Z)
         return api.req('POST', f"/notes/{n['id']}/pin", L)
 
-    run('13a', 'C', 'EDITOR 置顶被拒', 403, None, c13a)
+    run('13a', 'C', '他人置顶 → 404（授权已下线）', 404, None, c13a)
     run('13b', 'C', '不可见用户置顶', 404, None,
         lambda: api.req('POST', f"/notes/{FX['z_private']['id']}/pin", OUT))
 
@@ -183,7 +180,7 @@ def build(api, U, FX, run, TODAY):
         api.req('POST', f"/notes/{n['id']}/pin", Z)
         return api.req('DELETE', f"/notes/{n['id']}/pin", L)
 
-    run('14a', 'C', 'EDITOR 取消置顶被拒', 403, None, c14a)
+    run('14a', 'C', '他人取消置顶 → 404', 404, None, c14a)
 
     # 减法：归档能力整体下线 → 两个端点都不再映射（统一 200 + 10004「资源不存在」）
     run('15', 'C', 'archive 端点已下线', 200, 10004,

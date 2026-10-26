@@ -9,7 +9,6 @@ import { ERROR_CODE, messageOf } from '@/utils/errorCode'
 describe('noteListRouteOf', () => {
   it.each([
     ['mine', '/notes'],
-    ['shared', '/notes/shared'],
     ['subordinate', '/notes/subordinate'],
     ['all', '/admin/notes'],
   ] as const)('%s → %s', (scope, path) => {
@@ -26,7 +25,6 @@ describe('note 错误码文案', () => {
     const codes = [
       ERROR_CODE.NOTE_NOT_FOUND,
       ERROR_CODE.NOTE_TAG_INVALID,
-      ERROR_CODE.NOTE_GRANT_NOT_SUBORDINATE,
       ERROR_CODE.NOTE_SCOPE_DISABLED,
       ERROR_CODE.NOTE_DEPT_REQUIRED,
       ERROR_CODE.VERSION_CONFLICT,

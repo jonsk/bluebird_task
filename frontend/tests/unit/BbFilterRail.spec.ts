@@ -114,10 +114,12 @@ beforeEach(() => {
 })
 
 describe('BbFilterRail · 工作日志分组', () => {
-  it('普通用户：只有我的/被授权/授权管理，无员工、无全部日志', () => {
+  it('普通用户：只有我的日志，无员工、无全部日志、无授权入口', () => {
     const w = mountRail()
     const tests = navTests(w)
-    expect(tests).toEqual(['nav-note-mine', 'nav-note-shared', 'nav-note-grants'])
+    expect(tests).toEqual(['nav-note-mine'])
+    expect(tests).not.toContain('nav-note-shared')
+    expect(tests).not.toContain('nav-note-grants')
   })
 
   it('managerCanReadSubordinate=true 时出现「下属日志」', () => {
@@ -159,9 +161,10 @@ describe('BbFilterRail · 工作日志分组', () => {
   })
 
   it('当前路由项高亮 is-active，点击项触发 router.push', async () => {
-    route.name = 'NoteShared'
+    authState.user = { name: '张三', username: 'zhangli', managerCanReadSubordinate: true }
+    route.name = 'NoteSubordinate'
     const w = mountRail()
-    const active = w.find('[data-test="nav-note-shared"]')
+    const active = w.find('[data-test="nav-note-subordinate"]')
     expect(active.classes()).toContain('item-active')
     await w.find('[data-test="nav-note-mine"]').trigger('click')
     expect(router.push).toHaveBeenCalled()

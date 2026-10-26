@@ -17,123 +17,25 @@ def build(api, U, FX, run, TODAY):
             self.code = 0
             self.data = data
 
-    def new_pending():
-        """取/建一条 SUPERIOR 待确认（creator=zhangli，grantor=wangwu）。"""
-        for g in api.req('GET', '/note-grants?tab=created', Z).data or []:
-            if g.get('mode') == 'SUPERIOR' and g.get('grantorId') == int(U[W]) and g.get('status') == 'PENDING':
-                return _Shim(g)
-        return api.req('POST', '/note-grants', Z, {'mode': 'SUPERIOR', 'grantorId': int(U[W]), 'role': 'VIEWER'})
-
-    def grant_of(grantee, role='VIEWER'):
-        """确保存在 OWNER 授权（不存在则建），返回 grant dict。"""
-        for g in api.req('GET', '/note-grants?tab=granted', Z).data or []:
-            if g.get('mode') == 'OWNER' and g.get('granteeId') == int(U[grantee]) and g.get('status') == 'APPROVED':
-                return g
-        r = api.req('POST', '/note-grants', Z, {'mode': 'OWNER', 'granteeId': int(U[grantee]), 'role': role})
-        assert r.code == 0, r.body
-        return r.data
-
     def new_file(user=Z, name=None, content=b'matrix-file'):
         r = api.req('POST', '/files', user, form={'file': (name or f'mtx-{uuid.uuid4().hex[:6]}.txt', content, 'text/plain')})
         assert r.code == 0, f'upload failed {r.body}'
         return r.data
 
-    # ---------------- D. 授权 ----------------
-    run('17', 'D', 'OWNER 自授权', 200, 50008,
-        lambda: api.req('POST', '/note-grants', Z, {'mode': 'OWNER', 'granteeId': int(U[Z]), 'role': 'VIEWER'}),
-        lambda r: need(r, 50008))
-    run('18', 'D', 'SUPERIOR 带 granteeId', 400, None,
-        lambda: api.req('POST', '/note-grants', Z, {'mode': 'SUPERIOR', 'granteeId': int(U[L]), 'role': 'VIEWER'}))
-    def cap_sixth_pending():
-        """#19：同一 grantor 已有 5 条 PENDING 时，第 6 条返回 400。
-
-        构造：mtxcap 位于「MTX-上限-L6」部门，L1..L6 的负责人为 mtxcapmgr1..6，
-        因此 6 个上级都把 mtxcap 视为下属，可各自发起 1 条 SUPERIOR PENDING。
-        """
-        grantor = int(U['mtxcap'])
-        created = []
-        for i in range(1, 6):
-            r = api.req('POST', '/note-grants', f'mtxcapmgr{i}',
-                        {'mode': 'SUPERIOR', 'grantorId': grantor, 'role': 'VIEWER'})
-            assert r.code == 0, f'第 {i} 条 PENDING 应成功，实际 {r.code} {r.body.get("message")}'
-            assert r.data and r.data.get('status') == 'PENDING', f'第 {i} 条状态={r.data}'
-            created.append(r.data)
-        pending = api.req('GET', '/note-grants?tab=granted&status=PENDING', 'mtxcap')
-        assert len(pending.data or []) >= 5, f'PENDING 条数不足：{len(pending.data or [])}'
-        return api.req('POST', '/note-grants', 'mtxcapmgr6',
-                       {'mode': 'SUPERIOR', 'grantorId': grantor, 'role': 'VIEWER'})
-
-    run('19', 'D', '每 grantor 最多 5 条 PENDING（第 6 条 400）', 400, 10001, cap_sixth_pending)
-
-    run('20', 'D', '重复 active 授权', 200, 50007,
-        lambda: api.req('POST', '/note-grants', Z, {'mode': 'OWNER', 'granteeId': int(U['mtxviewer']), 'role': 'VIEWER'}),
-        lambda r: need(r, 50007))
-    run('21', 'D', '非 grantor 确认', 403, None,
-        lambda: api.req('POST', f"/note-grants/{FX['g_pending']['id']}/approve", L))
-    run('22', 'D', '非 PENDING 确认', 200, 50014,
-        lambda: api.req('POST', f"/note-grants/{FX['g_sup_approved']['id']}/approve", W),
-        lambda r: need(r, 50014))
-
-    def d22a():
-        r = api.req('POST', f"/note-grants/{FX['g_pending']['id']}/reject", 'mtxsub1')
-        assert r.data and r.data.get('status') == 'REJECTED', f"status={r.data.get('status') if r.data else None}"
-        return r
-
-    run('22a', 'D', 'grantor 拒绝 PENDING', 200, 0, d22a)
-    run('22b', 'D', '非 PENDING 拒绝', 200, 50014,
-        lambda: api.req('POST', f"/note-grants/{FX['g_sup_approved']['id']}/reject", W),
-        lambda r: need(r, 50014))
-
-    def d22c():
-        g = FX['g_viewer'] or grant_of('mtxviewer', 'VIEWER')
-        r = api.req('POST', f"/note-grants/{g['id']}/upgrade", Z)
-        assert r.data and r.data.get('role') == 'EDITOR', f"role={r.data.get('role') if r.data else None} code={r.code}"
-        return r
-
-    run('22c', 'D', 'VIEWER 升级为 EDITOR', 200, 0, d22c)
-
-    def d22d():
-        return api.req('POST', f"/note-grants/{FX['g_pending2']['id']}/upgrade", 'mtxsub2')
-
-    run('22d', 'D', '非 APPROVED 升级', 200, 50014, d22d, lambda r: need(r, 50014))
-    run('23', 'D', 'created_by=me 撤 APPROVED（非 grantor）', 403, None,
-        lambda: api.req('DELETE', f"/note-grants/{FX['g_sup_approved']['id']}", Z))
-
-    def d23a():
-        r = api.req('DELETE', f"/note-grants/{FX['g_pending2']['id']}", Z)
-        return r
-
-    run('23a', 'D', 'created_by=me 撤 PENDING', 200, 0, d23a)
-
-    def d23b():
-        g = grant_of('useradmin', 'VIEWER')
-        return api.req('DELETE', f"/note-grants/{g['id']}", Z)
-
-    run('23b', 'D', 'grantor 撤 APPROVED', 200, 0, d23b)
-
-    def d23c():
-        g = grant_of('wangwu', 'EDITOR')
-        return api.req('DELETE', f"/note-grants/{g['id']}", ADM)
-
-    run('23c', 'D', 'ADMIN 代撤销', 200, 0, d23c)
-    run('24', 'D', 'tab=all 非 ADMIN', 403, None, lambda: api.req('GET', '/note-grants?tab=all', Z))
-
-    def d24a():
-        r = api.req('GET', '/note-grants?tab=created', Z)
-        assert isinstance(r.data, list), 'created tab 应为数组'
-        return r
-
-    run('24a', 'D', 'tab=created', 200, 0, d24a)
-
-    def d24b():
-        r = api.req('GET', '/note-grants?tab=granted', Z)
-        assert isinstance(r.data, list), 'granted tab 应为数组'
-        return r
-
-    run('24b', 'D', 'tab=granted', 200, 0, d24b)
-    run('24c', 'D', 'tab=incoming', 200, 0, lambda: api.req('GET', '/note-grants?tab=incoming', Z))
-    run('24d', 'D', 'tab=all ADMIN', 200, 0, lambda: api.req('GET', '/note-grants?tab=all', ADM),
-        lambda r: need(r, 0, lambda x: isinstance(x.data, list)))
+    # ---------------- D. 授权能力已下线 ----------------
+    # 2026-10-26 二轮减法：/note-grants 6 个端点与 scope=shared 全部摘除，
+    # 这里只保留"彻底摘除"的守卫断言（未映射 → 200/10004；scope → 400）。
+    run('17', 'D', 'POST /note-grants 已下线', 200, 10004,
+        lambda: api.req('POST', '/note-grants', Z, {'mode': 'OWNER', 'granteeId': int(U[L]), 'role': 'VIEWER'}),
+        lambda r: need(r, 10004))
+    run('17a', 'D', 'GET /note-grants 已下线', 200, 10004,
+        lambda: api.req('GET', '/note-grants?tab=created', Z), lambda r: need(r, 10004))
+    run('17b', 'D', 'approve 端点已下线', 200, 10004,
+        lambda: api.req('POST', '/note-grants/1/approve', L), lambda r: need(r, 10004))
+    run('17c', 'D', 'DELETE /note-grants 已下线', 200, 10004,
+        lambda: api.req('DELETE', '/note-grants/1', Z), lambda r: need(r, 10004))
+    run('17d', 'D', 'scope=shared 已下线', 400, None,
+        lambda: api.req('GET', '/notes?scope=shared', L))
 
     # ---------------- E. 日历 ----------------
     run('25a', 'E', 'calendar scope=all 非 ADMIN', 403, None,
@@ -158,8 +60,8 @@ def build(api, U, FX, run, TODAY):
         api.req('DELETE', f"/notes/{n['id']}", Z)
         return api.req('POST', f"/notes/{n['id']}/attachments", L, {'attachmentId': FX['file']['id']})
 
-    # 实现语义：已删除日志对协作者一律 404（不泄露存在性）
-    run('27a', 'F', 'EDITOR 写已删除日志', 404, None, f27a)
+    # 实现语义：已删除日志对任何人（非 owner）一律 404（不泄露存在性）
+    run('27a', 'F', '他人写已删除日志 → 404', 404, None, f27a)
 
     def f27b():
         n = api.new_note(Z)
@@ -201,7 +103,7 @@ def build(api, U, FX, run, TODAY):
         b = api.req('POST', f"/notes/{n['id']}/attachments", Z, {'attachmentId': f['id']})
         return api.req('DELETE', f"/notes/{n['id']}/attachments/{f['id']}", L)
 
-    run('30', 'F', 'EDITOR 移除附件', 403, None, f30)
+    run('30', 'F', '他人移除附件 → 404（授权已下线）', 404, None, f30)
 
     def f30a():
         n = api.new_note(Z)
@@ -434,7 +336,7 @@ def build(api, U, FX, run, TODAY):
         api.req('DELETE', f"/notes/{n['id']}", Z)
         return api.req('POST', f"/notes/{n['id']}/relations", L, {'targetType': 'TASK', 'targetId': task_id()})
 
-    run('39c', 'I', 'EDITOR 给已删除日志加引用', 404, None, i39c)
+    run('39c', 'I', '他人给已删除日志加引用 → 404', 404, None, i39c)
     run('40', 'I', '列引用', 200, 0, lambda: api.req('GET', f"/notes/{FX['z_note']['id']}/relations", Z),
         lambda r: need(r, 0, lambda x: isinstance(x.data, list)))
     run('40a', 'I', '不可见用户列引用', 404, None,
@@ -451,7 +353,7 @@ def build(api, U, FX, run, TODAY):
         rels = api.req('GET', f"/notes/{n['id']}/relations", Z).data
         return api.req('DELETE', f"/notes/{n['id']}/relations/{rels[0]['id']}", L)
 
-    run('42', 'I', 'EDITOR 删引用', 403, None, i42)
+    run('42', 'I', '他人删引用 → 404（授权已下线）', 404, None, i42)
 
     def i42a():
         n = api.new_note(Z)
@@ -503,8 +405,8 @@ def build(api, U, FX, run, TODAY):
     # ---------------- L. facets ----------------
     run('46', 'L', 'facet scope=mine', 200, 0, lambda: api.req('GET', '/notes/tags?scope=mine', Z),
         lambda r: need(r, 0, lambda x: isinstance(x.data, list) and all('id' in i for i in x.data)))
-    run('46a', 'L', 'facet scope=shared（无 id）', 200, 0, lambda: api.req('GET', '/notes/tags?scope=shared', W),
-        lambda r: need(r, 0, lambda x: isinstance(x.data, list)))
+    run('46a', 'L', 'facet scope=shared 已下线', 400, None,
+        lambda: api.req('GET', '/notes/tags?scope=shared', W))
     run('46b', 'L', 'facet 空标签用户', 200, 0, lambda: api.req('GET', '/notes/tags?scope=mine', NODEPT),
         lambda r: need(r, 0, lambda x: x.data == []))
     run('46c', 'L', 'facet scope=all 非 ADMIN', 403, None, lambda: api.req('GET', '/notes/tags?scope=all', Z))

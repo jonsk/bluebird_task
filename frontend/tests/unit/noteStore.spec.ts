@@ -30,7 +30,7 @@ describe('noteStore · 缓存键', () => {
 
   it('scope 不同则键不同（避免跨作用域串数据）', () => {
     const s = useNoteStore()
-    expect(s.cacheKey('mine', {} as never)).not.toBe(s.cacheKey('shared', {} as never))
+    expect(s.cacheKey('mine', {} as never)).not.toBe(s.cacheKey('subordinate', {} as never))
   })
 
   it('scope 不参与键体重复：query 里的 scope 被剔除', () => {
@@ -45,10 +45,10 @@ describe('noteStore · 失效与读取', () => {
   it('invalidate 只清指定 scope', () => {
     const s = useNoteStore()
     s.cacheSet(s.cacheKey('mine', {} as never), page([1]))
-    s.cacheSet(s.cacheKey('shared', {} as never), page([2]))
+    s.cacheSet(s.cacheKey('subordinate', {} as never), page([2]))
     s.invalidate(['mine'])
     expect(s.cacheGet(s.cacheKey('mine', {} as never))).toBeUndefined()
-    expect(s.cacheGet(s.cacheKey('shared', {} as never))?.data.total).toBe(1)
+    expect(s.cacheGet(s.cacheKey('subordinate', {} as never))?.data.total).toBe(1)
   })
 
   it('cacheClear 清空全部', () => {
@@ -84,9 +84,9 @@ describe('noteStore · 查询状态', () => {
   it('作用域之间筛选互不影响', () => {
     const s = useNoteStore()
     s.setQuery('mine', { keyword: 'mine-kw' } as never)
-    s.setQuery('shared', { keyword: 'internal-kw' } as never)
+    s.setQuery('subordinate', { keyword: 'internal-kw' } as never)
     expect(s.getQuery('mine').keyword).toBe('mine-kw')
-    expect(s.getQuery('shared').keyword).toBe('internal-kw')
+    expect(s.getQuery('subordinate').keyword).toBe('internal-kw')
   })
 })
 

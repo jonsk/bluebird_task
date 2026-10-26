@@ -48,10 +48,10 @@ describe('useNoteFacets', () => {
   it('60s 内同 scope+keyword 命中缓存，不再请求', async () => {
     listNoteTags.mockResolvedValue([{ id: 2, name: '缓存', count: 1 }])
     const a = mount()
-    await a.load('shared', 'kw')
+    await a.load('subordinate', 'kw')
     const b = mount()
     listNoteTags.mockClear()
-    await b.load('shared', 'kw')
+    await b.load('subordinate', 'kw')
     expect(listNoteTags).not.toHaveBeenCalled()
     expect(b.tags.value[0]).toMatchObject({ name: '缓存' })
   })
@@ -59,7 +59,7 @@ describe('useNoteFacets', () => {
   it('retry 清缓存后重新请求（不是只清 error）', async () => {
     listNoteTags.mockRejectedValueOnce(new Error('网络错误'))
     const r = mount()
-    await r.load('shared', 'retry-kw')
+    await r.load('subordinate', 'retry-kw')
     expect(r.error.value).toBeInstanceOf(Error)
 
     listNoteTags.mockResolvedValueOnce([{ id: 3, name: '重试成功', count: 1 }])

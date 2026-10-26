@@ -40,7 +40,7 @@ describe('useNoteActions', () => {
     await actions.togglePin({ id: 1, pinned: false })
     expect(pinNote).toHaveBeenCalledWith(1)
     expect(unpinNote).not.toHaveBeenCalled()
-    expect(spy).toHaveBeenCalledWith(['mine', 'shared', 'subordinate', 'all'])
+    expect(spy).toHaveBeenCalledWith(['mine', 'subordinate', 'all'])
     expect(success).toHaveBeenCalledWith('操作成功')
 
     unpinNote.mockResolvedValueOnce(undefined)
@@ -55,7 +55,7 @@ describe('useNoteActions', () => {
     deleteNote.mockResolvedValueOnce(undefined)
     await actions.remove({ id: 3 })
     expect(deleteNote).toHaveBeenCalledWith(3)
-    expect(spy).toHaveBeenCalledWith(['mine', 'shared', 'subordinate', 'all'])
+    expect(spy).toHaveBeenCalledWith(['mine', 'subordinate', 'all'])
     expect(success).toHaveBeenCalledWith('已删除')
   })
 

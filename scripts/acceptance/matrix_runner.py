@@ -226,20 +226,6 @@ def run(cid, section, desc, expect_http, expect_code, fn, checks=None):
 
 
 # ============ 共享 fixture ============
-def reset_test_grants():
-    """清理测试账号的授权行，保证 PENDING/升级用例可重复执行。"""
-    import sqlite3
-
-    ids = [int(U[k]) for k in ('mtxviewer', 'mtxsub1', 'mtxsub2', 'mtxcap',
-                               'mtxcapmgr1', 'mtxcapmgr2', 'mtxcapmgr3',
-                               'mtxcapmgr4', 'mtxcapmgr5', 'mtxcapmgr6')]
-    q = ','.join('?' * len(ids))
-    con = sqlite3.connect(DB_PATH, timeout=10)
-    con.execute(f'DELETE FROM note_user_grant WHERE grantor_id IN ({q}) OR grantee_id IN ({q})', ids + ids)
-    con.commit()
-    con.close()
-
-
 def setup():
     fx = {}
     tag_raw = api.req('POST', '/tags', 'zhangli', {'name': 'MTX-T' + uuid.uuid4().hex[:4]}).data
@@ -248,42 +234,6 @@ def setup():
     fx['z_private'] = api.new_note('zhangli')
     fx['l_note'] = api.new_note('lisi')
 
-    def grant(body, creator='zhangli'):
-        r = api.req('POST', '/note-grants', creator, body)
-        if r.code == 0:
-            return r.data
-        # 已存在同组合（50007）时复用现有授权，保证后续用例有 fixture
-        lst = api.req('GET', '/note-grants?tab=granted', creator)
-        for g in lst.data or []:
-            if (
-                g.get('grantorId') == int(U[creator])
-                and (body.get('granteeId') is None or g.get('granteeId') == body.get('granteeId'))
-                and g.get('mode') == body.get('mode')
-                and g.get('status') in ('PENDING', 'APPROVED')
-            ):
-                return g
-        print(f'  [setup] grant failed {body} -> {r.code} {r.body.get("message")}')
-        return None
-
-    # EDITOR 授权（zhangli 的日志 → lisi 可编辑）
-    fx['g_editor'] = grant({'mode': 'OWNER', 'granteeId': int(U['lisi']), 'role': 'EDITOR'})
-    # VIEWER 只读授权（→ mtxviewer 只读，供 5a / 字段级受限用例）
-    fx['g_viewer'] = grant({'mode': 'OWNER', 'granteeId': int(U['mtxviewer']), 'role': 'VIEWER'})
-
-    # SUPERIOR 待确认（creator=zhangli，grantor=mtxsub1/2 轮流用于不同流程分支）
-    p1 = api.req('POST', '/note-grants', 'zhangli', {'mode': 'SUPERIOR', 'grantorId': int(U['mtxsub1']), 'role': 'VIEWER'})
-    p2 = api.req('POST', '/note-grants', 'zhangli', {'mode': 'SUPERIOR', 'grantorId': int(U['mtxsub2']), 'role': 'VIEWER'})
-    fx['g_pending'] = p1.data if p1.code == 0 else None
-    fx['g_pending2'] = p2.data if p2.code == 0 else None
-    if fx['g_pending'] is None or fx['g_pending2'] is None:
-        print(f"  [setup] pending grant failed: p1={p1.code} {p1.body.get('message')} p2={p2.code} {p2.body.get('message')}")
-    # SUPERIOR 已生效（复用 seed 的 lisi→zhangli 已批准授权）
-    approved = None
-    for g in api.req('GET', '/note-grants?tab=created', 'zhangli').data or []:
-        if g.get('mode') == 'SUPERIOR' and g.get('status') == 'APPROVED':
-            approved = g
-            break
-    fx['g_sup_approved'] = approved
     # 附件
     up = api.req('POST', '/files', 'zhangli', form={'file': ('mtx.txt', b'matrix attachment', 'text/plain')})
     fx['file'] = up.data
@@ -293,7 +243,6 @@ def setup():
     return fx
 
 
-reset_test_grants()
 FX = setup()
 print('fixture ready:', {k: (v if isinstance(v, (int, str)) else type(v).__name__) for k, v in FX.items()})
 print('=' * 100)

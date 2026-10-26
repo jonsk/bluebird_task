@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 权限细化回归：
  * <ol>
- *   <li>note 详情下发 {@code fieldPermissions}（owner / EDITOR / VIEWER / 归档 EDITOR 四种身份）；</li>
+ *   <li>note 详情下发 {@code fieldPermissions}（owner / ADMIN / 上级只读 三种身份）；</li>
  *   <li>task 详情对不可见调用方返回 <b>HTTP 404</b>（不再 200 + 10003，也不暴露存在性）；</li>
  *   <li>task 详情子任务按可见性过滤。</li>
  * </ol>
@@ -120,28 +120,16 @@ class PermissionFieldTest {
         return json(res).path("data").asLong();
     }
 
-    /** 建 grant 并（PENDING 时）由 grantor 确认 */
-    private void grant(SysUser creator, String bodyJson, SysUser approver) throws Exception {
-        String res = mvc.perform(auth(post("/api/v1/note-grants"), creator)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(bodyJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andReturn().getResponse().getContentAsString();
-        long id = json(res).path("data").path("id").asLong();
-        if (approver != null) {
-            mvc.perform(auth(post("/api/v1/note-grants/" + id + "/approve"), approver))
-                    .andExpect(jsonPath("$.code").value(0));
-        }
-    }
-
     /* ==================== 1. note fieldPermissions ==================== */
 
     @Test
     void noteDetailExposesFieldPermissions() throws Exception {
-        SysUser owner = user("fp-owner", null, "COMMON");
-        SysUser editor = user("fp-editor", null, "COMMON");
-        SysUser viewer = user("fp-viewer", null, "COMMON");
+        SysUser leader = user("fp-leader", null, "COMMON");
+        Department root = dept("权限部", null, leader.getId());
+        Department child = dept("权限组", root.getId(), null);
+        leader.setDeptId(root.getId());
+        userMapper.updateById(leader);
+        SysUser owner = user("fp-owner", child.getId(), "COMMON");
         SysUser admin = user("fp-admin", null, "ADMIN");
 
         long noteId = createNote(owner, "字段权限用例");
@@ -157,26 +145,21 @@ class PermissionFieldTest {
                 .andExpect(jsonPath("$.data.fieldPermissions.content").value(true))
                 .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(true));
 
-        // EDITOR（已批准）：仅正文与日期
-        grant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + editor.getId() + ",\"role\":\"EDITOR\"}", null);
-        mvc.perform(auth(get("/api/v1/notes/" + noteId), editor))
-                .andExpect(jsonPath("$.data.fieldPermissions.content").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.logDate").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(false));
-
-        // 与写路径一致：EDITOR 改标签 → 50013（HTTP 200）
-        mvc.perform(auth(put("/api/v1/notes/" + noteId), editor)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tagIds\":[999999],\"version\":0}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(50013));
-
-        // VIEWER：三项全 false
-        grant(owner, "{\"mode\":\"OWNER\",\"granteeId\":" + viewer.getId() + ",\"role\":\"VIEWER\"}", null);
-        mvc.perform(auth(get("/api/v1/notes/" + noteId), viewer))
+        // 上级只读：三项全 false，写入 403（授权/协作编辑已下线）
+        mvc.perform(auth(get("/api/v1/notes/" + noteId), leader))
                 .andExpect(jsonPath("$.data.fieldPermissions.content").value(false))
                 .andExpect(jsonPath("$.data.fieldPermissions.logDate").value(false))
-                .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(false));
+                .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(false))
+                .andExpect(jsonPath("$.data.canEdit").value(false));
+        mvc.perform(auth(put("/api/v1/notes/" + noteId), leader)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"越权修改\",\"version\":0}"))
+                .andExpect(status().isForbidden());
+
+        // 无关用户：404
+        SysUser other = user("fp-other", null, "COMMON");
+        mvc.perform(auth(get("/api/v1/notes/" + noteId), other))
+                .andExpect(status().isNotFound());
     }
 
     /* ==================== 2. task 详情不可见 → 404 ==================== */
