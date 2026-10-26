@@ -918,7 +918,7 @@ export type NoteQueryPatch = Omit<Partial<NoteQuery>, 'scope' | 'page' | 'size' 
 | --- | ------ | --------------------------- | --------------------------------- | ----- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | --- |
 | 17 | POST | `/note-grants` | OWNER mode，granteeId=me | 自授权 | 200 | 50008 | `NOTE_GRANT_SELF` | e2e | ✅ 通过 |
 | 18 | POST | `/note-grants` | SUPERIOR mode，body 带 granteeId | — | 400 | — | 参数格式错误 | e2e | ✅ 通过 |
-| 19 | POST | `/note-grants` | grantor 已有 5 条 PENDING | 第 6 条 | 400 | — | 参数校验失败（每 grantor 最多 5 PENDING） | e2e | ⬜ 未自动化 |
+| 19 | POST | `/note-grants` | grantor 已有 5 条 PENDING | 第 6 条 | 400 | 10001 | 参数校验失败（每 grantor 最多 5 PENDING） | e2e | ✅ 通过（6 级部门链 + 6 个上级账号构造） |
 | 20 | POST | `/note-grants` | 重复 active grant | — | 200 | 50007 | `NOTE_GRANT_DUPLICATE` | e2e | ✅ 通过 |
 | 21 | POST | `/note-grants/{id}/approve` | 非 grantor | — | 403 | — | 权限拒绝（仅 grantor 可 approve） | e2e | ✅ 通过 |
 | 22 | POST | `/note-grants/{id}/approve` | grantor，状态非 PENDING | — | 200 | 50014 | `NOTE_GRANT_FLOW_FORBIDDEN` | e2e | ✅ 通过 |
@@ -1045,11 +1045,11 @@ export type NoteQueryPatch = Omit<Partial<NoteQuery>, 'scope' | 'page' | 'size' 
 | 项 | 内容 |
 | --- | --- |
 | 环境 | Spring Boot 3 + Java 21，后端 `localhost:8080`，SQLite `backend/data/bluebird.db` |
-| 账号 | `zhangli`（部门负责人）/`lisi`/`wangwu`/`auditor`/`outsider`/`useradmin` + 矩阵专用 `noteadmin`(ADMIN)/`nodept`(无部门)/`mtxviewer`（纯 VIEWER）/`mtxsub1`/`mtxsub2`（下属），密码统一 `Test@1234` |
+| 账号 | `zhangli`（部门负责人）/`lisi`/`wangwu`/`auditor`/`outsider`/`useradmin` + 矩阵专用 `noteadmin`(ADMIN)/`nodept`(无部门)/`mtxviewer`（纯 VIEWER）/`mtxsub1`/`mtxsub2`（下属）/`mtxcap`+`mtxcapmgr1..6`（#19 授权上限：`MTX-上限-L1..L6` 六级部门链，每级负责人各发 1 条 SUPERIOR PENDING），密码统一 `Test@1234` |
 | 方式 | 脚本化 HTTP 断言（HTTP 状态 + 业务码 + 关键字段），脚本见 `scripts/acceptance/` |
-| 主跑 | **116 例全 PASS**（`matrix_result_main.json`） |
-| 开关关闭 | **4 例全 PASS**（`matrix_result_toggle.json`，后端以 `MANAGER_CAN_READ_SUBORDINATE=false` 重启后执行） |
-| 未自动化 | 1 例（`#19`：同一 grantor 第 6 条 PENDING 需 5 组不同 creator 的待确认组合，现有账号无法稳定构造） |
+| 主跑 | **117 例全 PASS**（`matrix_result_main.json`），含 `#19` |
+| 开关关闭 | **4 例全 PASS**（`matrix_result_toggle.json`，后端以 `MANAGER_CAN_READ_SUBORDINATE=false` 重启后执行；2026-10-26 复跑确认） |
+| 未自动化 | **0 例**（`#19` 已随 `seed_accounts.py` 的部门链方案自动化） |
 
 复跑：
 
@@ -1184,9 +1184,9 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 | 命令 | 结果 |
 | --- | --- |
 | `pnpm exec vue-tsc --noEmit` | 通过（0 error） |
-| `pnpm test` | 18 files / 115 tests 全通过（新增 6 个 composable + 3 个组件用例，见 §8.4） |
+| `pnpm test` | 19 files / 121 tests 全通过（新增 6 个 composable + 4 个组件用例，见 §8.4 / §12.5） |
 | `pnpm test:e2e` | **63 passed**（task-flow 18 + note-flow 20 + note-permission 5 + visual 14 + visual-narrow 5 + filter-rail 1） |
-| 后端全量 `mvn -o test` | 39 tests / 0 failures（`NoteFlowTest` 1 + `NoteAuthMatrixTest` 1 + `NoteSubFlowTest` 8 + 其他模块 29），BUILD SUCCESS |
+| 后端全量 `mvn -o test` | **42 tests / 0 failures**（`NoteFlowTest` 1 + `NoteAuthMatrixTest` 1 + `NoteSubFlowTest` 8 + `PermissionFieldTest` 3 + 其他模块 29），BUILD SUCCESS |
 | 真实后端联调（8080 + 5173，`VITE_USE_MOCK=false`） | mine=4 / internal=11 / subordinate=11 / shared=4 / explore=3 / all=13(admin)；新建→临时卡片→上传→下载→完成；行内编辑；404 空态；403 `?from=`；日历月计数 |
 
 ### 12.3 实现期修正的真实缺陷
@@ -1206,20 +1206,22 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 ### 12.4 已知未做 / 偏差
 
 - ~~附件上传**并发多选**未做~~ → **已做**：`input[multiple]`，批量预校验后 `Promise.all` 并发上传+绑定，单文件失败不影响其他文件（`NoteAttachmentList`，单测覆盖 7 例）。
-- ~~`fieldPermissions` 字段级未落地~~ → **已做**：`NoteEditor` 支持 `fieldPermissions` prop，且详情回传 `grantRole=EDITOR` 时自动锁定「可见性 / 标签」（对齐后端 50013 与「无权修改可见性/标签」）。后端未新增字段级权限位，属前端派生。
+- **`fieldPermissions` 已升级为后端权限位**：`NoteDetailVO.fieldPermissions`（`content`/`logDate`/`visibility`/`tagIds`）由 `NoteAuthService.fieldPermissions()` 计算（后端唯一事实来源，与写路径 50013 校验一一对应）；前端只消费、不再自行推导，未下发时回退 `grantRole` 规则兼容旧响应。
 - 右栏“当日日志”为 isolated 实例（size=5），不参与主列表分页与缓存（符合 §7.2）。
 - 行内编辑宿主仅 `NoteHomeView` 提供，其余 6 页 `edit` 跳详情（符合 §7.2 宿主规则）。
 - MSW mock 的数据归属仍是 admin 视角；多账号身份（`src/mocks/identity.ts`）只做**权限门控**（`scope=all` 需 ADMIN、`scope=subordinate` 需开关），不做数据隔离。
-- 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **39 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope）。后续改动 note 后端须重跑 `mvn test` 全量。
+- **契约门禁 `node scripts/check-contract.mjs` 基线为红（54 项，`exit=1`）**：HEAD 与本次工作区跑出完全相同的条目，说明与 Note 改动无关。三类存量偏差：①`Task/02` 声明的 `categories` 接口（6 个）后端未实现、openapi 亦无（后由 note tags 承担）；②openapi 已落地的 Note/Task/Admin/Org 等 41 个端点未回填 `Task/01`/`Task/02` 接口表；③7 个无 body 写操作（archive/pin/approve/reject/upgrade 等）未列入 `BODY_EXEMPT`。修复需回填设计文档接口表并补豁免，属独立批次。
+- 后端 note 模块已入库（commit `73aea41`）；后端测试基线更新为 **42 tests**（新增 `NoteSubFlowTest` 8 例：授权状态机、附件绑定矩阵、文件删除守卫、引用可见性、标签级联、facet/查询校验、日历 scope）。后续改动 note 后端须重跑 `mvn test` 全量。
 - 版本冲突的 e2e 覆盖依赖 mock 一次性钩子 `bb_mock_force_conflict`（单页内无法并行制造真实版本落后），真实后端冲突路径由 `NoteFlowTest` step 6 保证。
-- 仍未自动化的矩阵用例：`#19`（同一 grantor 第 6 条 PENDING → 400），需 5 组不同 creator，现有账号无法稳定构造（其余 116 + 4 已脚本化）。
+- 矩阵用例 **117 + 4 全部脚本化**（`#19` 用 `MTX-上限-L1..L6` 六级部门链 + 6 个上级账号构造，第 6 条断言 400/10001）。
+- `GET /tasks/{id}` 已统一为「不可见/不存在 → HTTP 404 + 10004」（原 200 + 10003），子任务沿用「随父任务」口径。
 - 右栏“当日日志”为 isolated 实例（size=5），不参与主列表分页与缓存（符合 §7.2）。
 - 行内编辑宿主仅 `NoteHomeView` 提供，其余 6 页 `edit` 跳详情（符合 §7.2 宿主规则）。
 - MSW mock 的 scope 语义是前端侧近似实现，不是后端权限矩阵的完整镜像（多账号身份只做权限门控，不做数据隔离）。
 
 ### 12.5 测试覆盖补充（本轮）
 
-**单测（Vitest，18 文件 / 115 例）**：本轮新增 61 例，覆盖此前只有契约无测试的对象。
+**单测（Vitest，19 文件 / 121 例）**：本轮新增 67 例，覆盖此前只有契约无测试的对象。
 
 | 文件 | 例数 | 关注点 |
 | --- | --- | --- |
@@ -1232,12 +1234,24 @@ py matrix_toggle.py        # 需后端以 MANAGER_CAN_READ_SUBORDINATE=false 重
 | `NoteCard.spec.ts` | 10 | 点击 open / canEdit·canManage 按钮矩阵 / pin·unpin / archive·unarchive / `is-on` 与徽标 / 操作区不冒泡 / 标签 / active |
 | `NoteAttachmentList.spec.ts` | 7 | 多选并发上传 / 单文件文案 / 部分失败 / 预校验拦截 / 移除用 `attachmentId` / `canRemoveRef`·`canUpload` 显隐 |
 | `BbFilterRail.spec.ts` | 6 | 普通用户·下属·ADMIN 的日志导航项 / 两组存在 / 折叠持久化 + 切模块强制展开 / 路由高亮与 push |
+| `NoteEditor.spec.ts` | 6 | 编辑态按后端 `fieldPermissions` 锁定：owner 全可编辑 / EDITOR 锁可见性+标签 / VIEWER 正文只读 / 未下发时回退 `grantRole` / 新建态不受限 / 详情失败不阻塞渲染 |
 
 **e2e（Playwright，63 例）**
 
 - `note-permission.spec.ts`（5 例，新增）：非管理员访问 `/notes/all` → 路由守卫跳 `/403?from=`；普通用户左栏无「全部日志 / 下属日志」；无下属权限访问 `/notes/subordinate` → 403 空态「未开启「上级可读下属日志」…」且不再叠加「标签加载失败」；ADMIN 可见并进入「全部日志」；AUDITOR 无「全部日志」但可进探索。
 - `visual-narrow.spec.ts`（5 例，新增）：1280×800 下我的日志、日志详情、筛选空态（无分页）、行内编辑、授权管理列表。
 - 依赖 `src/mocks/identity.ts`：mock 登录支持 `admin/admin123`、`common|nodept|auditor`（`Test@1234`）；token 可反解身份，刷新后身份不丢；`scope=all` 非 ADMIN、`scope=subordinate` 无开关时返回 403（`/notes`、`/notes/tags`、`/notes/calendar` 三处一致）。
+
+**后端（`mvn -o test`，42 例）**
+
+- `PermissionFieldTest`（3 例，新增）：
+  1. `noteDetailExposesFieldPermissions`：owner/ADMIN 四项 true、EDITOR 仅 content+logDate（且改 visibility → 50013）、VIEWER 四项 false、归档后 EDITOR 变 404、归档后 owner 仍全 true；
+  2. `taskDetailIs404WhenNotVisible`：无关用户与不存在 id 均 **HTTP 404 + 10004**，owner/ADMIN 正常；
+  3. `subtasksFollowParentVisibility`：CC 可见父任务时子任务随父返回，但无关用户直接访问子任务 id → 404。
+
+**矩阵（`scripts/acceptance`，117 + 4）**
+
+- `#19`（每 grantor 最多 5 条 PENDING）已自动化：`seed_accounts.py` 建 `MTX-上限-L1..L6` 六级部门链并指定 6 个负责人，6 人都把 `mtxcap` 视为下属；前 5 条 SUPERIOR PENDING 成功，第 6 条断言 **400/10001**。
 
 **同步修复**
 

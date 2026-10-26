@@ -7,10 +7,10 @@
 > **当前阶段：任务模块 + 工作日志（Note）模块已完成前端全量实现、后端 note 模块入库，验收与测试基线冻结。**
 >
 > 已完成的验证基线（可直接复跑，见下节「质量门禁」）：
-> - 前端类型检查 `vue-tsc --noEmit` 零错误；单测 **18 文件 / 115 例**（Vitest）
+> - 前端类型检查 `vue-tsc --noEmit` 零错误；单测 **19 文件 / 121 例**（Vitest）
 > - e2e **63 例**（Playwright：任务 18 / 日志 20 / 权限 5 / 视觉 19 / 左栏 1），含 1280×800 视觉基线
-> - 后端 `mvn test` **39 例**（含 Note 授权矩阵、细分流程、全文/引用/附件守卫）
-> - Note §9 接口验收矩阵脚本 **116 例主跑 + 4 例开关关闭** 全通过（`scripts/acceptance/`）
+> - 后端 `mvn test` **42 例**（含 Note 授权矩阵、细分流程、全文/引用/附件守卫）
+> - Note §9 接口验收矩阵脚本 **117 例主跑 + 4 例开关关闭** 全通过（0 例未自动化）（`scripts/acceptance/`）
 
 ## 技术要点（摘要，详见 `Task/04决策记录(ADR).md` / `01蓝鸟重构方案.md`）
 
@@ -55,12 +55,12 @@ cd frontend; pnpm install; pnpm dev      # http://localhost:5173
 ```powershell
 cd frontend
 pnpm exec vue-tsc --noEmit     # 类型检查
-pnpm test                      # 单测（Vitest，18 文件 / 115 例）
+pnpm test                      # 单测（Vitest，19 文件 / 121 例）
 pnpm test:e2e                  # e2e + 视觉回归（Playwright，本地复用系统 Edge）
 pnpm test:e2e:update           # 仅在**有意**改动布局时重生成基线，并在 PR 中说明
 
 cd ..\backend
-mvn -o test                    # 后端测试（39 例）
+mvn -o test                    # 后端测试（42 例）
 
 # Note §9 接口验收矩阵（需后端已启动；开关场景需以 MANAGER_CAN_READ_SUBORDINATE=false 重启）
 cd ..\scripts\acceptance

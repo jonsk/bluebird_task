@@ -1,6 +1,6 @@
 # Note 模块 §9 接口验收矩阵 · 执行脚本
 
-对应 `docs/Note模块前端开发方案.md` §9（120 行用例，A–L 共 12 组）。
+对应 `docs/Note模块前端开发方案.md` §9（120 行用例，A–L 共 12 组；已脚本化 **117 例主跑 + 4 例开关关闭**，0 例未自动化）。
 
 ## 组成
 
@@ -27,7 +27,7 @@
 ```powershell
 cd scripts/acceptance
 py seed_accounts.py                 # 1. 准备账号（幂等）
-py matrix_main.py                   # 2. 主跑：期望 115~116 例全 PASS
+py matrix_main.py                   # 2. 主跑：期望 117 例全 PASS
 # 3. 关开关重启后端后：
 py matrix_toggle.py                 # 4. 期望 4 例全 PASS
 ```
@@ -47,6 +47,10 @@ mvn -o -q -DskipTests spring-boot:run
 
 矩阵专用账号（`seed_accounts.py` 建立）：`noteadmin`（ADMIN）、`nodept`（无部门）、`mtxviewer`（纯 VIEWER）、`mtxsub1`/`mtxsub2`（前端组下属，用于 SUPERIOR PENDING 流程）。
 
+`#19`（每 grantor 最多 5 条 PENDING）专用：`mtxcap`（被授权人）+ `mtxcapmgr1..6`（上级），
+配套 6 级部门链 `MTX-上限-L1..L6`（L1 为根、逐级为 L2..L6 的父部门，负责人依次为 6 个上级），
+因此 6 个上级都把 `mtxcap` 视为下属；前 5 条 SUPERIOR PENDING 成功，第 6 条期望 **400/10001**。
+
 每次运行会写入 `MTX-*` 前缀的日志/任务/标签数据，并重置上述 5 个专用账号的授权行。
 
 ## 结果
@@ -56,5 +60,5 @@ mvn -o -q -DskipTests spring-boot:run
 
 ## 已知未自动化
 
-- `#19`（同一 grantor 第 6 条 PENDING → 400）：需要 5 个不同 creator 对同一 grantor 的待确认组合，现有账号无法稳定构造。
+- **0 例**。`#19` 已用「六级部门链 + 6 个上级账号」构造并纳入主跑。
 - 契约偏差（归档 404、tag 200/10004、`GET /files/{id}` 文件流、task 不可写 404）已在 §9 表格与 §9.2 中按实现修正。
