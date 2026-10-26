@@ -44,6 +44,27 @@ def build(api, U, FX, run, TODAY):
         lambda r: need(r, 50008))
     run('18', 'D', 'SUPERIOR 带 granteeId', 400, None,
         lambda: api.req('POST', '/note-grants', Z, {'mode': 'SUPERIOR', 'granteeId': int(U[L]), 'role': 'VIEWER'}))
+    def cap_sixth_pending():
+        """#19：同一 grantor 已有 5 条 PENDING 时，第 6 条返回 400。
+
+        构造：mtxcap 位于「MTX-上限-L6」部门，L1..L6 的负责人为 mtxcapmgr1..6，
+        因此 6 个上级都把 mtxcap 视为下属，可各自发起 1 条 SUPERIOR PENDING。
+        """
+        grantor = int(U['mtxcap'])
+        created = []
+        for i in range(1, 6):
+            r = api.req('POST', '/note-grants', f'mtxcapmgr{i}',
+                        {'mode': 'SUPERIOR', 'grantorId': grantor, 'role': 'VIEWER'})
+            assert r.code == 0, f'第 {i} 条 PENDING 应成功，实际 {r.code} {r.body.get("message")}'
+            assert r.data and r.data.get('status') == 'PENDING', f'第 {i} 条状态={r.data}'
+            created.append(r.data)
+        pending = api.req('GET', '/note-grants?tab=granted&status=PENDING', 'mtxcap')
+        assert len(pending.data or []) >= 5, f'PENDING 条数不足：{len(pending.data or [])}'
+        return api.req('POST', '/note-grants', 'mtxcapmgr6',
+                       {'mode': 'SUPERIOR', 'grantorId': grantor, 'role': 'VIEWER'})
+
+    run('19', 'D', '每 grantor 最多 5 条 PENDING（第 6 条 400）', 400, 10001, cap_sixth_pending)
+
     run('20', 'D', '重复 active 授权', 200, 50007,
         lambda: api.req('POST', '/note-grants', Z, {'mode': 'OWNER', 'granteeId': int(U['mtxviewer']), 'role': 'VIEWER'}),
         lambda r: need(r, 50007))

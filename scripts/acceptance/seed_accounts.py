@@ -30,12 +30,45 @@ ACCOUNTS = [
     (2106100000000000009, 'mtxviewer', '只读验收员', 'COMMON', '市场部'),
     (2106100000000000010, 'mtxsub1', '验收下属甲', 'COMMON', '前端组'),
     (2106100000000000011, 'mtxsub2', '验收下属乙', 'COMMON', '前端组'),
+    # #19：grantor 已有 5 条 PENDING 时的第 6 条 → 400
+    (2106100000000000012, 'mtxcap', '授权上限被授权人', 'COMMON', 'MTX-上限-L6'),
+    (2106100000000000013, 'mtxcapmgr1', '上限上级一', 'COMMON', 'MTX-上限-L1'),
+    (2106100000000000014, 'mtxcapmgr2', '上限上级二', 'COMMON', 'MTX-上限-L2'),
+    (2106100000000000015, 'mtxcapmgr3', '上限上级三', 'COMMON', 'MTX-上限-L3'),
+    (2106100000000000016, 'mtxcapmgr4', '上限上级四', 'COMMON', 'MTX-上限-L4'),
+    (2106100000000000017, 'mtxcapmgr5', '上限上级五', 'COMMON', 'MTX-上限-L5'),
+    (2106100000000000018, 'mtxcapmgr6', '上限上级六', 'COMMON', 'MTX-上限-L6'),
 ]
+
+# 部门链：L1 ← L2 ← ... ← L6；L1..L6 的 leader 依次为 mtxcapmgr1..6
+CAP_DEPTS = [
+    (2106300000000000001, 'MTX-上限-L1', None, 2106100000000000013),
+    (2106300000000000002, 'MTX-上限-L2', 2106300000000000001, 2106100000000000014),
+    (2106300000000000003, 'MTX-上限-L3', 2106300000000000002, 2106100000000000015),
+    (2106300000000000004, 'MTX-上限-L4', 2106300000000000003, 2106100000000000016),
+    (2106300000000000005, 'MTX-上限-L5', 2106300000000000004, 2106100000000000017),
+    (2106300000000000006, 'MTX-上限-L6', 2106300000000000005, 2106100000000000018),
+]
+
+
+def ensure_cap_depts(cur):
+    """建 #19 用的部门链（幂等）并写入负责人。"""
+    for did, name, parent, leader in CAP_DEPTS:
+        cur.execute(
+            "INSERT OR IGNORE INTO sys_department (id,parent_id,name,sort,deleted,is_system,created_at)"
+            " VALUES (?,?,?,0,0,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+            (did, parent, name),
+        )
+        cur.execute(
+            'UPDATE sys_department SET name=?, parent_id=?, leader_user_id=?, deleted=0 WHERE id=?',
+            (name, parent, leader, did),
+        )
 
 
 def main():
     con = sqlite3.connect(DB_PATH, timeout=10)
     cur = con.cursor()
+    ensure_cap_depts(cur)
     dept = {name: did for did, name in cur.execute('SELECT id, name FROM sys_department WHERE deleted = 0')}
 
     for uid, username, name, role, dept_name in ACCOUNTS:
@@ -63,6 +96,8 @@ def main():
     ids = [a[0] for a in ACCOUNTS]
     q = ','.join('?' * len(ids))
     cur.execute(f'DELETE FROM note_user_grant WHERE grantor_id IN ({q}) OR grantee_id IN ({q})', ids + ids)
+    # #19 的 grantor 清理（其 grantee 即 mtxcapmgr*，已包含在上面的 id 集合里）
+    cur.execute('DELETE FROM note_user_grant WHERE grantor_id=?', (2106100000000000012,))
     con.commit()
     con.close()
     print(f'ok: {len(ACCOUNTS)} 个验收账号就绪，授权行已重置')

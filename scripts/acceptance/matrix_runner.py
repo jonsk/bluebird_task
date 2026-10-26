@@ -45,6 +45,13 @@ U = {
     'mtxviewer': '2106100000000000009',
     'mtxsub1': '2106100000000000010',
     'mtxsub2': '2106100000000000011',
+    'mtxcap': '2106100000000000012',
+    'mtxcapmgr1': '2106100000000000013',
+    'mtxcapmgr2': '2106100000000000014',
+    'mtxcapmgr3': '2106100000000000015',
+    'mtxcapmgr4': '2106100000000000016',
+    'mtxcapmgr5': '2106100000000000017',
+    'mtxcapmgr6': '2106100000000000018',
 }
 
 TODAY = date.today()
@@ -224,7 +231,9 @@ def reset_test_grants():
     """清理测试账号的授权行，保证 PENDING/升级用例可重复执行。"""
     import sqlite3
 
-    ids = [int(U[k]) for k in ('mtxviewer', 'mtxsub1', 'mtxsub2')]
+    ids = [int(U[k]) for k in ('mtxviewer', 'mtxsub1', 'mtxsub2', 'mtxcap',
+                               'mtxcapmgr1', 'mtxcapmgr2', 'mtxcapmgr3',
+                               'mtxcapmgr4', 'mtxcapmgr5', 'mtxcapmgr6')]
     q = ','.join('?' * len(ids))
     con = sqlite3.connect(DB_PATH, timeout=10)
     con.execute(f'DELETE FROM note_user_grant WHERE grantor_id IN ({q}) OR grantee_id IN ({q})', ids + ids)
