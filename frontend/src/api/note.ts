@@ -11,9 +11,6 @@ import type {
   NoteAttachmentVO,
   NoteTagFacetItem,
   NoteCalendarDay,
-  NoteUserGrantReq,
-  NoteUserGrantVO,
-  NoteGrantListData,
   NoteScope,
   NoteCalendarScope,
   NoteQuery,
@@ -88,47 +85,4 @@ export function calendar(
   scope: NoteCalendarScope = 'mine',
 ): Promise<NoteCalendarDay[]> {
   return get<NoteCalendarDay[]>('/notes/calendar', { year, month, scope })
-}
-
-// ---- 授权 ----
-export function listGrants(tab: string, status?: string, role?: string, mode?: string): Promise<NoteUserGrantVO[]> {
-  return get<NoteUserGrantVO[]>('/note-grants', { tab, status, role, mode })
-}
-
-export function getGrant(id: number): Promise<NoteUserGrantVO> {
-  return get<NoteUserGrantVO>(`/note-grants/${id}`)
-}
-
-export function createGrant(payload: NoteUserGrantReq): Promise<NoteUserGrantVO> {
-  return post<NoteUserGrantVO>('/note-grants', payload)
-}
-
-export function approveGrant(id: number): Promise<NoteUserGrantVO> {
-  return post<NoteUserGrantVO>(`/note-grants/${id}/approve`)
-}
-
-export function rejectGrant(id: number): Promise<NoteUserGrantVO> {
-  return post<NoteUserGrantVO>(`/note-grants/${id}/reject`)
-}
-
-export function upgradeGrant(id: number): Promise<NoteUserGrantVO> {
-  return post<NoteUserGrantVO>(`/note-grants/${id}/upgrade`)
-}
-
-export function revokeGrant(id: number): Promise<void> {
-  return del<void>(`/note-grants/${id}`)
-}
-
-// 授权列表分页（若后端返回数组，本地分页封装）
-export function listGrantsPaged(tab: string, page: number, size: number, filters?: { status?: string; role?: string; mode?: string }): Promise<NoteGrantListData> {
-  return listGrants(tab, filters?.status, filters?.role, filters?.mode).then((list) => {
-    const total = list.length
-    const start = (page - 1) * size
-    return {
-      list: list.slice(start, start + size),
-      total,
-      page,
-      size,
-    } as NoteGrantListData
-  })
 }

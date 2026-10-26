@@ -14,19 +14,13 @@ export type NoteAttachmentBindReq = components['schemas']['NoteAttachmentBindReq
 export type NoteAttachmentVO = components['schemas']['NoteAttachmentVO']
 export type NoteTagFacetItem = components['schemas']['NoteTagFacetItem']
 export type NoteCalendarDay = components['schemas']['NoteCalendarDay']
-export type NoteUserGrantReq = components['schemas']['NoteUserGrantReq']
-export type NoteUserGrantVO = components['schemas']['NoteUserGrantVO']
 export type TagVO = components['schemas']['TagVO']
 export type TaskSearchData = components['schemas']['TaskSearchData']
 export type TaskSearchItem = components['schemas']['TaskSearchItem']
 export type FileVO = components['schemas']['FileVO']
 
-export type NoteGrantRole = 'VIEWER' | 'EDITOR'
-export type NoteGrantStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED'
-export type NoteGrantMode = 'OWNER' | 'SUPERIOR' | 'ADMIN'
-
-/** 5 个列表作用域（visible 仅用于内部可见性等价，无独立列表页）。 */
-export type NoteScope = 'mine' | 'shared' | 'subordinate' | 'visible' | 'all'
+/** 4 个列表作用域（visible 仅用于内部可见性等价，无独立列表页）。 */
+export type NoteScope = 'mine' | 'subordinate' | 'visible' | 'all'
 /** 日历作用域（不含 visible）。 */
 export type NoteCalendarScope = Exclude<NoteScope, 'visible' | 'all'>
 
@@ -49,13 +43,6 @@ export interface NoteQuery {
 
 /** setQuery 入参：剔除 scope/page/size（防绕过 route.meta 与分页单一入口）。 */
 export type NoteQueryPatch = Partial<Omit<NoteQuery, 'scope' | 'page' | 'size'>>
-
-export interface NoteGrantListData {
-  list: NoteUserGrantVO[]
-  total: number
-  page: number
-  size: number
-}
 
 /** 新建后临时卡片（与时间戳一起存，TTL 30 分钟）。 */
 export interface NoteDraft {

@@ -42,7 +42,7 @@ function readQueryFromRoute(route: ReturnType<typeof useRoute>): NoteQueryPatch 
   }
 }
 
-const SCOPES: NoteScope[] = ['mine', 'shared', 'subordinate', 'visible', 'all']
+const SCOPES: NoteScope[] = ['mine', 'subordinate', 'visible', 'all']
 
 export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult {
   const route = useRoute()
@@ -156,7 +156,7 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
     void run()
   }
   function refresh(): void {
-    // 先失效**全部 scope** 再强制重拉：新建/授权会同时改变 mine/shared/subordinate/all 等
+    // 先失效**全部 scope** 再强制重拉：新建会同时改变 mine/shared/subordinate/all 等
     // 多个作用域，只失效当前 scope 会让"切回上一个页签看到旧数据"；
     // 也必须 force，否则同 key 的缓存会让列表看起来"保存没生效"。
     if (!options.isolated) store.invalidate(SCOPES)

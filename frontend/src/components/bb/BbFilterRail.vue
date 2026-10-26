@@ -11,7 +11,6 @@ import {
   Delete,
   Edit,
   Fold,
-  Key,
   List,
   Notebook,
   Plus,
@@ -20,7 +19,6 @@ import {
   Sunny,
   SwitchButton,
   User,
-  View,
 } from '@element-plus/icons-vue'
 import { useAppStore, type ThemeKey } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -38,7 +36,8 @@ import { logoutEverywhere } from '@/utils/logout'
  * ⑥ 分类树已移除（2026-10-13，左栏下方不再有分类区块）。
  * ⑦ 2026-10-24 方案 A：按 `route.meta.module` 分「任务 / 工作日志」两组，
  *    分组折叠状态按模块持久化（`bb.filter-rail.<module>.collapsed`），
- *    工作日志组 = 我的 / 被授权 / 员工（开关）/ 授权管理；「全部日志」已移到后台（/admin/notes，仅 ADMIN）。
+ *    工作日志组 = 我的 / 员工（开关）；「全部日志」已移到后台（/admin/notes，仅 ADMIN）。
+ *    2026-10-26 二轮减法：授权日志（被授权 / 授权管理）整体下线。
  *    task 组在 note 页隐藏自定义栏。
  */
 const app = useAppStore()
@@ -65,12 +64,10 @@ const noteNavItems = computed<
 >(() => {
   const items: Array<{ name: string; label: string; icon: unknown; test: string }> = [
     { name: 'NoteHome', label: '我的日志', icon: Notebook, test: 'note-mine' },
-    { name: 'NoteShared', label: '被授权日志', icon: View, test: 'note-shared' },
   ]
   if (auth.user?.managerCanReadSubordinate) {
     items.push({ name: 'NoteSubordinate', label: '员工日志', icon: User, test: 'note-subordinate' })
   }
-  items.push({ name: 'NoteGrants', label: '授权管理', icon: Key, test: 'note-grants' })
   return items
 })
 

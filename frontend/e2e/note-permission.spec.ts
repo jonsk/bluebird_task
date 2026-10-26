@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { freezeTime, goAdmin, gotoLogin, nav } from './helpers'
+import { freezeTime, goAdmin, gotoLogin } from './helpers'
 
 /**
  * 权限分支 e2e（依赖 mock 多账号身份 `src/mocks/identity.ts`）
@@ -41,7 +41,8 @@ test.describe('工作日志 · 权限分支', () => {
     await expect(page.locator('[data-test="nav-note-mine"]')).toBeVisible()
     await expect(page.locator('[data-test="nav-note-all"]')).toHaveCount(0)
     await expect(page.locator('[data-test="nav-note-subordinate"]')).toHaveCount(0)
-    await expect(page.locator('[data-test="nav-note-grants"]')).toBeVisible()
+    await expect(page.locator('[data-test="nav-note-grants"]')).toHaveCount(0)
+    await expect(page.locator('[data-test="nav-note-shared"]')).toHaveCount(0)
   })
 
   test('P-03 无下属权限访问「员工日志」→ 403 空态 + 无权限文案', async ({ page }) => {
@@ -63,12 +64,13 @@ test.describe('工作日志 · 权限分支', () => {
     await expect(page.locator('[data-test="note-page-empty"]')).toHaveCount(0)
   })
 
-  test('P-05 审计员无「全部日志」，被授权日志正常', async ({ page }) => {
+  test('P-05 审计员无「全部日志」，工作日志只剩「我的」', async ({ page }) => {
     await loginAs(page, 'auditor', 'Test@1234')
     await page.goto('/notes')
     await expect(page.locator('[data-test="nav-note-all"]')).toHaveCount(0)
-    await nav(page, 'note-shared').click()
-    await expect(page).toHaveURL(/\/notes\/shared$/)
+    await expect(page.locator('[data-test="nav-note-mine"]')).toBeVisible()
+    await expect(page.locator('[data-test="nav-note-shared"]')).toHaveCount(0)
+    await expect(page.locator('[data-test="nav-note-grants"]')).toHaveCount(0)
     await expect(page.locator('[data-test="note-list-error"]')).toHaveCount(0)
   })
 })

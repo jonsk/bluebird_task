@@ -24,7 +24,7 @@ test.describe('工作日志', () => {
     await page.goto('/notes')
     await expect(page).toHaveURL(/\/notes$/)
     await expect(page.locator('.note-card')).toHaveCount(2)
-    for (const key of ['note-mine', 'note-shared', 'note-subordinate', 'note-grants']) {
+    for (const key of ['note-mine', 'note-subordinate']) {
       await expect(page.locator(`[data-test="nav-${key}"]`)).toBeVisible()
     }
   })
@@ -71,10 +71,9 @@ test.describe('工作日志', () => {
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('已改为两栏布局')
   })
 
-  test('N-04 三个作用域列表与左栏一致', async ({ page }) => {
+  test('N-04 两个作用域列表与左栏一致', async ({ page }) => {
     const cases: Array<{ nav: string; url: RegExp; count: number; text: string }> = [
       { nav: 'note-mine', url: /\/notes$/, count: 2, text: '工作日志的前端骨架' },
-      { nav: 'note-shared', url: /\/notes\/shared$/, count: 2, text: '被授权给管理员查看' },
       { nav: 'note-subordinate', url: /\/notes\/subordinate$/, count: 3, text: '部门树递归查询' },
     ]
     for (const c of cases) {
@@ -116,19 +115,18 @@ test.describe('工作日志', () => {
     await expect(page.locator('.note-page')).toContainText('移动端适配方案')
   })
 
-  test('N-08 授权管理：Tab 切换 + 升级为可编辑', async ({ page }) => {
-    await page.locator('[data-test="nav-note-grants"]').click()
-    await expect(page).toHaveURL(/\/notes\/grants$/)
-    const table = page.locator('[data-test="grant-table"]')
-    // 默认「我发起的」：管理员 → 王五（只读，已生效）
-    await expect(table).toContainText('王五')
-    await expect(table).toContainText('只读')
-    await page.getByRole('button', { name: '升级为可编辑' }).first().click()
-    await expect(table).toContainText('可编辑')
+  test('N-08 授权能力已下线：无授权入口、旧地址不可达', async ({ page }) => {
+    await page.goto('/notes')
+    await expect(page.locator('[data-test="nav-note-mine"]')).toBeVisible()
+    // 左栏不再有「被授权日志 / 授权管理」
+    await expect(page.locator('[data-test="nav-note-shared"]')).toHaveCount(0)
+    await expect(page.locator('[data-test="nav-note-grants"]')).toHaveCount(0)
 
-    // 「涉及我的」：李四 → 管理员
-    await page.getByRole('tab', { name: '涉及我的' }).click()
-    await expect(table).toContainText('李四')
+    // 旧书签直接访问 → 兜底 404 页（路由已删）
+    await page.goto('/notes/grants')
+    await expect(page.locator('.error-page h1')).toHaveText('404')
+    await page.goto('/notes/shared')
+    await expect(page.locator('.error-page h1')).toHaveText('404')
   })
 
   test('N-09 右栏当日日志：随选中日变化', async ({ page }) => {

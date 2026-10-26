@@ -8,8 +8,8 @@ declare module 'vue-router' {
     roles?: RoleCode[]
     /** 左栏分组单一来源：'task' | 'note'（缺省按任务处理） */
     module?: 'task' | 'note'
-    /** note 列表 scope（5 值集合的子集；NoteListView/useNoteList 唯一输入） */
-    scope?: 'mine' | 'shared' | 'subordinate' | 'visible' | 'all'
+    /** note 列表 scope（4 值集合的子集；NoteListView/useNoteList 唯一输入） */
+    scope?: 'mine' | 'subordinate' | 'visible' | 'all'
   }
 }
 
@@ -59,22 +59,10 @@ export const routes: RouteRecordRaw[] = [
         meta: { module: 'note', scope: 'mine', title: '我的日志', requiresAuth: true },
       },
       {
-        path: 'notes/shared',
-        name: 'NoteShared',
-        component: () => import('@/views/note/NoteSharedView.vue'),
-        meta: { module: 'note', scope: 'shared', title: '被授权日志', requiresAuth: true },
-      },
-      {
         path: 'notes/subordinate',
         name: 'NoteSubordinate',
         component: () => import('@/views/note/NoteSubordinateView.vue'),
         meta: { module: 'note', scope: 'subordinate', title: '员工日志', requiresAuth: true },
-      },
-      {
-        path: 'notes/grants',
-        name: 'NoteGrants',
-        component: () => import('@/views/note/NoteUserGrantView.vue'),
-        meta: { module: 'note', title: '授权管理', requiresAuth: true },
       },
       {
         path: 'notes/calendar',

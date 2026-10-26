@@ -6,7 +6,7 @@ import { canReadSubordinate, isAdminRequest } from './identity'
  * Note（工作日志）MSW Mock —— 内存实现，覆盖 `docs/api/openapi.yaml` 的 note 相关端点。
  *
  * 为什么单独成文件而不塞进 `handlers.ts`：note 有一整套独立的作用域/授权/引用语义
- * （7 个 scope + 4 类 grant Tab + 附件 + 引用/被引用），与任务侧数据完全隔离，
+ * （4 个 scope + 附件 + 引用/被引用），与任务侧数据完全隔离，
  * 混在一起会出现「任务 fixture 变更顺手改坏日志 mock」的耦合。
  *
  * 数据基线对齐 E2E 冻结时间 `2026-09-28T10:00+08:00`（见 `e2e/helpers.ts`）：
@@ -58,24 +58,6 @@ interface RelationRow {
   createdBy: number
   createdByName: string
 }
-interface GrantRow {
-  id: number
-  grantorId: number
-  grantorName: string
-  granteeId: number
-  granteeName: string
-  role: 'VIEWER' | 'EDITOR'
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED'
-  mode: 'OWNER' | 'SUPERIOR' | 'ADMIN'
-  createdBy: number
-  createdByName: string
-  createdAt: string
-  approvedBy: number | null
-  approvedAt: string | null
-  revokedAt: string | null
-  revokedBy: number | null
-}
-
 const me = dataOf<{ id: number; name: string; username: string; roleCode: string; deptId?: number | null }>('users/GET.me')
 const ME = Number(me.id)
 const ME_NAME = me.name ?? me.username
@@ -92,11 +74,10 @@ const TAG_NAMES: Record<number, string> = { 1: '重要', 2: '紧急', 3: '日常
 
 const names = (ids: number[]): TagVO[] => ids.map((id) => ({ id, name: TAG_NAMES[id] ?? `标签${id}` }))
 
-/** 初始日志：覆盖 mine（1001/1002）/ shared（李四授权）/ subordinate（李四、张三）/ all（后台）。 */
+/** 初始日志：覆盖 mine（1001/1002）/ subordinate（李四、张三）/ visible / all（后台）。 */
 // 起始值需大于 fixture 最大 id（1007），否则新建日志会与既有卡片撞 id
 let noteSeq = 1100
 let refSeq = 5000
-let grantSeq = 7000
 const notes: NoteRow[] = [
   {
     id: 1001,
@@ -172,61 +153,6 @@ const notes: NoteRow[] = [
   },
 ]
 
-/** OWNER 授权：李四把日志以 VIEWER 授权给管理员（已生效）。 */
-const grants: GrantRow[] = [
-  {
-    id: 7001,
-    grantorId: 12,
-    grantorName: '李四',
-    granteeId: ME,
-    granteeName: ME_NAME,
-    role: 'VIEWER',
-    status: 'APPROVED',
-    mode: 'OWNER',
-    createdBy: 12,
-    createdByName: '李四',
-    createdAt: '2026-09-21T09:00:00+08:00',
-    approvedBy: ME,
-    approvedAt: '2026-09-21T09:05:00+08:00',
-    revokedAt: null,
-    revokedBy: null,
-  },
-  {
-    id: 7002,
-    grantorId: 12,
-    grantorName: '李四',
-    granteeId: 11,
-    granteeName: '张三',
-    role: 'EDITOR',
-    status: 'PENDING',
-    mode: 'OWNER',
-    createdBy: 12,
-    createdByName: '李四',
-    createdAt: '2026-09-22T10:00:00+08:00',
-    approvedBy: null,
-    approvedAt: null,
-    revokedAt: null,
-    revokedBy: null,
-  },
-  {
-    id: 7003,
-    grantorId: ME,
-    grantorName: ME_NAME,
-    granteeId: 8,
-    granteeName: '王五',
-    role: 'VIEWER',
-    status: 'APPROVED',
-    mode: 'OWNER',
-    createdBy: ME,
-    createdByName: ME_NAME,
-    createdAt: '2026-09-23T10:00:00+08:00',
-    approvedBy: 8,
-    approvedAt: '2026-09-23T10:05:00+08:00',
-    revokedAt: null,
-    revokedBy: null,
-  },
-]
-
 const relations: RelationRow[] = [
   {
     id: 5001,
@@ -259,16 +185,10 @@ function isSubordinateOf(ownerId: number): boolean {
   return USERS[ownerId]?.leader === ME
 }
 
-function approvedGrantsFor(granteeId: number): GrantRow[] {
-  return grants.filter((g) => g.granteeId === granteeId && g.status === 'APPROVED')
-}
-
 /** 当前用户对某条日志的权限（作者 / 编辑授权 / 只读授权 / 管理员）。 */
 function permsOf(n: NoteRow): { canEdit: boolean; canManage: boolean } {
   if (n.ownerId === ME) return { canEdit: true, canManage: true }
   if (IS_ADMIN) return { canEdit: true, canManage: true }
-  const granted = approvedGrantsFor(ME).filter((g) => g.grantorId === n.ownerId)
-  if (granted.some((g) => g.role === 'EDITOR')) return { canEdit: true, canManage: false }
   return { canEdit: false, canManage: false }
 }
 
@@ -280,8 +200,6 @@ function inScope(n: NoteRow, scope: string): boolean {
   switch (scope) {
     case 'mine':
       return n.ownerId === ME
-    case 'shared':
-      return n.ownerId !== ME && approvedGrantsFor(ME).some((g) => g.grantorId === n.ownerId)
     case 'subordinate':
       return isSubordinateOf(n.ownerId)
     case 'all':
@@ -289,7 +207,6 @@ function inScope(n: NoteRow, scope: string): boolean {
     case 'visible':
     default:
       if (n.ownerId === ME) return true
-      if (approvedGrantsFor(ME).some((g) => g.grantorId === n.ownerId)) return true
       return isSubordinateOf(n.ownerId)
   }
 }
@@ -316,12 +233,11 @@ function brief(n: NoteRow) {
 
 /**
  * 字段级可编辑性：与后端 `NoteAuthService.fieldPermissions` 同规则
- * （owner/ADMIN 全 true；EDITOR 仅正文+日期；其余全 false）。
+ * （owner/ADMIN 全 true；其余全 false）。
  */
 function fieldPermsOf(n: NoteRow): { content: boolean; logDate: boolean; tagIds: boolean } {
   const p = permsOf(n)
-  if (p.canManage) return { content: true, logDate: true, tagIds: true }
-  if (p.canEdit) return { content: true, logDate: true, tagIds: false }
+  if (p.canEdit) return { content: true, logDate: true, tagIds: true }
   return { content: false, logDate: false, tagIds: false }
 }
 
@@ -693,93 +609,6 @@ export const noteHandlers = [
           }
         }),
     )
-  }),
-
-  // ---- 授权 ----
-  http.get(`${AUTH}/note-grants`, ({ request }) => {
-    const url = new URL(request.url)
-    const tab = url.searchParams.get('tab') ?? 'created'
-    const status = url.searchParams.get('status')
-    let list = [...grants]
-    if (tab === 'created') list = list.filter((g) => g.createdBy === ME)
-    else if (tab === 'granted') list = list.filter((g) => g.grantorId === ME)
-    else if (tab === 'incoming') list = list.filter((g) => g.granteeId === ME)
-    else if (tab === 'all' && !IS_ADMIN) return ok([])
-    if (status) list = list.filter((g) => g.status === status)
-    return ok(
-      list.map((g) => ({
-        ...g,
-        direction: g.grantorId === ME ? 'outgoing' : g.granteeId === ME ? 'incoming' : 'none',
-        canApprove: g.granteeId === ME && g.status === 'PENDING',
-        canReject: g.granteeId === ME && g.status === 'PENDING',
-        canUpgrade: (g.grantorId === ME || IS_ADMIN) && g.status === 'APPROVED' && g.role === 'VIEWER',
-        canRevoke: (g.grantorId === ME || IS_ADMIN) && (g.status === 'APPROVED' || g.status === 'PENDING'),
-      })),
-    )
-  }),
-  http.get(`${AUTH}/note-grants/:id`, ({ params }) => {
-    const g = grants.find((x) => String(x.id) === params.id)
-    if (!g) return fail(10004, '资源不存在', 404)
-    return ok(g)
-  }),
-  http.post(`${AUTH}/note-grants`, async ({ request }) => {
-    const body = (await request.json()) as Partial<GrantRow>
-    const grantorId = Number(body.grantorId ?? ME)
-    const granteeId = Number(body.granteeId ?? 0)
-    if (!granteeId) return fail(10001, '被授权人必填', 400)
-    if (granteeId === grantorId) return fail(50008, '不能给自己授权')
-    const mode = (body.mode ?? 'OWNER') as GrantRow['mode']
-    if (mode === 'SUPERIOR' && !isSubordinateOf(grantorId)) return fail(50011, '只能选择自己的下属')
-    const row: GrantRow = {
-      id: ++grantSeq,
-      grantorId,
-      grantorName: USERS[grantorId]?.name ?? ME_NAME,
-      granteeId,
-      granteeName: USERS[granteeId]?.name ?? '未知用户',
-      role: (body.role ?? 'VIEWER') as GrantRow['role'],
-      status: mode === 'SUPERIOR' ? 'PENDING' : 'APPROVED',
-      mode,
-      createdBy: ME,
-      createdByName: ME_NAME,
-      createdAt: nowIso(),
-      approvedBy: mode === 'SUPERIOR' ? null : ME,
-      approvedAt: mode === 'SUPERIOR' ? null : nowIso(),
-      revokedAt: null,
-      revokedBy: null,
-    }
-    grants.push(row)
-    return ok(row)
-  }),
-  http.post(`${AUTH}/note-grants/:id/approve`, ({ params }) => {
-    const g = grants.find((x) => String(x.id) === params.id)
-    if (!g) return fail(10004, '资源不存在', 404)
-    if (g.status !== 'PENDING') return fail(50014, '状态已变更，请刷新')
-    g.status = 'APPROVED'
-    g.approvedBy = ME
-    g.approvedAt = nowIso()
-    return ok(g)
-  }),
-  http.post(`${AUTH}/note-grants/:id/reject`, ({ params }) => {
-    const g = grants.find((x) => String(x.id) === params.id)
-    if (!g) return fail(10004, '资源不存在', 404)
-    if (g.status !== 'PENDING') return fail(50014, '状态已变更，请刷新')
-    g.status = 'REJECTED'
-    return ok(g)
-  }),
-  http.post(`${AUTH}/note-grants/:id/upgrade`, ({ params }) => {
-    const g = grants.find((x) => String(x.id) === params.id)
-    if (!g) return fail(10004, '资源不存在', 404)
-    if (g.role !== 'VIEWER') return fail(50014, '权限已升级，请刷新')
-    g.role = 'EDITOR'
-    return ok(g)
-  }),
-  http.delete(`${AUTH}/note-grants/:id`, ({ params }) => {
-    const g = grants.find((x) => String(x.id) === params.id)
-    if (!g) return fail(10004, '资源不存在', 404)
-    g.status = 'REVOKED'
-    g.revokedAt = nowIso()
-    g.revokedBy = ME
-    return ok(null)
   }),
 
   ...taskAttachmentHandlers(),

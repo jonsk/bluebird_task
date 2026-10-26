@@ -5,7 +5,7 @@ import { HttpError, BizError } from '@/api/http'
 import type { NoteScope } from '@/types/note'
 
 /** 变更后受影响的 scope 集合（用于缓存失效；日志只有「我的 / 被授权 / 员工 / 全部」四处）。 */
-export const AFFECTED_SCOPES: NoteScope[] = ['mine', 'shared', 'subordinate', 'all']
+export const AFFECTED_SCOPES: NoteScope[] = ['mine', 'subordinate', 'all']
 
 function hint(e: unknown): string {
   if (e instanceof BizError) return e.message

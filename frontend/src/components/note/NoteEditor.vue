@@ -32,21 +32,18 @@ const props = withDefaults(
 /**
  * 字段是否可编辑：
  * 1) 编辑态使用详情接口下发的 `fieldPermissions`（后端唯一事实来源）；
- * 2) 未下发（旧后端 / mock 未升级）时回退到 `grantRole`：EDITOR 仅正文与日期可改；
+ * 2) 未下发（旧后端 / mock 未升级）时按"全部可改"处理（只有 owner/ADMIN 能进编辑态）；
  * 3) 新建态不受限。
  */
-const loadedRole = ref<string | null>(null)
 const loadedPerms = ref<{ content?: boolean; logDate?: boolean; tagIds?: boolean } | null>(null)
 
 const locks = computed(() => {
   const explicit = loadedPerms.value ?? props.fieldPermissions ?? null
-  // 空对象 = 未下发（默认值），此时回退到 grantRole 规则
+  // 空对象 = 未下发，视为全可改
   const perms = explicit && Object.keys(explicit).length > 0 ? explicit : null
-  const editorFallback = perms == null && loadedRole.value === 'EDITOR'
   const locked = (key: 'content' | 'logDate' | 'tagIds'): boolean => {
     if (perms == null) {
-      // 回退：只有 EDITOR 受限（仅正文与日期可改）
-      return editorFallback && key === 'tagIds'
+      return false
     }
     return perms[key] === false
   }
@@ -91,7 +88,6 @@ async function loadDetail(): Promise<void> {
     logDate.value = d.logDate ?? todayInShanghai()
     tagIds.value = (d.tags ?? []).map((t) => t.id!).filter((id): id is number => id != null)
     version.value = d.version
-    loadedRole.value = (d as { grantRole?: string | null }).grantRole ?? null
     loadedPerms.value = (d as { fieldPermissions?: typeof loadedPerms.value }).fieldPermissions ?? null
   } catch (e) {
     const msg = e instanceof BizError || e instanceof HttpError ? e.message : (e as Error).message
@@ -207,13 +203,6 @@ function onCtrlEnter(e?: Event): void {
       </div>
       <p v-if="!canEditField('content')" class="note-editor__hint" data-test="note-editor-readonly-hint">
         当前为只读视图，无可编辑字段。
-      </p>
-      <p
-        v-else-if="!canEditField('tagIds')"
-        class="note-editor__hint"
-        data-test="note-editor-field-hint"
-      >
-        作为协作者，仅可修改正文与日期；标签由作者维护。
       </p>
 
       <div class="note-editor__ops">

@@ -20,7 +20,7 @@ export interface MonthCalendarState {
   reload: () => void
 }
 
-const VALID_SCOPES: NoteCalendarScope[] = ['mine', 'shared', 'subordinate']
+const VALID_SCOPES: NoteCalendarScope[] = ['mine', 'subordinate']
 
 /**
  * 全页日历状态（loader 可选；缺省用内置 note loader）。

@@ -2270,13 +2270,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 工作日志分页（5 种 scope + 过滤/排序）
-         * @description `scope`：`mine`（默认）| `shared`（他人授权给我）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
+         * 工作日志分页（4 种 scope + 过滤/排序）
+         * @description `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
          */
         get: {
             parameters: {
                 query?: {
-                    scope?: "mine" | "shared" | "subordinate" | "visible" | "all";
+                    scope?: "mine" | "subordinate" | "visible" | "all";
                     tagId?: number;
                     tagName?: string;
                     keyword?: string;
@@ -2477,8 +2477,8 @@ export interface paths {
             };
         };
         /**
-         * 修改日志（owner/ADMIN/EDITOR；乐观锁 version）
-         * @description 归档日志：owner/ADMIN 仍可修改；EDITOR 返回 **HTTP 200 + code 50013**（归档只读，明确提示而非 404）。 未获授权的用户仍按不可见处理（404）。
+         * 修改日志（仅 owner/ADMIN；乐观锁 version）
+         * @description 仅 owner 与 ADMIN 可写；其余人（含上级只读视角）不可见 → 404，可见但只读 → 403。
          */
         put: {
             parameters: {
@@ -2506,7 +2506,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description 无编辑权（VIEWER/非授权） */
+                /** @description 可见但只读（上级视角） */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -2911,236 +2911,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/note-grants": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 授权列表
-         * @description `tab=created`（我发起的申请）| `granted`（我作为日志主人的授权）| `incoming`（他人向我申请/授权给我）| `all`（ADMIN）。
-         */
-        get: {
-            parameters: {
-                query?: {
-                    tab?: "created" | "granted" | "incoming" | "all";
-                    status?: "PENDING" | "APPROVED" | "REJECTED" | "REVOKED";
-                    role?: "VIEWER" | "EDITOR";
-                    mode?: "OWNER" | "SUPERIOR" | "ADMIN";
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiResult"] & {
-                            data?: components["schemas"]["NoteUserGrantVO"][];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        /** 发起授权（mode=OWNER 直接生效；SUPERIOR 需下属审批；ADMIN 直接生效） */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["NoteUserGrantReq"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiResult"] & {
-                            data?: components["schemas"]["NoteUserGrantVO"];
-                        };
-                    };
-                };
-                /** @description 参数非法（角色/模式/用户） */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description 无发起权 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/note-grants/{id}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 通过申请（仅 grantor，即日志主人；写 approved_by/approved_at） */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK（返回 NoteUserGrantVO） */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/note-grants/{id}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 拒绝申请 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK（返回 NoteUserGrantVO） */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/note-grants/{id}/upgrade": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** VIEWER → EDITOR 升级 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK（返回 NoteUserGrantVO） */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/note-grants/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** 撤销授权 */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK（返回 NoteUserGrantVO） */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/audit/operates": {
         parameters: {
             query?: never;
@@ -3359,8 +3129,11 @@ export interface components {
             /** @description 完整正文（仅详情返回） */
             content?: string;
             ownerDept?: string | null;
-            /** @enum {string|null} */
-            grantRole?: "VIEWER" | "EDITOR" | "OWNER" | "ADMIN" | null;
+            /**
+             * @description OWNER=本人；ADMIN=管理员；其余人不可见
+             * @enum {string|null}
+             */
+            role?: "OWNER" | "ADMIN" | null;
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
@@ -3374,7 +3147,7 @@ export interface components {
             ownerTags?: components["schemas"]["TagVO"][] | null;
             fieldPermissions?: components["schemas"]["NoteFieldPermissionsVO"];
         };
-        /** @description 字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应： owner/ADMIN 三项全 true；EDITOR 仅 content/logDate 为 true（改 tagIds → 50013）；VIEWER 等只读可见者全 false。 */
+        /** @description 字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应： owner/ADMIN 三项全 true；其余只读可见者（上级视角）全 false。 */
         NoteFieldPermissionsVO: {
             content?: boolean;
             logDate?: boolean;
@@ -3486,64 +3259,6 @@ export interface components {
             /** Format: date */
             date?: string;
             count?: number;
-        };
-        /** @description `OWNER`：日志主人授权他人，`grantorId` 必须省略（服务端取当前用户），`granteeId` 必填，立即 APPROVED； `SUPERIOR`：主管申请下属日志，`grantorId`=下属（必须是自己下属）、`granteeId` 必须省略（推导为当前用户），落 PENDING； `ADMIN`：`grantorId`/`granteeId` 均必填，立即 APPROVED。 */
-        NoteUserGrantReq: {
-            /**
-             * @description OWNER=日志主人授权；SUPERIOR=主管申请下属日志；ADMIN=管理员授权
-             * @enum {string}
-             */
-            mode: "OWNER" | "SUPERIOR" | "ADMIN";
-            /**
-             * Format: int64
-             * @description 日志主人（SUPERIOR/ADMIN 必填，OWNER 禁填）
-             */
-            grantorId?: number;
-            /**
-             * Format: int64
-             * @description 被授权人（OWNER/ADMIN 必填，SUPERIOR 禁填）
-             */
-            granteeId?: number;
-            /** @enum {string} */
-            role: "VIEWER" | "EDITOR";
-        };
-        NoteUserGrantVO: {
-            /** Format: int64 */
-            id?: number;
-            /** Format: int64 */
-            grantorId?: number;
-            grantorName?: string;
-            /** Format: int64 */
-            granteeId?: number;
-            granteeName?: string;
-            /** @enum {string} */
-            role?: "VIEWER" | "EDITOR";
-            /** @enum {string} */
-            status?: "PENDING" | "APPROVED" | "REJECTED" | "REVOKED";
-            /** @enum {string} */
-            mode?: "OWNER" | "SUPERIOR" | "ADMIN";
-            /**
-             * @description outgoing=我是日志主人；incoming=他人向我授权/申请；none=ADMIN 视角
-             * @enum {string}
-             */
-            direction?: "outgoing" | "incoming" | "none";
-            /** Format: int64 */
-            createdBy?: number;
-            createdByName?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: int64 */
-            approvedBy?: number | null;
-            /** Format: date-time */
-            approvedAt?: string | null;
-            /** Format: date-time */
-            revokedAt?: string | null;
-            /** Format: int64 */
-            revokedBy?: number | null;
-            canApprove?: boolean;
-            canReject?: boolean;
-            canUpgrade?: boolean;
-            canRevoke?: boolean;
         };
         TaskVO: {
             /** Format: int64 */

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { freezeTime, goView, login } from './helpers'
+import { freezeTime, login } from './helpers'
 
 /**
  * 视觉回归基线 · 补充场景（1280×800 窄屏 + 空态 + 行内编辑 + 授权页）
@@ -50,10 +50,4 @@ test.describe('视觉回归基线 · 窄屏与状态（1280×800）', () => {
     await expect(page).toHaveScreenshot('notes-inline-editor-1280x800.png')
   })
 
-  test('授权管理（状态徽标列表）', async ({ page }) => {
-    await login(page)
-    await goView(page, 'note-grants', /\/notes\/grants$/)
-    await expect(page.locator('[data-test="grant-table"] .el-table__row').first()).toBeVisible()
-    await expect(page).toHaveScreenshot('notes-grants-1280x800.png')
-  })
 })

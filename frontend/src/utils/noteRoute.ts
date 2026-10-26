@@ -6,8 +6,6 @@ import type { NoteScope } from '@/types/note'
  */
 export function noteListRouteOf(scope: NoteScope): string {
   switch (scope) {
-    case 'shared':
-      return '/notes/shared'
     case 'subordinate':
       return '/notes/subordinate'
     case 'all':

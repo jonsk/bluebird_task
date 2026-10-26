@@ -747,13 +747,13 @@ paths:
   /notes:
     get:
       tags: [note]
-      summary: 工作日志分页（5 种 scope + 过滤/排序）
+      summary: 工作日志分页（4 种 scope + 过滤/排序）
       description: >
-        `scope`：`mine`（默认）| `shared`（他人授权给我）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）|
+        `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）|
         `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。
         `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
       parameters:
-        - { name: scope, in: query, schema: { type: string, enum: [mine, shared, subordinate, visible, all], default: mine } }
+        - { name: scope, in: query, schema: { type: string, enum: [mine, subordinate, visible, all], default: mine } }
         - { name: tagId, in: query, schema: { type: integer, format: int64 } }
         - { name: tagName, in: query, schema: { type: string } }
         - { name: keyword, in: query, schema: { type: string } }
@@ -827,10 +827,9 @@ paths:
         '404': { description: 不存在或不可见（含归档且非 owner/ADMIN） }
     put:
       tags: [note]
-      summary: 修改日志（owner/ADMIN/EDITOR；乐观锁 version）
+      summary: 修改日志（仅 owner/ADMIN；乐观锁 version）
       description: >
-        归档日志：owner/ADMIN 仍可修改；EDITOR 返回 **HTTP 200 + code 50013**（归档只读，明确提示而非 404）。
-        未获授权的用户仍按不可见处理（404）。
+        仅 owner 与 ADMIN 可写；其余人（含上级只读视角）不可见 → 404，可见但只读 → 403。
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteUpdateReq' } } } }
       responses:
@@ -840,7 +839,7 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteDetailVO' } } }]
-        '403': { description: 无编辑权（VIEWER/非授权） }
+        '403': { description: 可见但只读（上级视角） }
         '404': { description: 不可见 }
         '409': { description: 版本冲突（10006）或归档只读 }
     delete:
@@ -950,62 +949,6 @@ paths:
         - { $ref: '#/components/parameters/Id' }
         - { $ref: '#/components/parameters/AttachmentId' }
       responses: { '200': { description: 文件流 } }
-
-  /note-grants:
-    get:
-      tags: [note]
-      summary: 授权列表
-      description: >
-        `tab=created`（我发起的申请）| `granted`（我作为日志主人的授权）| `incoming`（他人向我申请/授权给我）| `all`（ADMIN）。
-      parameters:
-        - { name: tab, in: query, schema: { type: string, enum: [created, granted, incoming, all], default: created } }
-        - { name: status, in: query, schema: { type: string, enum: [PENDING, APPROVED, REJECTED, REVOKED] } }
-        - { name: role, in: query, schema: { type: string, enum: [VIEWER, EDITOR] } }
-        - { name: mode, in: query, schema: { type: string, enum: [OWNER, SUPERIOR, ADMIN] } }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteUserGrantVO' } } } }]
-    post:
-      tags: [note]
-      summary: 发起授权（mode=OWNER 直接生效；SUPERIOR 需下属审批；ADMIN 直接生效）
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteUserGrantReq' } } } }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteUserGrantVO' } } }]
-        '400': { description: 参数非法（角色/模式/用户） }
-        '403': { description: 无发起权 }
-  /note-grants/{id}/approve:
-    post:
-      tags: [note]
-      summary: 通过申请（仅 grantor，即日志主人；写 approved_by/approved_at）
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { description: OK（返回 NoteUserGrantVO） } }
-  /note-grants/{id}/reject:
-    post:
-      tags: [note]
-      summary: 拒绝申请
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { description: OK（返回 NoteUserGrantVO） } }
-  /note-grants/{id}/upgrade:
-    post:
-      tags: [note]
-      summary: VIEWER → EDITOR 升级
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { description: OK（返回 NoteUserGrantVO） } }
-  /note-grants/{id}:
-    delete:
-      tags: [note]
-      summary: 撤销授权
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { description: OK（返回 NoteUserGrantVO） } }
 
   /audit/operates:
     get:
@@ -1197,7 +1140,7 @@ components:
           properties:
             content: { type: string, description: 完整正文（仅详情返回） }
             ownerDept: { type: string, nullable: true }
-            grantRole: { type: string, nullable: true, enum: [VIEWER, EDITOR, OWNER, ADMIN] }
+            role: { type: string, nullable: true, enum: [OWNER, ADMIN], description: OWNER=本人；ADMIN=管理员；其余人不可见 }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
     NoteDetailVO:
@@ -1218,7 +1161,7 @@ components:
       type: object
       description: >
         字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应：
-        owner/ADMIN 三项全 true；EDITOR 仅 content/logDate 为 true（改 tagIds → 50013）；VIEWER 等只读可见者全 false。
+        owner/ADMIN 三项全 true；其余只读可见者（上级视角）全 false。
       properties:
         content: { type: boolean }
         logDate: { type: boolean }
@@ -1303,41 +1246,6 @@ components:
       properties:
         date: { type: string, format: date }
         count: { type: integer }
-    NoteUserGrantReq:
-      type: object
-      required: [mode, role]
-      description: >
-        `OWNER`：日志主人授权他人，`grantorId` 必须省略（服务端取当前用户），`granteeId` 必填，立即 APPROVED；
-        `SUPERIOR`：主管申请下属日志，`grantorId`=下属（必须是自己下属）、`granteeId` 必须省略（推导为当前用户），落 PENDING；
-        `ADMIN`：`grantorId`/`granteeId` 均必填，立即 APPROVED。
-      properties:
-        mode: { type: string, enum: [OWNER, SUPERIOR, ADMIN], description: OWNER=日志主人授权；SUPERIOR=主管申请下属日志；ADMIN=管理员授权 }
-        grantorId: { type: integer, format: int64, description: 日志主人（SUPERIOR/ADMIN 必填，OWNER 禁填） }
-        granteeId: { type: integer, format: int64, description: 被授权人（OWNER/ADMIN 必填，SUPERIOR 禁填） }
-        role: { type: string, enum: [VIEWER, EDITOR] }
-    NoteUserGrantVO:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        grantorId: { type: integer, format: int64 }
-        grantorName: { type: string }
-        granteeId: { type: integer, format: int64 }
-        granteeName: { type: string }
-        role: { type: string, enum: [VIEWER, EDITOR] }
-        status: { type: string, enum: [PENDING, APPROVED, REJECTED, REVOKED] }
-        mode: { type: string, enum: [OWNER, SUPERIOR, ADMIN] }
-        direction: { type: string, enum: [outgoing, incoming, none], description: 'outgoing=我是日志主人；incoming=他人向我授权/申请；none=ADMIN 视角' }
-        createdBy: { type: integer, format: int64 }
-        createdByName: { type: string }
-        createdAt: { type: string, format: date-time }
-        approvedBy: { type: integer, format: int64, nullable: true }
-        approvedAt: { type: string, format: date-time, nullable: true }
-        revokedAt: { type: string, format: date-time, nullable: true }
-        revokedBy: { type: integer, format: int64, nullable: true }
-        canApprove: { type: boolean }
-        canReject: { type: boolean }
-        canUpgrade: { type: boolean }
-        canRevoke: { type: boolean }
     TaskVO:
       type: object
       properties:

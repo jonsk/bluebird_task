@@ -4,11 +4,9 @@ import { useRoute } from 'vue-router'
 import {
   ChatDotRound,
   Document,
-  Key,
   List,
   Notebook,
   User,
-  View,
 } from '@element-plus/icons-vue'
 import NoteList from '@/components/note/NoteList.vue'
 import NoteFilterBar from '@/components/note/NoteFilterBar.vue'
@@ -73,11 +71,9 @@ const headerDate = computed(() => formatHeaderDate())
 
 const SCOPE_ICONS: Record<string, unknown> = {
   mine: Notebook,
-  shared: View,
   subordinate: User,
   all: List,
   visible: ChatDotRound,
-  grants: Key,
   calendar: Document,
   detail: Document,
 }

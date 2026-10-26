@@ -24,7 +24,7 @@ function defaultQuery(): NoteQuery {
 }
 
 export const useNoteStore = defineStore('note', () => {
-  const scopes: NoteScope[] = ['mine', 'shared', 'subordinate', 'visible', 'all']
+  const scopes: NoteScope[] = ['mine', 'subordinate', 'visible', 'all']
   const queryByScope = reactive<Record<NoteScope, NoteQuery>>(
     Object.fromEntries(scopes.map((s) => [s, defaultQuery()])) as Record<NoteScope, NoteQuery>,
   )

@@ -18,13 +18,12 @@ const auth = useAuthStore()
 
 const SCOPE_LABELS: Record<NoteCalendarScope, string> = {
   mine: '我的日志',
-  shared: '被授权日志',
   subordinate: '员工日志',
 }
 
 const cal = useMonthCalendar()
 const scopeOptions = computed<NoteCalendarScope[]>(() => {
-  const list: NoteCalendarScope[] = ['mine', 'shared']
+  const list: NoteCalendarScope[] = ['mine']
   if (auth.user?.managerCanReadSubordinate) list.push('subordinate')
   return list
 })
