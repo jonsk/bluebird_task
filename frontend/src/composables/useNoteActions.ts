@@ -48,8 +48,8 @@ export function useNoteActions() {
       if (note.archived) await unarchiveNote(note.id)
       else await archiveNote(note.id)
       ElMessage.success('操作成功')
-      // 归档额外清 mine/all 的 archived 查询
-      store.invalidate([...scopesForVisibility(note.visibility), 'mine', 'all'])
+      // 归档额外清 mine/all 的 archived 查询（去重，避免重复遍历缓存）
+      store.invalidate(Array.from(new Set([...scopesForVisibility(note.visibility), 'mine', 'all'])))
     } catch (e) {
       ElMessage.error(hint(e))
     }
