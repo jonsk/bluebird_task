@@ -228,8 +228,6 @@ def run(cid, section, desc, expect_http, expect_code, fn, checks=None):
 # ============ 共享 fixture ============
 def setup():
     fx = {}
-    tag_raw = api.req('POST', '/tags', 'zhangli', {'name': 'MTX-T' + uuid.uuid4().hex[:4]}).data
-    fx['tag'] = {'id': tag_raw if isinstance(tag_raw, int) else (tag_raw or {}).get('id')}
     fx['z_note'] = api.new_note('zhangli')
     fx['z_private'] = api.new_note('zhangli')
     fx['l_note'] = api.new_note('lisi')

@@ -1,12 +1,10 @@
-import { computed, onMounted, watch } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useNoteList } from '@/composables/useNoteList'
-import { useNoteFacets } from '@/composables/useNoteFacets'
 import { useNoteActions } from '@/composables/useNoteActions'
 import { HttpError } from '@/api/http'
 import type { NoteBrief, NoteScope } from '@/types/note'
-import type { TagOption } from '@/types/tag'
 
 export interface UseNoteScopePageOptions {
   /** 空态文案 */
@@ -22,7 +20,7 @@ export interface UseNoteScopePageOptions {
 }
 
 /**
- * scope 页共用逻辑：列表 / 标签 facet / 动作 + 403 空态 + 详情跳转。
+ * scope 页共用逻辑：列表 / 动作 + 403 空态 + 详情跳转。
  * 4 个列表页只写"scope 配置 + 标题 + 权限分支"，不复制列表逻辑。
  */
 export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
@@ -31,7 +29,6 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
   const scope = computed<NoteScope>(() => (route.meta.scope as NoteScope) || 'mine')
 
   const list = useNoteList()
-  const facets = useNoteFacets()
   const actions = useNoteActions()
 
   const forbidden = computed(() => list.error.value instanceof HttpError && list.error.value.status === 403)
@@ -45,20 +42,6 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
     }
     return options.emptyText ?? '暂无工作日志'
   })
-
-  const tagOptions = computed<TagOption[]>(() =>
-    facets.tags.value.map((t) => ({ id: t.id, name: t.name ?? '' })).filter((t) => t.id != null) as TagOption[],
-  )
-
-  /** 403 空态下标签也必然拿不到：不再额外报「标签加载失败」，避免双重错误噪音 */
-  const tagError = computed(() => !forbidden.value && facets.error.value != null)
-
-  function loadFacets(): void {
-    void facets.load(scope.value)
-  }
-
-  onMounted(loadFacets)
-  watch(scope, loadFacets)
 
   /** 列表行一定有 id（NoteBrief.id 在 schema 里是可选，这里收窄）。 */
   type NoteRow = NoteBrief & { id: number }
@@ -115,10 +98,7 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
   return {
     scope,
     list,
-    facets,
     actions,
-    tagOptions,
-    tagError,
     forbidden,
     errorMode,
     emptyText,
@@ -134,6 +114,5 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
     onPin,
     onUnpin,
     onRemove,
-    loadFacets,
   }
 }

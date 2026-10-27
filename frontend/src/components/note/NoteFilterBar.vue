@@ -1,29 +1,24 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { RefreshRight, Search } from '@element-plus/icons-vue'
+import { ref, watch } from 'vue'
+import { Search } from '@element-plus/icons-vue'
 import type { NoteQuery, NoteQueryPatch, NoteScope, NoteSort } from '@/types/note'
-import type { TagOption } from '@/types/tag'
-import BbTagPicker from '@/components/bb/BbTagPicker.vue'
 
 /**
- * NoteFilterBar — 关键词 / 标签 / 置顶 / 排序 / 日期。
+ * NoteFilterBar — 关键词 / 置顶 / 排序 / 日期。
  * 所有变更 emit('change', patch) 由外壳（useNoteList）统一写入；本组件不请求。
+ * 标签能力已下线，不再有标签筛选。
  */
 const props = withDefaults(
   defineProps<{
     query: NoteQuery
     loading?: boolean
     scope: NoteScope
-    tagOptions?: TagOption[]
-    tagLoading?: boolean
-    tagError?: boolean
   }>(),
-  { loading: false, tagOptions: undefined, tagLoading: false, tagError: false },
+  { loading: false },
 )
 
 const emit = defineEmits<{
   (e: 'change', patch: NoteQueryPatch): void
-  (e: 'retry-tags'): void
 }>()
 
 const SORT_LABELS: Record<NoteSort, string> = {
@@ -47,13 +42,6 @@ watch(
   },
 )
 
-// 标签：BbTagPicker 多选（number[]），API 仅支持单 tagId，取最后选择项作为筛选条件。
-const tagIds = computed<number[]>(() => (props.query.tagId != null ? [props.query.tagId] : []))
-function onTags(val: number[]): void {
-  emit('change', { tagId: val.length ? val[val.length - 1] : undefined })
-}
-
-const pinnedChecked = computed(() => Boolean(props.query.pinned))
 function onPinned(v: boolean | string | number): void {
   emit('change', { pinned: v ? true : undefined })
 }
@@ -72,21 +60,8 @@ function onPinned(v: boolean | string | number): void {
         @clear="onKeyword('')"
       />
 
-      <BbTagPicker
-        v-if="!tagError"
-        :options="tagOptions"
-        :model-value="tagIds"
-        :disabled="loading"
-        class="note-filter-bar__tags"
-        @update:model-value="onTags"
-      />
-      <div v-else class="note-filter-bar__tag-error">
-        <span>标签加载失败</span>
-        <el-button size="small" :icon="RefreshRight" @click="emit('retry-tags')">重试</el-button>
-      </div>
-
       <el-switch
-        :model-value="pinnedChecked"
+        :model-value="Boolean(query.pinned)"
         inline-prompt
         active-text="置顶"
         inactive-text="全部"
@@ -126,20 +101,10 @@ function onPinned(v: boolean | string | number): void {
 .note-filter-bar__kw {
   width: 220px;
 }
-.note-filter-bar__tags {
-  width: 240px;
-}
 .note-filter-bar__sel {
   width: 140px;
 }
 .note-filter-bar__date {
   width: 160px;
-}
-.note-filter-bar__tag-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--el-color-danger);
 }
 </style>

@@ -1,15 +1,13 @@
 package com.bbtc.bluebird.modules.note.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
-import java.time.LocalDate;
-import java.util.List;
-
-/** 创建日志请求。{@code logDate} 严格 ISO 解析（不可解析 → HTTP 400）。 */
+/**
+ * 新建工作日志入参。
+ *
+ * <p>日志日期不可选：服务端固定记为创建当天（Asia/Shanghai），故不接受 {@code logDate}。
+ */
 public record NoteCreateReq(
         @NotBlank String content,
-        @NotNull LocalDate logDate,
-        String visibility,
-        List<Long> tagIds) {
+        String visibility) {
 }

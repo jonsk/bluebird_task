@@ -751,11 +751,9 @@ paths:
       description: >
         `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）|
         `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。
-        `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
+        标签能力已下线，不再有 `tagId`/`tagName` 过滤；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
       parameters:
         - { name: scope, in: query, schema: { type: string, enum: [mine, subordinate, visible, all], default: mine } }
-        - { name: tagId, in: query, schema: { type: integer, format: int64 } }
-        - { name: tagName, in: query, schema: { type: string } }
         - { name: keyword, in: query, schema: { type: string } }
         - { name: pinned, in: query, schema: { type: boolean } }
         - { name: start, in: query, schema: { type: string, format: date } }
@@ -784,19 +782,6 @@ paths:
             application/json:
               schema:
                 allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteDetailVO' } } }]
-  /notes/tags:
-    get:
-      tags: [note]
-      summary: 标签 facet（mine 返回 id，其他 scope 返回 name + count）
-      parameters:
-        - { name: scope, in: query, schema: { type: string, default: mine } }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteTagFacetItem' } } } }]
   /notes/calendar:
     get:
       tags: [note]
@@ -815,7 +800,7 @@ paths:
   /notes/{id}:
     get:
       tags: [note]
-      summary: 日志详情（含引用/被引/附件/ownerTags）
+      summary: 日志详情（含引用/被引/附件/字段级权限）
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses:
         '200':
@@ -830,6 +815,7 @@ paths:
       summary: 修改日志（仅 owner/ADMIN；乐观锁 version）
       description: >
         仅 owner 与 ADMIN 可写；其余人（含上级只读视角）不可见 → 404，可见但只读 → 403。
+        日志日期在创建时固定为当天，编辑携带 `logDate` 会返回 400。
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteUpdateReq' } } } }
       responses:
@@ -1129,7 +1115,6 @@ components:
         pinned: { type: boolean }
         ownerId: { type: integer, format: int64 }
         ownerName: { type: string }
-        tags: { type: array, items: { $ref: '#/components/schemas/TagVO' } }
         canEdit: { type: boolean }
         canManage: { type: boolean }
         version: { type: integer, format: int64 }
@@ -1151,21 +1136,15 @@ components:
             relations: { type: array, items: { $ref: '#/components/schemas/NoteRelationVO' } }
             backlinks: { type: array, items: { $ref: '#/components/schemas/NoteBacklinkVO' } }
             attachments: { type: array, items: { $ref: '#/components/schemas/NoteAttachmentVO' } }
-            ownerTags:
-              type: array
-              nullable: true
-              description: owner 完整标签；仅 canEdit / canManage 时返回
-              items: { $ref: '#/components/schemas/TagVO' }
             fieldPermissions: { $ref: '#/components/schemas/NoteFieldPermissionsVO' }
     NoteFieldPermissionsVO:
       type: object
       description: >
         字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应：
-        owner/ADMIN 三项全 true；其余只读可见者（上级视角）全 false。
+        owner/ADMIN 为 true；其余只读可见者（上级视角）为 false。
+        日志日期与标签能力已下线，不再返回对应位。
       properties:
         content: { type: boolean }
-        logDate: { type: boolean }
-        tagIds: { type: boolean }
     NoteListData:
       type: object
       properties:
@@ -1175,18 +1154,20 @@ components:
         size: { type: integer }
     NoteCreateReq:
       type: object
-      required: [content, logDate]
+      required: [content]
+      description: 日志日期不可选，服务端固定记为创建当天（Asia/Shanghai）；不接受 logDate。
       properties:
         content: { type: string }
-        logDate: { type: string, format: date, description: YYYY-MM-DD（严格解析，非法 400） }
-        tagIds: { type: array, items: { type: integer, format: int64 } }
     NoteUpdateReq:
       type: object
-      description: 字段均可省略（null=不改）；提供 version 时做乐观锁校验
+      description: 字段均可省略（null=不改）；提供 version 时做乐观锁校验。日志日期不可修改，携带 logDate 返回 400。
       properties:
         content: { type: string }
-        logDate: { type: string, format: date }
-        tagIds: { type: array, items: { type: integer, format: int64 }, description: 提供即整体替换为给定集合 }
+        logDate:
+          type: string
+          format: date
+          deprecated: true
+          description: 已下线：创建后日志日期固定，传入即 400
         version: { type: integer, format: int64 }
     NoteRelationCreateReq:
       type: object
@@ -1234,13 +1215,6 @@ components:
         createdByName: { type: string }
         canRemoveRef: { type: boolean }
         canDelete: { type: boolean }
-    NoteTagFacetItem:
-      type: object
-      description: mine 返回 id；其他 scope 返回 name + count
-      properties:
-        id: { type: integer, format: int64, nullable: true }
-        name: { type: string }
-        count: { type: integer }
     NoteCalendarDay:
       type: object
       properties:

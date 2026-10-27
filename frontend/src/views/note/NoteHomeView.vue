@@ -13,7 +13,7 @@ import { calendar as noteCalendar } from '@/api/calendar'
 import { getNote } from '@/api/note'
 import { useNoteStore } from '@/stores/note'
 import { todayInShanghai } from '@/utils/date'
-import type { NoteDetailVO, TagVO } from '@/types/note'
+import type { NoteDetailVO } from '@/types/note'
 
 /** 与 BbMiniCalendar.loader 返回结构一致（组件内不导出类型，避免 .vue 类型导出限制）。 */
 interface CalendarDayCount {
@@ -48,9 +48,6 @@ const {
   pageNo,
   loading,
   error,
-  tagOptions,
-  tagError,
-  facets,
   errorMode,
   emptyText,
   list,
@@ -60,11 +57,6 @@ const {
   onUnpin,
   onRemove,
 } = page
-
-/** 编辑器回显用标签（facet 的 id 可空，收窄成 TagVO） */
-const editorTags = computed<TagVO[]>(() =>
-  facets.tags.value.filter((t) => t.id != null).map((t) => ({ id: Number(t.id), name: t.name ?? '' })),
-)
 
 /** 右栏当日日志：独立实例，size=5，无分页 */
 const side = useNoteList({
@@ -116,11 +108,10 @@ function onCreated(detail: NoteDetailVO): void {
   draftError.value = ''
   noteStore.setPending(Number(detail.id))
   // 新建后回到第一页并清空筛选（"新建后回第一页"是明确预期）
-  list.setQuery({ keyword: undefined, tagId: undefined, tagName: undefined, pinned: undefined, date: undefined })
+  list.setQuery({ keyword: undefined, pinned: undefined, date: undefined })
   ElMessage.success('已保存并回到第一页')
   // 必须强制重拉：同 key 的列表缓存会让刚创建的日志看不见
   list.refresh()
-  void page.loadFacets()
 }
 
 /** 附件变更（临时卡片内上传/解绑后）：重取详情，保持卡片与后端一致。 */
@@ -159,7 +150,6 @@ function onEditorSaved(): void {
   editId.value = null
   ElMessage.success('已保存')
   list.refresh()
-  void page.loadFacets()
 }
 
 function openDetail(id: number): void {
@@ -176,14 +166,10 @@ function openDetail(id: number): void {
     :loading="loading"
     :error="error"
     :active-id="activeId"
-    :tag-options="tagOptions"
-    :tag-loading="facets.loading.value"
-    :tag-error="tagError"
     :error-mode="errorMode"
     :empty-text="emptyText"
     show-composer
     @change="list.setQuery"
-    @retry-tags="facets.retry"
     @page-change="list.setPage"
     @retry="list.refresh"
     @open="onOpen"
@@ -194,7 +180,7 @@ function openDetail(id: number): void {
   >
     <template #composer>
       <div @focusin="onComposerFocus">
-        <NoteEditor :owner-tags="editorTags" @saved="onCreated" />
+        <NoteEditor @saved="onCreated" />
       </div>
     </template>
 
@@ -216,7 +202,6 @@ function openDetail(id: number): void {
         <NoteEditor
           :key="`edit:${editId}`"
           :note-id="editId"
-          :owner-tags="editorTags"
           @saved="onEditorSaved"
           @cancel="editId = null"
         />

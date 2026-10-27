@@ -1,29 +1,20 @@
 package com.bbtc.bluebird.modules.note.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 import java.time.LocalDate;
-import java.util.List;
 
 /**
- * 更新日志请求（PATCH 语义）。
+ * 更新工作日志入参（PATCH 语义，字段为 {@code null} 表示不修改）。
  *
- * <p>字段为 {@code null} 表示「不改」；{@code tagIds=[]} 表示清空；{@code visibility} 省略不变。
+ * <p>日志日期在创建时固定，编辑不可修改：携带 {@code logDate} 会返回 HTTP 400。
  */
 public record NoteUpdateReq(
         String content,
-        LocalDate logDate,
         String visibility,
-        List<Long> tagIds,
+        LocalDate logDate,
         Long version) {
 
-    /** 显式区分「未传 tagIds」(null) 与「传空数组」([])。 */
-    public boolean tagIdsPresent() {
-        return tagIds != null;
-    }
-
-    @JsonIgnore
-    public boolean isEmptyPayload() {
-        return content == null && logDate == null && visibility == null && tagIds == null;
+    /** 是否显式携带了 logDate（非 null 即视为试图改日期）。 */
+    public boolean logDatePresent() {
+        return logDate != null;
     }
 }

@@ -52,8 +52,9 @@ test.describe('工作日志 · 权限分支', () => {
     await expect(empty).toBeVisible()
     await expect(empty).toContainText('未开启「上级可读员工日志」')
     await expect(page.locator('[data-test="note-list-error"]')).toHaveCount(0)
-    // 403 下不再叠加「标签加载失败」
+    // 标签能力已下线：筛选条不再有标签选择器，也不会有标签加载失败提示
     await expect(page.locator('.note-page')).not.toContainText('标签加载失败')
+    await expect(page.locator('.note-filter-bar__tags')).toHaveCount(0)
   })
 
   test('P-04 ADMIN 从后台进入「全部日志」可正常加载', async ({ page }) => {

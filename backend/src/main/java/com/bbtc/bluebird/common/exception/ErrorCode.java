@@ -38,7 +38,6 @@ public enum ErrorCode {
 
     NOTE_NOT_FOUND(50001, "工作日志不存在"),
     NOTE_CONTENT_TOO_LONG(50002, "日志内容超过 20000 字符"),
-    NOTE_TAG_INVALID(50003, "标签不存在或不属于日志所有者"),
     NOTE_ATTACHMENT_INVALID(50004, "附件不存在或不属于当前用户"),
     NOTE_ATTACHMENT_NOT_LINKED(50005, "附件未关联到该工作日志"),
     NOTE_RELATION_TARGET_NOT_FOUND(50006, "引用目标不存在或不可见"),

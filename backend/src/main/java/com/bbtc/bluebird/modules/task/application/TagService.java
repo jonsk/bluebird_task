@@ -53,7 +53,7 @@ public class TagService {
     @Transactional
     public void delete(Long id) {
         requireOwned(id);
-        // 同一事务：先清理全部实体的关联（task_tag / note_tag），再删 tag 行；任一失败整体回滚
+        // 同一事务：先清理全部实体的关联（task_tag），再删 tag 行；任一失败整体回滚
         for (TagUsageCleaner cleaner : cleaners) {
             cleaner.cleanByTagId(id);
         }

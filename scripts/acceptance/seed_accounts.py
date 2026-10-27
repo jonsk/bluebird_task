@@ -92,12 +92,17 @@ def main():
                 (uid + 5000, uid, dept_id),
             )
 
-    # 清理矩阵账号的历史授权，保证 PENDING / 升级用例可重复执行
-    ids = [a[0] for a in ACCOUNTS]
-    q = ','.join('?' * len(ids))
-    cur.execute(f'DELETE FROM note_user_grant WHERE grantor_id IN ({q}) OR grantee_id IN ({q})', ids + ids)
-    # #19 的 grantor 清理（其 grantee 即 mtxcapmgr*，已包含在上面的 id 集合里）
-    cur.execute('DELETE FROM note_user_grant WHERE grantor_id=?', (2106100000000000012,))
+    # 清理矩阵账号的历史授权，保证 PENDING / 升级用例可重复执行。
+    # 第三轮减法已整块下线 note_user_grant（V8 删表），旧库可能仍残留该表，故按存在性清理。
+    has_grant = cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='note_user_grant'"
+    ).fetchone()
+    if has_grant:
+        ids = [a[0] for a in ACCOUNTS]
+        q = ','.join('?' * len(ids))
+        cur.execute(f'DELETE FROM note_user_grant WHERE grantor_id IN ({q}) OR grantee_id IN ({q})', ids + ids)
+        # #19 的 grantor 清理（其 grantee 即 mtxcapmgr*，已包含在上面的 id 集合里）
+        cur.execute('DELETE FROM note_user_grant WHERE grantor_id=?', (2106100000000000012,))
     con.commit()
     con.close()
     print(f'ok: {len(ACCOUNTS)} 个验收账号就绪，授权行已重置')

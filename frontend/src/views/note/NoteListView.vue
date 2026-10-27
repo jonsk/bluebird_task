@@ -11,7 +11,6 @@ import {
 import NoteList from '@/components/note/NoteList.vue'
 import NoteFilterBar from '@/components/note/NoteFilterBar.vue'
 import type { NoteBrief, NoteQuery, NoteQueryPatch, NoteScope } from '@/types/note'
-import type { TagOption } from '@/types/tag'
 import { formatHeaderDate } from '@/utils/date'
 
 /**
@@ -33,9 +32,6 @@ const props = withDefaults(
     emptyText?: string
     /** card=错误卡片（可重试）；empty=空态（403 等，不显示重试） */
     errorMode?: 'card' | 'empty'
-    tagOptions?: TagOption[]
-    tagLoading?: boolean
-    tagError?: boolean
     /** 是否显示顶部新建入口（仅 mine） */
     showComposer?: boolean
   }>(),
@@ -45,16 +41,12 @@ const props = withDefaults(
     activeId: null,
     emptyText: '暂无工作日志',
     errorMode: 'card',
-    tagOptions: undefined,
-    tagLoading: false,
-    tagError: false,
     showComposer: false,
   },
 )
 
 const emit = defineEmits<{
   (e: 'change', patch: NoteQueryPatch): void
-  (e: 'retry-tags'): void
   (e: 'page-change', page: number): void
   (e: 'retry'): void
   (e: 'open', id: number): void
@@ -105,11 +97,7 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
               :query="query"
               :scope="scope"
               :loading="loading"
-              :tag-options="tagOptions"
-              :tag-loading="tagLoading"
-              :tag-error="tagError"
               @change="(patch) => emit('change', patch)"
-              @retry-tags="emit('retry-tags')"
             />
 
             <div v-if="showComposer" class="note-page__composer">

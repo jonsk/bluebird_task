@@ -15,7 +15,6 @@ import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
 import com.bbtc.bluebird.modules.note.domain.NoteRelation;
-import com.bbtc.bluebird.modules.note.domain.NoteTag;
 import com.bbtc.bluebird.modules.note.dto.NoteAttachmentVO;
 import com.bbtc.bluebird.modules.note.dto.NoteBacklinkVO;
 import com.bbtc.bluebird.modules.note.dto.NoteBrief;
@@ -23,20 +22,15 @@ import com.bbtc.bluebird.modules.note.dto.NoteCalendarDay;
 import com.bbtc.bluebird.modules.note.dto.NoteDetailVO;
 import com.bbtc.bluebird.modules.note.dto.NoteQuery;
 import com.bbtc.bluebird.modules.note.dto.NoteRelationVO;
-import com.bbtc.bluebird.modules.note.dto.NoteTagFacetItem;
 import com.bbtc.bluebird.modules.note.dto.NoteVO;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteAttachmentRefMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteRelationMapper;
-import com.bbtc.bluebird.modules.note.infrastructure.NoteTagMapper;
 import com.bbtc.bluebird.modules.note.util.NoteVisibilitySqlBuilder;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import com.bbtc.bluebird.modules.task.application.TaskAuthService;
-import com.bbtc.bluebird.modules.task.domain.Tag;
 import com.bbtc.bluebird.modules.task.domain.Task;
-import com.bbtc.bluebird.modules.task.dto.TagVO;
-import com.bbtc.bluebird.modules.task.infrastructure.TagMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TaskMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -48,13 +42,12 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 日志读查询：4 种 scope 列表、详情、日历、标签 facet。
+ * 日志读查询：4 种 scope 列表、详情、日历。
  *
  * <p>所有 scope 均通过 {@link NoteVisibilitySqlBuilder} 生成条件（与 isVisible 同源）。
  */
@@ -65,10 +58,8 @@ public class NoteQueryService {
     private static final int SUMMARY_LIMIT = 200;
 
     private final NoteMapper noteMapper;
-    private final NoteTagMapper noteTagMapper;
     private final NoteAttachmentRefMapper attachmentRefMapper;
     private final NoteRelationMapper relationMapper;
-    private final TagMapper tagMapper;
     private final SysUserMapper userMapper;
     private final DepartmentMapper departmentMapper;
     private final AttachmentMapper attachmentMapper;
@@ -92,7 +83,6 @@ public class NoteQueryService {
         LambdaQueryWrapper<Note> w = Wrappers.lambdaQuery();
         w.apply(visibilitySql.scopePredicate(scope, me, admin));
         applyPinned(w, q.pinned());
-        applyTag(w, scope, q.tagId(), q.tagName());
         applyKeyword(w, q.keyword());
         applyDate(w, q);
         applySort(w, q.sort());
@@ -105,17 +95,6 @@ public class NoteQueryService {
     private void applyPinned(LambdaQueryWrapper<Note> w, Boolean pinned) {
         if (pinned != null) {
             w.eq(Note::getPinned, pinned ? 1 : 0);
-        }
-    }
-
-    private void applyTag(LambdaQueryWrapper<Note> w, String scope, Long tagId, String tagName) {
-        if ("mine".equals(scope) && tagId != null) {
-            w.apply("note.id IN (SELECT nt.note_id FROM note_tag nt WHERE nt.tag_id = {0})", tagId);
-            return;
-        }
-        if (StringUtils.hasText(tagName)) {
-            w.apply("note.id IN (SELECT nt.note_id FROM note_tag nt"
-                    + " JOIN tag t ON t.id = nt.tag_id WHERE t.name = {0})", tagName.trim());
         }
     }
 
@@ -171,22 +150,11 @@ public class NoteQueryService {
         NoteDetailVO vo = new NoteDetailVO();
         fillBase(vo, note, me, admin);
         vo.setContent(note.getContent());
-        vo.setOwnerTags(authService.canEdit(note, me) || authService.canManage(note, me)
-                ? ownerTags(note.getOwnerId()) : null);
         vo.setFieldPermissions(authService.fieldPermissions(note, me));
         vo.setAttachments(attachmentVOs(note, me, admin));
         vo.setRelations(relationVOs(note, me));
         vo.setBacklinks(backlinkVOs(note, me));
         return vo;
-    }
-
-    private List<TagVO> ownerTags(Long ownerId) {
-        if (ownerId == null) {
-            return List.of();
-        }
-        return tagMapper.selectList(Wrappers.<Tag>lambdaQuery()
-                        .eq(Tag::getOwnerId, ownerId).orderByAsc(Tag::getId))
-                .stream().map(t -> new TagVO(t.getId(), t.getName())).toList();
     }
 
     /* ==================== 日历 ==================== */
@@ -232,56 +200,6 @@ public class NoteQueryService {
         return null;
     }
 
-    /* ==================== 标签 facet ==================== */
-
-    public List<NoteTagFacetItem> tagFacet(String scope) {
-        Long me = UserContext.currentUserId();
-        boolean admin = authService.isAdmin();
-        String s = StringUtils.hasText(scope) ? scope : "mine";
-        if (!visibilitySql.validScope(s)) {
-            throw HttpStatusException.badRequest("非法 scope");
-        }
-        String predicate = visibilitySql.scopePredicate(s, me, admin);
-        String noteFilter = "SELECT note.id FROM note WHERE " + predicate + " AND note.deleted = 0";
-        QueryWrapper<NoteTag> w = new QueryWrapper<>();
-        w.select("tag_id").inSql("note_id", noteFilter);
-        List<NoteTag> links = noteTagMapper.selectList(w);
-        if (links.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, Long> counts = new LinkedHashMap<>();
-        for (NoteTag l : links) {
-            counts.merge(l.getTagId(), 1L, Long::sum);
-        }
-        Map<Long, String> names = new HashMap<>();
-        tagMapper.selectBatchIds(counts.keySet()).forEach(t -> names.put(t.getId(), t.getName()));
-
-        if ("mine".equals(s)) {
-            List<NoteTagFacetItem> out = new ArrayList<>();
-            counts.forEach((id, c) -> {
-                String name = names.get(id);
-                if (name != null) {
-                    out.add(new NoteTagFacetItem(id, name, c));
-                }
-            });
-            out.sort((a, b) -> b.count() != a.count()
-                    ? Long.compare(b.count(), a.count()) : a.name().compareTo(b.name()));
-            return out;
-        }
-        Map<String, Long> byName = new LinkedHashMap<>();
-        counts.forEach((id, c) -> {
-            String name = names.get(id);
-            if (name != null) {
-                byName.merge(name, c, Long::sum);
-            }
-        });
-        List<NoteTagFacetItem> out = new ArrayList<>();
-        byName.forEach((name, c) -> out.add(new NoteTagFacetItem(null, name, c)));
-        out.sort((a, b) -> b.count() != a.count()
-                ? Long.compare(b.count(), a.count()) : a.name().compareTo(b.name()));
-        return out;
-    }
-
     /* ==================== VO 组装 ==================== */
 
     private List<NoteBrief> toBriefs(List<Note> notes) {
@@ -290,8 +208,6 @@ public class NoteQueryService {
         }
         Long me = UserContext.currentUserId();
         boolean admin = authService.isAdmin();
-        List<Long> ids = notes.stream().map(Note::getId).toList();
-        Map<Long, List<TagVO>> tags = tagsOf(ids);
         Set<Long> ownerIds = new HashSet<>();
         notes.forEach(n -> ownerIds.add(n.getOwnerId()));
         Map<Long, String> ownerNames = userNames(ownerIds);
@@ -300,7 +216,7 @@ public class NoteQueryService {
         for (Note n : notes) {
             out.add(new NoteBrief(n.getId(), summary(n.getContent()), n.getLogDate(),
                     isTrue(n.getPinned()), n.getOwnerId(),
-                    ownerNames.get(n.getOwnerId()), tags.getOrDefault(n.getId(), List.of()),
+                    ownerNames.get(n.getOwnerId()),
                     canEdit(n, me, admin), canManage(n, me, admin), versionOf(n)));
         }
         return out;
@@ -321,31 +237,6 @@ public class NoteQueryService {
         vo.setRole(authService.roleOf(note, me));
         vo.setCreatedAt(note.getCreatedAt());
         vo.setUpdatedAt(note.getUpdatedAt());
-        vo.setTags(tagsOf(List.of(note.getId())).getOrDefault(note.getId(), List.of()));
-    }
-
-    private Map<Long, List<TagVO>> tagsOf(List<Long> noteIds) {
-        Map<Long, List<TagVO>> out = new HashMap<>();
-        if (noteIds.isEmpty()) {
-            return out;
-        }
-        List<NoteTag> links = noteTagMapper.selectList(
-                Wrappers.<NoteTag>lambdaQuery().in(NoteTag::getNoteId, noteIds));
-        if (links.isEmpty()) {
-            return out;
-        }
-        Set<Long> tagIds = new HashSet<>();
-        links.forEach(l -> tagIds.add(l.getTagId()));
-        Map<Long, String> names = new HashMap<>();
-        tagMapper.selectBatchIds(tagIds).forEach(t -> names.put(t.getId(), t.getName()));
-        for (NoteTag l : links) {
-            String name = names.get(l.getTagId());
-            if (name != null) {
-                out.computeIfAbsent(l.getNoteId(), k -> new ArrayList<>())
-                        .add(new TagVO(l.getTagId(), name));
-            }
-        }
-        return out;
     }
 
     private boolean canEdit(Note n, Long me, boolean admin) {

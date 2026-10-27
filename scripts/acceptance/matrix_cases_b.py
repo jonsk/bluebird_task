@@ -375,21 +375,21 @@ def build(api, U, FX, run, TODAY):
         lambda r: need(r, 0, lambda x: x.data.get('total') == 0))
     run('44b', 'J', 'keyword 未登录', 401, None, lambda: api.req('GET', '/tasks/search?keyword=Task', None))
 
-    # ---------------- K. Tag 清理 ----------------
+    # ---------------- K. Tag 清理（任务侧保留） ----------------
     def tag_id_of(resp):
         return resp.data if isinstance(resp.data, int) else (resp.data or {}).get('id')
 
     def k45():
         tag_id = tag_id_of(api.req('POST', '/tags', Z, {'name': 'MTX-K' + uuid.uuid4().hex[:4]}))
-        n = api.req('POST', '/notes', Z, {'content': 'MTX-K45', 'logDate': TODAY.isoformat(),
-                                          'tagIds': [tag_id]})
+        # 日志标签已下线：日志不再引用 tag，删除标签走通用路径即可
+        n = api.req('POST', '/notes', Z, {'content': 'MTX-K45', 'tagIds': [tag_id]})
         assert n.code == 0, n.body
         r = api.req('DELETE', f"/tags/{tag_id}", Z)
         d = api.req('GET', f"/notes/{n.data['id']}", Z)
-        assert all(int(t['id']) != int(tag_id) for t in d.data.get('tags') or []), 'note_tag 未级联清理'
+        assert 'tags' not in (d.data or {}), '日志不应再回显 tags'
         return r
 
-    run('45', 'K', '删除有引用的标签（级联）', 200, 0, k45)
+    run('45', 'K', '删除标签（日志已无标签关联）', 200, 0, k45)
 
     def k45a():
         tag_id = tag_id_of(api.req('POST', '/tags', Z, {'name': 'MTX-KA' + uuid.uuid4().hex[:4]}))
@@ -400,16 +400,19 @@ def build(api, U, FX, run, TODAY):
     run('45b', 'K', '删除不存在标签', 200, 10004, lambda: api.req('DELETE', '/tags/99999999', Z),
         lambda r: need(r, 10004))
     run('45c', 'K', '删除他人标签（信息隐藏）', 200, 10004,
-        lambda: api.req('DELETE', f"/tags/{FX['tag']['id']}", L), lambda r: need(r, 10004))
+        lambda: api.req('DELETE', f"/tags/{tag_id_of(api.req('POST', '/tags', Z, {'name': 'MTX-KC' + uuid.uuid4().hex[:4]}))}", L),
+        lambda r: need(r, 10004))
 
-    # ---------------- L. facets ----------------
-    run('46', 'L', 'facet scope=mine', 200, 0, lambda: api.req('GET', '/notes/tags?scope=mine', Z),
-        lambda r: need(r, 0, lambda x: isinstance(x.data, list) and all('id' in i for i in x.data)))
+    # ---------------- L. 日志标签 facet 已下线 ----------------
+    # GET /notes/tags 不再存在：路径命中 /notes/{id}，id 非数字 → 400 + 10001
+    run('46', 'L', 'facet 端点已下线（命中 /notes/{id}）', 400, None,
+        lambda: api.req('GET', '/notes/tags?scope=mine', Z))
     run('46a', 'L', 'facet scope=shared 已下线', 400, None,
         lambda: api.req('GET', '/notes/tags?scope=shared', W))
-    run('46b', 'L', 'facet 空标签用户', 200, 0, lambda: api.req('GET', '/notes/tags?scope=mine', NODEPT),
-        lambda r: need(r, 0, lambda x: x.data == []))
-    run('46c', 'L', 'facet scope=all 非 ADMIN', 403, None, lambda: api.req('GET', '/notes/tags?scope=all', Z))
+    run('46b', 'L', 'facet 任意 scope 均 400（端点不存在）', 400, None,
+        lambda: api.req('GET', '/notes/tags?scope=mine', NODEPT))
+    run('46c', 'L', 'facet scope=all 亦 400（端点不存在）', 400, None,
+        lambda: api.req('GET', '/notes/tags?scope=all', Z))
     run('46d', 'L', 'facet scope 非法', 400, None, lambda: api.req('GET', '/notes/tags?scope=xxx', Z))
     run('46e', 'L', 'facet scope=explore 已下线', 400, None, lambda: api.req('GET', '/notes/tags?scope=explore', Z))
 

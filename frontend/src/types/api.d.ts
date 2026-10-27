@@ -2271,14 +2271,12 @@ export interface paths {
         };
         /**
          * 工作日志分页（4 种 scope + 过滤/排序）
-         * @description `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 `tagId` 精确匹配；`tagName` 模糊；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
+         * @description `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 标签能力已下线，不再有 `tagId`/`tagName` 过滤；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
          */
         get: {
             parameters: {
                 query?: {
                     scope?: "mine" | "subordinate" | "visible" | "all";
-                    tagId?: number;
-                    tagName?: string;
                     keyword?: string;
                     pinned?: boolean;
                     start?: string;
@@ -2355,46 +2353,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/notes/tags": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 标签 facet（mine 返回 id，其他 scope 返回 name + count） */
-        get: {
-            parameters: {
-                query?: {
-                    scope?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiResult"] & {
-                            data?: components["schemas"]["NoteTagFacetItem"][];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/notes/calendar": {
         parameters: {
             query?: never;
@@ -2444,7 +2402,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 日志详情（含引用/被引/附件/ownerTags） */
+        /** 日志详情（含引用/被引/附件/字段级权限） */
         get: {
             parameters: {
                 query?: never;
@@ -2478,7 +2436,7 @@ export interface paths {
         };
         /**
          * 修改日志（仅 owner/ADMIN；乐观锁 version）
-         * @description 仅 owner 与 ADMIN 可写；其余人（含上级只读视角）不可见 → 404，可见但只读 → 403。
+         * @description 仅 owner 与 ADMIN 可写；其余人（含上级只读视角）不可见 → 404，可见但只读 → 403。 日志日期在创建时固定为当天，编辑携带 `logDate` 会返回 400。
          */
         put: {
             parameters: {
@@ -3119,7 +3077,6 @@ export interface components {
             /** Format: int64 */
             ownerId?: number;
             ownerName?: string;
-            tags?: components["schemas"]["TagVO"][];
             canEdit?: boolean;
             canManage?: boolean;
             /** Format: int64 */
@@ -3143,15 +3100,11 @@ export interface components {
             relations?: components["schemas"]["NoteRelationVO"][];
             backlinks?: components["schemas"]["NoteBacklinkVO"][];
             attachments?: components["schemas"]["NoteAttachmentVO"][];
-            /** @description owner 完整标签；仅 canEdit / canManage 时返回 */
-            ownerTags?: components["schemas"]["TagVO"][] | null;
             fieldPermissions?: components["schemas"]["NoteFieldPermissionsVO"];
         };
-        /** @description 字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应： owner/ADMIN 三项全 true；其余只读可见者（上级视角）全 false。 */
+        /** @description 字段级可编辑性（后端为唯一事实来源，前端据此禁用控件）。与写路径校验一一对应： owner/ADMIN 为 true；其余只读可见者（上级视角）为 false。 日志日期与标签能力已下线，不再返回对应位。 */
         NoteFieldPermissionsVO: {
             content?: boolean;
-            logDate?: boolean;
-            tagIds?: boolean;
         };
         NoteListData: {
             list?: components["schemas"]["NoteBrief"][];
@@ -3159,22 +3112,19 @@ export interface components {
             page?: number;
             size?: number;
         };
+        /** @description 日志日期不可选，服务端固定记为创建当天（Asia/Shanghai）；不接受 logDate。 */
         NoteCreateReq: {
             content: string;
-            /**
-             * Format: date
-             * @description YYYY-MM-DD（严格解析，非法 400）
-             */
-            logDate: string;
-            tagIds?: number[];
         };
-        /** @description 字段均可省略（null=不改）；提供 version 时做乐观锁校验 */
+        /** @description 字段均可省略（null=不改）；提供 version 时做乐观锁校验。日志日期不可修改，携带 logDate 返回 400。 */
         NoteUpdateReq: {
             content?: string;
-            /** Format: date */
+            /**
+             * Format: date
+             * @deprecated
+             * @description 已下线：创建后日志日期固定，传入即 400
+             */
             logDate?: string;
-            /** @description 提供即整体替换为给定集合 */
-            tagIds?: number[];
             /** Format: int64 */
             version?: number;
         };
@@ -3247,13 +3197,6 @@ export interface components {
             createdByName?: string;
             canRemoveRef?: boolean;
             canDelete?: boolean;
-        };
-        /** @description mine 返回 id；其他 scope 返回 name + count */
-        NoteTagFacetItem: {
-            /** Format: int64 */
-            id?: number | null;
-            name?: string;
-            count?: number;
         };
         NoteCalendarDay: {
             /** Format: date */

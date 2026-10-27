@@ -41,12 +41,6 @@ function stop(e: Event): void {
 
     <p class="note-card__summary">{{ note.contentSummary || '（无内容）' }}</p>
 
-    <div v-if="note.tags && note.tags.length" class="note-card__tags">
-      <el-tag v-for="t in note.tags" :key="t.id ?? t.name" size="small" type="info" effect="plain">
-        {{ t.name }}
-      </el-tag>
-    </div>
-
     <div v-if="note.canEdit || note.canManage" class="note-card__ops" @click="stop">
       <el-button
         v-if="note.canEdit"
@@ -128,11 +122,6 @@ function stop(e: Event): void {
   word-break: break-word;
   max-height: 6.4em;
   overflow: hidden;
-}
-.note-card__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 .note-card__ops {
   display: flex;

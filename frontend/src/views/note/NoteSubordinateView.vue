@@ -13,9 +13,6 @@ const {
   pageNo,
   loading,
   error,
-  tagOptions,
-  tagError,
-  facets,
   errorMode,
   emptyText,
   list,
@@ -39,13 +36,9 @@ const {
     :total="total"
     :loading="loading"
     :error="error"
-    :tag-options="tagOptions"
-    :tag-loading="facets.loading.value"
-    :tag-error="tagError"
     :error-mode="errorMode"
     :empty-text="emptyText"
     @change="list.setQuery"
-    @retry-tags="facets.retry"
     @page-change="list.setPage"
     @retry="list.refresh"
     @open="onOpen"

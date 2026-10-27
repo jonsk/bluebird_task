@@ -102,7 +102,7 @@ class PermissionFieldTest {
     private long createNote(SysUser u, String content) throws Exception {
         String res = mvc.perform(auth(post("/api/v1/notes"), u)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"" + content + "\",\"logDate\":\"2026-10-20\",\"tagIds\":[]}"))
+                        .content("{\"content\":\"" + content + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andReturn().getResponse().getContentAsString();
@@ -134,22 +134,19 @@ class PermissionFieldTest {
 
         long noteId = createNote(owner, "字段权限用例");
 
-        // owner：三项全 true
+        // owner：正文可编辑（日期/标签已下线，位不再下发）
         mvc.perform(auth(get("/api/v1/notes/" + noteId), owner))
                 .andExpect(jsonPath("$.data.fieldPermissions.content").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.logDate").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(true));
+                .andExpect(jsonPath("$.data.fieldPermissions.logDate").doesNotExist())
+                .andExpect(jsonPath("$.data.fieldPermissions.tagIds").doesNotExist());
 
-        // ADMIN：三项全 true（与 canManage 一致）
+        // ADMIN：正文可编辑（与 canManage 一致）
         mvc.perform(auth(get("/api/v1/notes/" + noteId), admin))
-                .andExpect(jsonPath("$.data.fieldPermissions.content").value(true))
-                .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(true));
+                .andExpect(jsonPath("$.data.fieldPermissions.content").value(true));
 
-        // 上级只读：三项全 false，写入 403（授权/协作编辑已下线）
+        // 上级只读：全 false，写入 403（授权/协作编辑已下线）
         mvc.perform(auth(get("/api/v1/notes/" + noteId), leader))
                 .andExpect(jsonPath("$.data.fieldPermissions.content").value(false))
-                .andExpect(jsonPath("$.data.fieldPermissions.logDate").value(false))
-                .andExpect(jsonPath("$.data.fieldPermissions.tagIds").value(false))
                 .andExpect(jsonPath("$.data.canEdit").value(false));
         mvc.perform(auth(put("/api/v1/notes/" + noteId), leader)
                         .contentType(MediaType.APPLICATION_JSON)

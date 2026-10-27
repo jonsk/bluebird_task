@@ -54,7 +54,6 @@ onUnmounted(() => {
   document.title = BASE_TITLE || '蓝鸟任务管理系统'
 })
 
-const tagList = computed(() => detail.value?.tags ?? [])
 const relations = computed(() => detail.value?.relations ?? [])
 const backlinks = computed(() => detail.value?.backlinks ?? [])
 const existingRefs = computed<NoteTargetRef[]>(() =>
@@ -161,7 +160,6 @@ function openBacklink(sourceNoteId?: number): void {
           <span class="note-detail__logdate">{{ detail.logDate }}</span>
           <span class="note-detail__owner">{{ detail.ownerName }}</span>
           <el-tag v-if="detail.pinned" size="small" type="warning" effect="plain">置顶</el-tag>
-          <el-tag v-for="t in tagList" :key="t.id ?? t.name" size="small" effect="plain">{{ t.name }}</el-tag>
         </div>
         <div class="note-detail__ops">
           <el-button v-if="detail.canEdit" size="small" :icon="detail.pinned ? StarFilled : Star" @click="togglePin">
@@ -177,7 +175,7 @@ function openBacklink(sourceNoteId?: number): void {
       </section>
 
       <section v-if="editing" class="note-detail__editor">
-        <NoteEditor :note-id="Number(detail.id)" :owner-tags="detail.ownerTags ?? undefined" @saved="onSaved" @cancel="editing = false" />
+        <NoteEditor :note-id="Number(detail.id)" @saved="onSaved" @cancel="editing = false" />
       </section>
       <section v-else class="note-detail__content" data-test="note-detail-content">{{ detail.content }}</section>
 

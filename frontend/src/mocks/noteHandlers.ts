@@ -20,10 +20,6 @@ const AUTH = '/api/v1'
 
 /* ---------------- 类型（与 openapi 对齐的子集） ---------------- */
 
-interface TagVO {
-  id: number
-  name: string
-}
 interface NoteRow {
   id: number
   content: string
@@ -32,7 +28,6 @@ interface NoteRow {
   ownerId: number
   ownerName: string
   deptId: number | null
-  tags: TagVO[]
   version: number
   deleted: boolean
 }
@@ -70,10 +65,6 @@ const USERS: Record<number, { name: string; deptId: number | null; leader: numbe
   12: { name: '李四', deptId: 10, leader: 1 },
   8: { name: '王五', deptId: 20, leader: null },
 }
-const TAG_NAMES: Record<number, string> = { 1: '重要', 2: '紧急', 3: '日常' }
-
-const names = (ids: number[]): TagVO[] => ids.map((id) => ({ id, name: TAG_NAMES[id] ?? `标签${id}` }))
-
 /** 初始日志：覆盖 mine（1001/1002）/ subordinate（李四、张三）/ visible / all（后台）。 */
 // 起始值需大于 fixture 最大 id（1007），否则新建日志会与既有卡片撞 id
 let noteSeq = 1100
@@ -87,7 +78,6 @@ const notes: NoteRow[] = [
     ownerId: ME,
     ownerName: ME_NAME,
     deptId: ME_DEPT,
-    tags: names([1]),
     version: 1,
     deleted: false,
   },
@@ -99,7 +89,6 @@ const notes: NoteRow[] = [
     ownerId: ME,
     ownerName: ME_NAME,
     deptId: ME_DEPT,
-    tags: names([3]),
     version: 1,
     deleted: false,
   },
@@ -111,7 +100,6 @@ const notes: NoteRow[] = [
     ownerId: 12,
     ownerName: '李四',
     deptId: 10,
-    tags: names([2]),
     version: 1,
     deleted: false,
   },
@@ -123,7 +111,6 @@ const notes: NoteRow[] = [
     ownerId: 11,
     ownerName: '张三',
     deptId: 10,
-    tags: [],
     version: 1,
     deleted: false,
   },
@@ -135,7 +122,6 @@ const notes: NoteRow[] = [
     ownerId: 8,
     ownerName: '王五',
     deptId: 20,
-    tags: [],
     version: 1,
     deleted: false,
   },
@@ -147,7 +133,6 @@ const notes: NoteRow[] = [
     ownerId: 12,
     ownerName: '李四',
     deptId: 10,
-    tags: names([3]),
     version: 1,
     deleted: false,
   },
@@ -224,7 +209,6 @@ function brief(n: NoteRow) {
     pinned: n.pinned,
     ownerId: n.ownerId,
     ownerName: n.ownerName,
-    tags: n.tags,
     canEdit: p.canEdit,
     canManage: p.canManage,
     version: n.version,
@@ -235,14 +219,12 @@ function brief(n: NoteRow) {
  * 字段级可编辑性：与后端 `NoteAuthService.fieldPermissions` 同规则
  * （owner/ADMIN 全 true；其余全 false）。
  */
-function fieldPermsOf(n: NoteRow): { content: boolean; logDate: boolean; tagIds: boolean } {
+function fieldPermsOf(n: NoteRow): { content: boolean } {
   const p = permsOf(n)
-  if (p.canEdit) return { content: true, logDate: true, tagIds: true }
-  return { content: false, logDate: false, tagIds: false }
+  return { content: p.canEdit }
 }
 
 function detailOf(n: NoteRow) {
-  const p = permsOf(n)
   const perms = fieldPermsOf(n)
   return {
     ...brief(n),
@@ -265,7 +247,6 @@ function detailOf(n: NoteRow) {
         }
       }),
     attachments: attachments.filter((a) => a.noteId === n.id),
-    ownerTags: p.canEdit || p.canManage ? Object.keys(TAG_NAMES).map((id) => ({ id: Number(id), name: TAG_NAMES[Number(id)] })) : null,
   }
 }
 
@@ -367,27 +348,7 @@ export const noteHandlers = [
     })
   }),
 
-  // ---- 列表 / 详情 / 增删改（:id 必须在 tags|calendar 之后注册） ----
-  http.get(`${AUTH}/notes/tags`, ({ request }) => {
-    const url = new URL(request.url)
-    const scope = url.searchParams.get('scope') ?? 'mine'
-    if (scope === 'all' && !isAdminRequest(request)) return fail(10003, '无权限', 403)
-    if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
-    const base = notes.filter((n) => alive(n) && inScope(n, scope))
-    if (scope === 'mine') {
-      return ok(
-        Object.keys(TAG_NAMES).map((id) => ({
-          id: Number(id),
-          name: TAG_NAMES[Number(id)],
-          count: base.filter((n) => n.tags.some((t) => t.id === Number(id))).length,
-        })),
-      )
-    }
-    const counter = new Map<string, number>()
-    for (const n of base) for (const t of n.tags) counter.set(t.name, (counter.get(t.name) ?? 0) + 1)
-    return ok([...counter.entries()].map(([name, count]) => ({ name, count })))
-  }),
-
+  // ---- 列表 / 详情 / 增删改（:id 必须注册在 calendar 之后） ----
   http.get(`${AUTH}/notes/calendar`, ({ request }) => {
     const url = new URL(request.url)
     const year = Number(url.searchParams.get('year'))
@@ -413,8 +374,6 @@ export const noteHandlers = [
     const page = Number(q.get('page') ?? 1)
     const size = Number(q.get('size') ?? 20)
     const keyword = (q.get('keyword') ?? '').trim().toLowerCase()
-    const tagId = q.get('tagId') ? Number(q.get('tagId')) : null
-    const tagName = q.get('tagName') ?? ''
     const date = q.get('date') ?? ''
 
     // 权限门控（对齐后端 NoteQueryService）：all 仅 ADMIN；subordinate 需 MANAGER_CAN_READ_SUBORDINATE
@@ -423,8 +382,6 @@ export const noteHandlers = [
 
     let list = notes.filter((n) => alive(n) && inScope(n, scope))
     if (keyword) list = list.filter((n) => n.content.toLowerCase().includes(keyword))
-    if (tagId) list = list.filter((n) => n.tags.some((t) => t.id === tagId))
-    if (tagName) list = list.filter((n) => n.tags.some((t) => t.name === tagName))
     if (date) list = list.filter((n) => n.logDate === date)
     if (q.get('pinned') === 'true') list = list.filter((n) => n.pinned)
 
@@ -445,21 +402,17 @@ export const noteHandlers = [
   }),
 
   http.post(`${AUTH}/notes`, async ({ request }) => {
-    const body = (await request.json()) as {
-      content?: string
-      logDate?: string
-      tagIds?: number[]
-    }
+    const body = (await request.json()) as { content?: string }
     if (!body.content?.trim()) return fail(10001, '内容不能为空', 400)
     const row: NoteRow = {
       id: ++noteSeq,
       content: body.content,
-      logDate: body.logDate ?? '2026-09-28',
+      // 与后端一致：日志日期固定为创建当天（Asia/Shanghai）
+      logDate: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }),
       pinned: false,
       ownerId: ME,
       ownerName: ME_NAME,
       deptId: ME_DEPT,
-      tags: names(body.tagIds ?? []),
       version: 1,
       deleted: false,
     }
@@ -478,16 +431,14 @@ export const noteHandlers = [
     const body = (await request.json()) as {
       content?: string
       logDate?: string
-      tagIds?: number[]
       version?: number
     }
     if (!permsOf(n).canEdit) return fail(10003, '无权限', 403)
+    if (body.logDate !== undefined) return fail(10001, 'logDate 不可修改（日志日期由创建时间决定）', 400)
     if (typeof body.version === 'number' && body.version !== n.version) {
       return fail(10006, '内容已被他人修改，请刷新后重试')
     }
     if (body.content !== undefined) n.content = body.content
-    if (body.logDate !== undefined) n.logDate = body.logDate
-    if (body.tagIds !== undefined) n.tags = names(body.tagIds)
     n.version += 1
     return ok(detailOf(n))
   }),

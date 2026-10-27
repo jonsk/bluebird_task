@@ -2,13 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 /**
- * NoteEditor：编辑态按后端 `fieldPermissions` 锁定字段
- * 1) owner/ADMIN（三项 true）→ 控件全部可用、无提示
- * 2) 只读可见者（三项 false）→ 正文只读 + 只读提示（理论上进不了编辑态，防御性）
- * 3) 未下发 fieldPermissions → 视为全可改（能进编辑态的就是 owner/ADMIN）
- * 4) 新建态 → 全字段可改
+ * NoteEditor 编辑态消费后端 `fieldPermissions` 的正文可编辑性：
+ * 1) owner/ADMIN（content=true）→ 正文可编辑，不显示只读提示
+ * 2) 只读可见者（content=false）→ 正文只读 + 只读提示
+ * 3) 未下发 fieldPermissions → 视为可改（能进编辑态的就是 owner/ADMIN）
+ * 4) 新建态 → 可编辑；且没有日期选择（日志日期由后端固定为当天）
+ * 5) 提交时不再携带 logDate / tagIds（契约已下线）
  *
- * 断言走组件 props（stub 上取 disabled / readonly），避免依赖 stub 的 DOM 细节。
+ * 组件用 props、stub 读取 disabled / readonly，不依赖真实 DOM 细节。
  */
 
 const getNote = vi.fn()
@@ -31,12 +32,6 @@ const ElInput = {
   props: { modelValue: String, type: String, rows: Number, maxlength: [String, Number], readonly: Boolean },
   template: '<div class="stub-input"><slot /></div>',
 }
-const ElSelect = {
-  name: 'ElSelect',
-  props: { modelValue: String, disabled: Boolean },
-  template: '<div class="stub-select"><slot /></div>',
-}
-const ElOption = { name: 'ElOption', props: { label: String, value: String }, template: '<div />' }
 const ElDatePicker = {
   name: 'ElDatePicker',
   props: { modelValue: String, disabled: Boolean, type: String, valueFormat: String },
@@ -47,13 +42,8 @@ const ElButton = {
   props: { disabled: Boolean, loading: Boolean, type: String },
   template: '<button><slot /></button>',
 }
-const BbTagPicker = {
-  name: 'BbTagPicker',
-  props: { modelValue: Array, options: Array, disabled: Boolean },
-  template: '<div class="stub-tags" />',
-}
 
-const components = { ElInput, ElSelect, ElOption, ElDatePicker, ElButton, BbTagPicker }
+const components = { ElInput, ElDatePicker, ElButton }
 
 function detail(over: Record<string, unknown> = {}) {
   return {
@@ -61,9 +51,8 @@ function detail(over: Record<string, unknown> = {}) {
     content: '正文',
     logDate: '2026-09-28',
     version: 1,
-    tags: [],
     role: 'OWNER',
-    fieldPermissions: { content: true, logDate: true, tagIds: true },
+    fieldPermissions: { content: true },
     ...over,
   }
 }
@@ -71,76 +60,75 @@ function detail(over: Record<string, unknown> = {}) {
 async function mountEdit(payload: Record<string, unknown>) {
   getNote.mockResolvedValue(payload)
   const w = mount(NoteEditor, {
-    props: { noteId: 1001, ownerTags: [] },
+    props: { noteId: 1001 },
     global: { components },
   })
   await flushPromises()
   return w
 }
 
-const flags = (w: ReturnType<typeof mountEdit> extends Promise<infer T> ? T : never) => ({
+const flags = (w: { findComponent: (c: unknown) => { props: (k: string) => unknown } }) => ({
   contentReadonly: w.findComponent(ElInput).props('readonly') === true,
-  dateDisabled: w.findComponent(ElDatePicker).props('disabled') === true,
-  tagsDisabled: w.findComponent(BbTagPicker).props('disabled') === true,
 })
 
 beforeEach(() => {
   ;[getNote, updateNote, createNote].forEach((f) => f.mockReset())
 })
 
-describe('NoteEditor · fieldPermissions', () => {
-  it('owner：四个控件均可用，无权限提示', async () => {
+describe('NoteEditor × fieldPermissions', () => {
+  it('owner（content=true）：正文可编辑，无只读提示', async () => {
     const w = await mountEdit(detail())
-    expect(flags(w)).toEqual({
-      contentReadonly: false,
-      dateDisabled: false,
-      tagsDisabled: false,
-    })
-    expect(w.find('[data-test="note-editor-field-hint"]').exists()).toBe(false)
+    expect(flags(w)).toEqual({ contentReadonly: false })
     expect(w.find('[data-test="note-editor-readonly-hint"]').exists()).toBe(false)
   })
 
-  it('只读可见者：正文只读、三字段全禁，显示只读提示', async () => {
-    const w = await mountEdit(
-      detail({
-        role: 'ADMIN',
-        fieldPermissions: { content: false, logDate: false, tagIds: false },
-      }),
-    )
-    expect(flags(w)).toEqual({
-      contentReadonly: true,
-      dateDisabled: true,
-      tagsDisabled: true,
-    })
+  it('只读可见者（content=false）：正文只读 + 只读提示，且展示不可改的日志日期', async () => {
+    const w = await mountEdit(detail({ fieldPermissions: { content: false } }))
+    expect(flags(w)).toEqual({ contentReadonly: true })
     expect(w.find('[data-test="note-editor-readonly-hint"]').text()).toContain('只读视图')
-    expect(w.find('[data-test="note-editor-field-hint"]').exists()).toBe(false)
+    expect(w.find('[data-test="note-editor-logdate"]').text()).toContain('2026-09-28')
   })
 
-  it('未下发 fieldPermissions：视为全可改', async () => {
+  it('未下发 fieldPermissions：视为可改', async () => {
     const payload = detail() as Record<string, unknown>
     delete payload.fieldPermissions
     const w = await mountEdit(payload)
-    expect(flags(w)).toEqual({
-      contentReadonly: false,
-      dateDisabled: false,
-      tagsDisabled: false,
-    })
+    expect(flags(w)).toEqual({ contentReadonly: false })
   })
 
-  it('新建态：无需 detail，全字段可改', async () => {
-    const w = mount(NoteEditor, { props: { ownerTags: [] }, global: { components } })
+  it('新建态：无日期选择控件，正文可编辑', async () => {
+    const w = mount(NoteEditor, { global: { components } })
     await flushPromises()
     expect(getNote).not.toHaveBeenCalled()
-    expect(flags(w)).toEqual({
-      contentReadonly: false,
-      dateDisabled: false,
-      tagsDisabled: false,
-    })
+    expect(w.findComponent(ElDatePicker).exists()).toBe(false)
+    expect(flags(w)).toEqual({ contentReadonly: false })
   })
 
-  it('编辑态详情请求失败不阻塞渲染（loading 归零）', async () => {
-    getNote.mockRejectedValueOnce(new Error('网络错误'))
-    const w = mount(NoteEditor, { props: { noteId: 1001, ownerTags: [] }, global: { components } })
+  it('编辑保存不带 logDate / tagIds', async () => {
+    const w = await mountEdit(detail())
+    updateNote.mockResolvedValue(detail())
+    await w.findComponent(ElInput).vm.$emit('update:modelValue', '改过的正文')
+    await flushPromises()
+    const buttons = w.findAllComponents(ElButton)
+    await buttons[0].trigger('click')
+    await flushPromises()
+    expect(updateNote).toHaveBeenCalledWith(1001, { content: '改过的正文', version: 1 })
+  })
+
+  it('新建不带 logDate / tagIds', async () => {
+    const w = mount(NoteEditor, { global: { components } })
+    createNote.mockResolvedValue(detail())
+    await w.findComponent(ElInput).vm.$emit('update:modelValue', '今天的工作')
+    await flushPromises()
+    const buttons = w.findAllComponents(ElButton)
+    await buttons[0].trigger('click')
+    await flushPromises()
+    expect(createNote).toHaveBeenCalledWith({ content: '今天的工作' })
+  })
+
+  it('编辑态详情请求失败不长时间渲染 loading 骨架', async () => {
+    getNote.mockRejectedValueOnce(new Error('请求失败'))
+    const w = mount(NoteEditor, { props: { noteId: 1001 }, global: { components } })
     await flushPromises()
     expect(w.find('.note-editor__loading').exists()).toBe(false)
   })

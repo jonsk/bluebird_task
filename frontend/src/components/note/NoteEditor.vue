@@ -4,60 +4,41 @@ import { ElMessage } from 'element-plus'
 import { getNote, createNote, updateNote } from '@/api/note'
 import { BizError, HttpError } from '@/api/http'
 import { ERROR_CODE } from '@/utils/errorCode'
-import { todayInShanghai } from '@/utils/date'
-import type { NoteDetailVO, TagVO } from '@/types/note'
-import type { TagOption } from '@/types/tag'
-import BbTagPicker from '@/components/bb/BbTagPicker.vue'
+import type { NoteDetailVO } from '@/types/note'
 
 /**
  * NoteEditor — 新建 / 编辑日志。
- * 新建：content / logDate(默认上海当天) / tagIds(BbTagPicker)。
+ * 新建：content，日志日期由后端固定为当天（不再提供日期选择）。
  * 编辑：GET 详情回显，提交带 version（乐观锁 10006 冲突提示并保留草稿）。
- * 标签三态：options===undefined → 禁用保存并提示；[]=可保存空；非空=可保存。
+ * 日志日期创建后不可修改（后端对携带 logDate 的更新返回 400）。
  */
 const props = withDefaults(
   defineProps<{
     noteId?: number | null
-    ownerTags?: TagVO[]
-    initial?: { content?: string; logDate?: string; tagIds?: number[] } | null
+    initial?: { content?: string } | null
     /**
-     * 字段级可编辑性（后端 `fieldPermissions` 原样透传：content/logDate/tagIds）。
-     * 新建或未传时全字段可改；编辑态以 `GET /notes/{id}` 下发的值为准（后端是唯一事实来源）。
+     * 字段级可编辑性（后端 `fieldPermissions` 原样透传：content）。
+     * 新建或未传时视为可改；编辑态以 `GET /notes/{id}` 下发的值为准（后端是唯一事实来源）。
      */
-    fieldPermissions?: { content?: boolean; logDate?: boolean; tagIds?: boolean }
+    fieldPermissions?: { content?: boolean }
   }>(),
-  { noteId: null, ownerTags: undefined, initial: null, fieldPermissions: () => ({}) },
+  { noteId: null, initial: null, fieldPermissions: () => ({}) },
 )
 
 /**
  * 字段是否可编辑：
  * 1) 编辑态使用详情接口下发的 `fieldPermissions`（后端唯一事实来源）；
- * 2) 未下发（旧后端 / mock 未升级）时按"全部可改"处理（只有 owner/ADMIN 能进编辑态）；
+ * 2) 未下发（旧后端 / mock 未升级）时按"可改"处理（只有 owner/ADMIN 能进编辑态）；
  * 3) 新建态不受限。
  */
-const loadedPerms = ref<{ content?: boolean; logDate?: boolean; tagIds?: boolean } | null>(null)
+const loadedPerms = ref<{ content?: boolean } | null>(null)
 
-const locks = computed(() => {
+const canEditContent = computed(() => {
   const explicit = loadedPerms.value ?? props.fieldPermissions ?? null
-  // 空对象 = 未下发，视为全可改
+  // 空对象 = 未下发，视为可改
   const perms = explicit && Object.keys(explicit).length > 0 ? explicit : null
-  const locked = (key: 'content' | 'logDate' | 'tagIds'): boolean => {
-    if (perms == null) {
-      return false
-    }
-    return perms[key] === false
-  }
-  return {
-    content: locked('content'),
-    date: locked('logDate'),
-    tagIds: locked('tagIds'),
-  }
+  return perms == null || perms.content !== false
 })
-
-function canEditField(key: 'content' | 'tagIds' | 'logDate'): boolean {
-  if (key === 'logDate') return !locks.value.date
-  return !locks.value[key]
-}
 
 const emit = defineEmits<{
   (e: 'saved', detail: NoteDetailVO): void
@@ -66,15 +47,8 @@ const emit = defineEmits<{
 
 const isEdit = computed(() => props.noteId != null)
 
-const tagOptions = computed<TagOption[] | undefined>(() => {
-  const tags = props.ownerTags
-  if (tags === undefined) return undefined
-  return tags.map((t) => ({ id: t.id, name: t.name ?? '' }))
-})
-
 const content = ref('')
-const logDate = ref(todayInShanghai())
-const tagIds = ref<number[]>([])
+const logDate = ref('')
 const version = ref<number | undefined>(undefined)
 const loading = ref(false)
 const submitting = ref(false)
@@ -85,8 +59,7 @@ async function loadDetail(): Promise<void> {
   try {
     const d = await getNote(props.noteId)
     content.value = d.content ?? ''
-    logDate.value = d.logDate ?? todayInShanghai()
-    tagIds.value = (d.tags ?? []).map((t) => t.id!).filter((id): id is number => id != null)
+    logDate.value = d.logDate ?? ''
     version.value = d.version
     loadedPerms.value = (d as { fieldPermissions?: typeof loadedPerms.value }).fieldPermissions ?? null
   } catch (e) {
@@ -98,10 +71,7 @@ async function loadDetail(): Promise<void> {
 }
 
 function applyNewDefaults(): void {
-  const init = props.initial
-  content.value = init?.content ?? ''
-  logDate.value = init?.logDate ?? todayInShanghai()
-  tagIds.value = init?.tagIds ?? []
+  content.value = props.initial?.content ?? ''
   version.value = undefined
 }
 
@@ -116,14 +86,10 @@ watch(
   () => init(),
 )
 
-const canSave = computed(() => tagOptions.value !== undefined && !submitting.value)
+const canSave = computed(() => !submitting.value)
 
 async function onSubmit(): Promise<void> {
   if (submitting.value) return
-  if (tagOptions.value === undefined) {
-    ElMessage.warning('标签加载中，请稍候')
-    return
-  }
   if (!content.value.trim()) {
     ElMessage.warning('内容不能为空')
     return
@@ -136,16 +102,10 @@ async function onSubmit(): Promise<void> {
     if (isEdit.value && props.noteId != null) {
       detail = await updateNote(props.noteId, {
         content: content.value,
-        logDate: logDate.value,
-        tagIds: tagIds.value,
         version: version.value,
       })
     } else {
-      detail = await createNote({
-        content: content.value,
-        logDate: logDate.value,
-        tagIds: tagIds.value,
-      })
+      detail = await createNote({ content: content.value })
     }
     emit('saved', detail)
   } catch (e) {
@@ -179,34 +139,21 @@ function onCtrlEnter(e?: Event): void {
         maxlength="20000"
         show-word-limit
         resize="vertical"
-        :readonly="!canEditField('content')"
+        :readonly="!canEditContent"
         placeholder="记录今日工作…（Ctrl+Enter 保存）"
         class="note-editor__content"
         data-test="note-editor-content"
         @keydown.ctrl.enter="onCtrlEnter"
       />
 
-      <div class="note-editor__row">
-        <el-date-picker
-          v-model="logDate"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="日志日期"
-          :disabled="!canEditField('logDate')"
-        />
-        <BbTagPicker
-          :options="tagOptions"
-          v-model="tagIds"
-          class="note-editor__tags"
-          :disabled="!canEditField('tagIds')"
-        />
-      </div>
-      <p v-if="!canEditField('content')" class="note-editor__hint" data-test="note-editor-readonly-hint">
+      <p v-if="isEdit && logDate" class="note-editor__meta" data-test="note-editor-logdate">
+        日志日期：{{ logDate }}（创建后不可修改）
+      </p>
+      <p v-if="!canEditContent" class="note-editor__hint" data-test="note-editor-readonly-hint">
         当前为只读视图，无可编辑字段。
       </p>
 
       <div class="note-editor__ops">
-        <el-button v-if="tagOptions === undefined" disabled>标签加载中…</el-button>
         <el-button type="primary" :disabled="!canSave" :loading="submitting" @click="onSubmit">
           {{ isEdit ? '保存' : '创建' }}
         </el-button>
@@ -230,16 +177,10 @@ function onCtrlEnter(e?: Event): void {
 .note-editor__content :deep(textarea) {
   white-space: pre-wrap;
 }
-.note-editor__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-}
-.note-editor__tags {
-  flex: 1;
-  min-width: 200px;
+.note-editor__meta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--bb-text-muted);
 }
 .note-editor__hint {
   margin: 6px 0 0;

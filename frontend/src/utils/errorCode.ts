@@ -29,7 +29,6 @@ export const ERROR_CODE = {
   // ===== note 模块（5xxxx，与后端 ErrorCode 50001-50021 一一对应）=====
   NOTE_NOT_FOUND: 50001,
   NOTE_CONTENT_TOO_LONG: 50002,
-  NOTE_TAG_INVALID: 50003,
   NOTE_ATTACHMENT_INVALID: 50004,
   NOTE_ATTACHMENT_NOT_LINKED: 50005,
   NOTE_RELATION_TARGET_NOT_FOUND: 50006,
@@ -72,7 +71,6 @@ const MESSAGES: Record<number, string> = {
   // ===== note 模块（5xxxx）=====
   50001: '工作日志不存在',
   50002: '日志内容超过 20000 字符',
-  50003: '标签不存在或不属于日志所有者',
   50004: '附件不存在或不属于当前用户',
   50005: '附件未关联到该工作日志',
   50006: '引用目标不存在或不可见',

@@ -7,10 +7,8 @@ import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
 import com.bbtc.bluebird.modules.note.domain.NoteRelation;
-import com.bbtc.bluebird.modules.note.domain.NoteTag;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteAttachmentRefMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteRelationMapper;
-import com.bbtc.bluebird.modules.note.infrastructure.NoteTagMapper;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import com.bbtc.bluebird.modules.task.domain.Tag;
@@ -79,8 +77,6 @@ class NoteSubFlowTest {
     @Autowired
     TagMapper tagMapper;
     @Autowired
-    NoteTagMapper noteTagMapper;
-    @Autowired
     TaskTagMapper taskTagMapper;
     @Autowired
     NoteRelationMapper noteRelationMapper;
@@ -129,11 +125,12 @@ class NoteSubFlowTest {
         return objectMapper.readTree(json);
     }
 
-    private long createNote(SysUser u, String content, String logDate) throws Exception {
+    private static final String TODAY = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")).toString();
+
+    private long createNote(SysUser u, String content) throws Exception {
         String json = mvc.perform(auth(post("/api/v1/notes"), u)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"" + content + "\",\"logDate\":\"" + logDate
-                                + "\",\"tagIds\":[]}"))
+                        .content("{\"content\":\"" + content + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andReturn().getResponse().getContentAsString();
@@ -161,7 +158,7 @@ class NoteSubFlowTest {
         SysUser sub = user("sub", child.getId(), "COMMON");
         SysUser outsider = user("outsider", null, "COMMON");
 
-        long subNote = createNote(sub, "下属的私有日志", "2026-10-10");
+        long subNote = createNote(sub, "下属的私有日志");
 
         // 1. 授权端点已下线：任何调用都是未映射 → 200 + 10004
         mvc.perform(auth(post("/api/v1/note-grants"), leader)
@@ -213,7 +210,7 @@ class NoteSubFlowTest {
         userMapper.updateById(leader);
         SysUser owner = user("owner", child.getId(), "COMMON");
         SysUser stranger = user("stranger", null, "COMMON");
-        long note = createNote(owner, "带附件的日志", "2026-10-13");
+        long note = createNote(owner, "带附件的日志");
 
         long ownerFile = uploadFile(owner, "owner.txt", "owner-content");
         long viewerFile = uploadFile(leader, "leader.txt", "leader-content");
@@ -270,7 +267,7 @@ class NoteSubFlowTest {
     void fileDeleteGuards() throws Exception {
         SysUser owner = user("owner", null, "COMMON");
         SysUser other = user("other", null, "COMMON");
-        long note = createNote(owner, "引用文件的日志", "2026-10-14");
+        long note = createNote(owner, "引用文件的日志");
         long file = uploadFile(owner, "ref.txt", "ref-content");
 
         // 非创建者读/删 → 403
@@ -301,8 +298,8 @@ class NoteSubFlowTest {
         SysUser hidden = user("hidden", null, "COMMON");
         SysUser stranger = user("stranger", null, "COMMON");
 
-        long note = createNote(owner, "引用方", "2026-10-15");
-        long hiddenNote = createNote(hidden, "被引用但不可见", "2026-10-16");
+        long note = createNote(owner, "引用方");
+        long hiddenNote = createNote(hidden, "被引用但不可见");
 
         // 引用不可见目标 → 50006
         mvc.perform(auth(post("/api/v1/notes/" + note + "/relations"), owner)
@@ -312,7 +309,7 @@ class NoteSubFlowTest {
                 .andExpect(jsonPath("$.code").value(50006));
 
         // 正常引用 → 列表 + backlinks
-        long target = createNote(owner, "被引用方", "2026-10-17");
+        long target = createNote(owner, "被引用方");
         String relJson = mvc.perform(auth(post("/api/v1/notes/" + note + "/relations"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetType\":\"NOTE\",\"targetId\":" + target + "}"))
@@ -350,27 +347,47 @@ class NoteSubFlowTest {
                 new QueryWrapper<NoteRelation>().eq("id", relId)).intValue());
     }
 
-    /* ==================== 6. 标签级联清理 ==================== */
+    /* ==================== 6. 标签能力已下线 ==================== */
 
     @Test
-    void tagCascadeCleanup() throws Exception {
+    void tagFeatureRemoved() throws Exception {
         SysUser owner = user("owner", null, "COMMON");
-        Tag tag = new Tag();
-        tag.setName("级联标签");
-        tag.setOwnerId(owner.getId());
-        tagMapper.insert(tag);
 
-        // note_tag 引用
+        // 1. facet 端点已摘除：路径会命中 /notes/{id}，id 非数字 → 400 + 10001
+        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "mine"), owner))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10001));
+
+        // 2. 创建/更新携带 tagIds 被静默忽略：不落库、不回显
         String created = mvc.perform(auth(post("/api/v1/notes"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"带标签的日志\",\"logDate\":\"2026-10-18\","
-                                + "\"tagIds\":[" + tag.getId() + "]}"))
+                        .content("{\"content\":\"带 tagIds 的日志\",\"tagIds\":[1,2]}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.tags[0].name").value("级联标签"))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.tags").doesNotExist())
+                .andExpect(jsonPath("$.data.ownerTags").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
         long noteId = body(created).path("data").path("id").asLong();
+        mvc.perform(auth(put("/api/v1/notes/" + noteId), owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tagIds\":[3],\"version\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.tags").doesNotExist());
 
-        // task_tag 引用（直接落库，模拟任务侧已引用）
+        // 3. 列表的 tagId/tagName 参数被忽略（不再过滤）
+        mvc.perform(auth(get("/api/v1/notes").param("scope", "mine").param("tagId", "1"), owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+        mvc.perform(auth(get("/api/v1/notes").param("scope", "mine").param("tagName", "任意"), owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+
+        // 4. 任务侧标签删除仍会清理 task_tag（SPI 保留）
+        Tag tag = new Tag();
+        tag.setName("任务标签");
+        tag.setOwnerId(owner.getId());
+        tagMapper.insert(tag);
         TaskTag taskTag = new TaskTag();
         taskTag.setTaskId(990001L);
         taskTag.setTagId(tag.getId());
@@ -379,105 +396,55 @@ class NoteSubFlowTest {
         mvc.perform(auth(delete("/api/v1/tags/" + tag.getId()), owner))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
-
-        assertEquals(0, noteTagMapper.selectCount(
-                new QueryWrapper<NoteTag>().eq("tag_id", tag.getId())).intValue());
         assertEquals(0, taskTagMapper.selectCount(
                 new QueryWrapper<TaskTag>().eq("tag_id", tag.getId())).intValue());
-        // 日志本身保留，标签消失
-        mvc.perform(auth(get("/api/v1/notes/" + noteId), owner))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.tags").isEmpty());
-
-        // 不存在/他人标签 → 200 + 10004（信息隐藏）
-        mvc.perform(auth(delete("/api/v1/tags/99999999"), owner))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(10004));
-        SysUser other = user("other", null, "COMMON");
-        Tag otherTag = new Tag();
-        otherTag.setName("他人标签");
-        otherTag.setOwnerId(other.getId());
-        tagMapper.insert(otherTag);
-        mvc.perform(auth(delete("/api/v1/tags/" + otherTag.getId()), owner))
-                .andExpect(jsonPath("$.code").value(10004));
-        assertNotNull(tagMapper.selectById(otherTag.getId()));
     }
 
-    /* ==================== 7. facet 与列表参数校验 ==================== */
+    /* ==================== 7. 列表查询校验 ==================== */
 
     @Test
-    void facetAndQueryValidation() throws Exception {
+    void queryValidation() throws Exception {
         SysUser owner = user("owner", null, "COMMON");
-        SysUser stranger = user("stranger", null, "COMMON");
-        long note = createNote(owner, "facet 校验日志", "2026-10-19");
-        SysUser leader = user("leader", null, "COMMON");
-        Department root = dept("facet部", null, leader.getId());
-        Department child = dept("facet组", root.getId(), null);
-        leader.setDeptId(root.getId());
-        userMapper.updateById(leader);
-        owner.setDeptId(child.getId());
-        userMapper.updateById(owner);
+        createNote(owner, "查询校验日志");
 
-        // mine facet 带 id；subordinate facet 按标签名聚合、不带 id
-        Tag tag = new Tag();
-        tag.setName("facet标签");
-        tag.setOwnerId(owner.getId());
-        tagMapper.insert(tag);
-        mvc.perform(auth(put("/api/v1/notes/" + note), owner)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tagIds\":[" + tag.getId() + "],\"version\":0}"))
-                .andExpect(status().isOk());
-        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "mine"), owner))
-                .andExpect(jsonPath("$.data[0].id").value(tag.getId()));
-        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "subordinate"), leader))
-                .andExpect(jsonPath("$.data[0].id").doesNotExist())
-                .andExpect(jsonPath("$.data[0].name").value("facet标签"));
-
-        // scope 非法 / all 非 ADMIN
-        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "xxx"), owner))
-                .andExpect(status().isBadRequest());
-        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "all"), owner))
-                .andExpect(status().isForbidden());
-
-        // size 超上限截断为 100
+        // size 上限截断为 100
         mvc.perform(auth(get("/api/v1/notes").param("scope", "mine").param("size", "500"), owner))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.size").value(100));
 
         // date 与 start/end 互斥 → 400
         mvc.perform(auth(get("/api/v1/notes")
-                        .param("scope", "mine").param("date", "2026-10-19")
+                        .param("scope", "mine").param("date", TODAY)
                         .param("start", "2026-10-01").param("end", "2026-10-31"), owner))
                 .andExpect(status().isBadRequest());
 
-        // 不存在的 tagId → 空列表（不报错）
-        mvc.perform(auth(get("/api/v1/notes").param("scope", "mine").param("tagId", "999999"), owner))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(0));
-
-        // tagId 非数字 → 400
-        mvc.perform(auth(get("/api/v1/notes").param("scope", "mine").param("tagId", "abc"), owner))
-                .andExpect(status().isBadRequest());
+        // 非法 scope → 400 + 10001
+        mvc.perform(auth(get("/api/v1/notes").param("scope", "nope"), owner))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10001));
     }
 
-    /* ==================== 8. 日历 scope 与参数校验 ==================== */
+
+    /* ==================== 8. 日历 scope 与校验 ==================== */
 
     @Test
     void calendarScopeAndValidation() throws Exception {
         SysUser owner = user("owner", null, "COMMON");
         SysUser admin = user("admin", null, "ADMIN");
+        String year = TODAY.substring(0, 4);
+        String month = String.valueOf(Integer.parseInt(TODAY.substring(5, 7)));
 
-        createNote(owner, "日历日志 A", "2026-10-05");
-        createNote(owner, "日历日志 B", "2026-10-05");
-        createNote(owner, "日历日志 C", "2026-10-06");
+        // 日志日期不可选：三条日志都记为当天，故日历只有一天、计数为 3
+        createNote(owner, "当天日志 A");
+        createNote(owner, "当天日志 B");
+        createNote(owner, "当天日志 C");
 
         mvc.perform(auth(get("/api/v1/notes/calendar")
-                        .param("year", "2026").param("month", "10").param("scope", "mine"), owner))
+                        .param("year", year).param("month", month).param("scope", "mine"), owner))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].date").value("2026-10-05"))
-                .andExpect(jsonPath("$.data[0].count").value(2))
-                .andExpect(jsonPath("$.data[1].count").value(1));
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].date").value(TODAY))
+                .andExpect(jsonPath("$.data[0].count").value(3));
 
         // 非法 year → 400
         mvc.perform(auth(get("/api/v1/notes/calendar")
@@ -486,25 +453,32 @@ class NoteSubFlowTest {
 
         // scope=all 非 ADMIN → 403；ADMIN → 200
         mvc.perform(auth(get("/api/v1/notes/calendar")
-                        .param("year", "2026").param("month", "10").param("scope", "all"), owner))
+                        .param("year", year).param("month", month).param("scope", "all"), owner))
                 .andExpect(status().isForbidden());
         mvc.perform(auth(get("/api/v1/notes/calendar")
-                        .param("year", "2026").param("month", "10").param("scope", "all"), admin))
+                        .param("year", year).param("month", month).param("scope", "all"), admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray());
 
-        // 其他月份：无日志 → 空数组
+        // 其它月份：该用户无日志 → 空数组
+        java.time.YearMonth other = java.time.YearMonth.now(java.time.ZoneId.of("Asia/Shanghai")).minusMonths(2);
         mvc.perform(auth(get("/api/v1/notes/calendar")
-                        .param("year", "2026").param("month", "11").param("scope", "mine"), owner))
+                        .param("year", String.valueOf(other.getYear()))
+                        .param("month", String.valueOf(other.getMonthValue()))
+                        .param("scope", "mine"), owner))
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        // 未来超 7 天的 logDate → 50012
+        // 客户端传 logDate 被忽略：落库仍是当天，不再报 50012
         mvc.perform(auth(post("/api/v1/notes"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"未来日志\",\"logDate\":\"" + java.time.LocalDate.now().plusDays(30)
-                                + "\",\"tagIds\":[]}"))
-                .andExpect(jsonPath("$.code").value(50012));
+                        .content("{\"content\":\"带未来日期的日志\",\"logDate\":\""
+                                + java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")).plusDays(30) + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.logDate").value(TODAY));
 
         assertTrue(noteRelationMapper.selectCount(null) >= 0);
     }
+
+
 }

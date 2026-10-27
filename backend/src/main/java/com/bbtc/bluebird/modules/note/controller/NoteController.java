@@ -11,7 +11,6 @@ import com.bbtc.bluebird.modules.note.dto.NoteBrief;
 import com.bbtc.bluebird.modules.note.dto.NoteCreateReq;
 import com.bbtc.bluebird.modules.note.dto.NoteDetailVO;
 import com.bbtc.bluebird.modules.note.dto.NoteQuery;
-import com.bbtc.bluebird.modules.note.dto.NoteTagFacetItem;
 import com.bbtc.bluebird.modules.note.dto.NoteUpdateReq;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +28,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.List;
 
 /** 工作日志接口（全部需登录；不可见资源统一 404）。 */
 @Tag(name = "note")
@@ -41,12 +39,10 @@ public class NoteController {
     private final NoteCommandService commandService;
     private final NoteQueryService queryService;
 
-    @Operation(summary = "日志列表（5 种 scope）")
+    @Operation(summary = "日志列表（4 种 scope）")
     @GetMapping
     public ApiResult<PageResult<NoteBrief>> page(
             @RequestParam(defaultValue = "mine") String scope,
-            @RequestParam(required = false) Long tagId,
-            @RequestParam(required = false) String tagName,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean pinned,
             @RequestParam(required = false) String start,
@@ -55,15 +51,9 @@ public class NoteController {
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long size) {
-        NoteQuery query = new NoteQuery(scope, tagId, tagName, keyword, pinned,
+        NoteQuery query = new NoteQuery(scope, keyword, pinned,
                 parseDate(start), parseDate(end), parseDate(date), sort, page, size);
         return ApiResult.ok(queryService.page(query));
-    }
-
-    @Operation(summary = "标签 facet（mine 含 id，其余 scope 按 name）")
-    @GetMapping("/tags")
-    public ApiResult<List<NoteTagFacetItem>> tags(@RequestParam(defaultValue = "mine") String scope) {
-        return ApiResult.ok(queryService.tagFacet(scope));
     }
 
     @Operation(summary = "日志详情")

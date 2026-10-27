@@ -12,7 +12,6 @@ export type NoteRelationVO = components['schemas']['NoteRelationVO']
 export type NoteBacklinkVO = components['schemas']['NoteBacklinkVO']
 export type NoteAttachmentBindReq = components['schemas']['NoteAttachmentBindReq']
 export type NoteAttachmentVO = components['schemas']['NoteAttachmentVO']
-export type NoteTagFacetItem = components['schemas']['NoteTagFacetItem']
 export type NoteCalendarDay = components['schemas']['NoteCalendarDay']
 export type TagVO = components['schemas']['TagVO']
 export type TaskSearchData = components['schemas']['TaskSearchData']
@@ -29,8 +28,6 @@ export type NoteSort = 'log_date_desc' | 'log_date_asc' | 'created_desc' | 'upda
 
 export interface NoteQuery {
   scope?: NoteScope
-  tagId?: number
-  tagName?: string
   keyword?: string
   pinned?: boolean
   start?: string

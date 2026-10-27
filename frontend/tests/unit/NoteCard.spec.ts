@@ -40,7 +40,6 @@ function base(over: Note = {}): Note {
     pinned: false,
     canEdit: false,
     canManage: false,
-    tags: [],
     ...over,
   }
 }
@@ -113,11 +112,6 @@ describe('NoteCard', () => {
     await w.find('[data-test="note-card-edit"]').trigger('click')
     expect(w.emitted('edit')).toEqual([[1001]])
     expect(mountCard(base()).find('[data-test="note-card-edit"]').exists()).toBe(false)
-  })
-
-  it('渲染标签列表', () => {
-    const w = mountCard(base({ tags: [{ id: 1, name: '周报' }, { id: 2, name: '复盘' }] }))
-    expect(w.findAll('.tag').map((t) => t.text())).toEqual(['周报', '复盘'])
   })
 
   it('active 时加 is-active 类', () => {

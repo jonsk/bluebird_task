@@ -24,7 +24,6 @@ describe('note 错误码文案', () => {
   it('note 域 50001–50021 均有中文文案（不落到"操作失败"）', () => {
     const codes = [
       ERROR_CODE.NOTE_NOT_FOUND,
-      ERROR_CODE.NOTE_TAG_INVALID,
       ERROR_CODE.NOTE_SCOPE_DISABLED,
       ERROR_CODE.NOTE_DEPT_REQUIRED,
       ERROR_CODE.VERSION_CONFLICT,

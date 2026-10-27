@@ -1,15 +1,13 @@
 package com.bbtc.bluebird.modules.note.dto;
 
-import com.bbtc.bluebird.modules.task.dto.TagVO;
 import lombok.Data;
 
 import java.time.Instant;
-import java.util.List;
 
 /**
- * 工作日志基础视图（列表/详情共用；**不含 ownerTags**）。
+ * 工作日志基础视图（列表 / 详情共用，**不含 ownerTags**）。
  *
- * <p>{@code contentSummary} 固定取正文前 200 码位（保留换行，不补省略号），前端不二次截断。
+ * <p>{@code contentSummary} 固定取正文前 200 码位（保留换行，不补省略号），前端不再二次截断。
  */
 @Data
 public class NoteVO {
@@ -17,7 +15,7 @@ public class NoteVO {
     private Long id;
     private String content;
     private String contentSummary;
-    /** YYYY-MM-DD */
+    /** YYYY-MM-DD（创建当天，编辑不可改） */
     private String logDate;
     private boolean pinned;
     private Long ownerId;
@@ -30,6 +28,4 @@ public class NoteVO {
     private String role;
     private Instant createdAt;
     private Instant updatedAt;
-    /** 本 note 已选标签。 */
-    private List<TagVO> tags;
 }

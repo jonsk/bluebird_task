@@ -9,9 +9,7 @@ import type {
   NoteBacklinkVO,
   NoteAttachmentBindReq,
   NoteAttachmentVO,
-  NoteTagFacetItem,
   NoteCalendarDay,
-  NoteScope,
   NoteCalendarScope,
   NoteQuery,
 } from '@/types/note'
@@ -74,11 +72,7 @@ export function listBacklinks(id: number): Promise<NoteBacklinkVO[]> {
   return get<NoteBacklinkVO[]>(`/notes/${id}/backlinks`)
 }
 
-// ---- facets / calendar ----
-export function listNoteTags(scope: NoteScope, keyword?: string): Promise<NoteTagFacetItem[]> {
-  return get<NoteTagFacetItem[]>('/notes/tags', { scope, keyword })
-}
-
+// ---- calendar ----
 export function calendar(
   year: number,
   month: number,

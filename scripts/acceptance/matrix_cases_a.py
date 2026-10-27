@@ -15,49 +15,44 @@ def build(api, U, FX, run, TODAY):
 
     # ---------------- A. Note CRUD ----------------
     def a1():
-        return api.req('POST', '/notes', Z, {'content': 'MTX-A1 创建', 'logDate': TODAY.isoformat(),
-                                             'tagIds': [FX['tag']['id']]})
+        return api.req('POST', '/notes', Z, {'content': 'MTX-A1 创建'})
 
-    run('1', 'A', 'owner 创建日志', 200, 0, a1,
+    run('1', 'A', 'owner 创建日志（无日期/标签入参）', 200, 0, a1,
         lambda r: need(r, 0, lambda x: all(k in x.data for k in
-                                           ('id', 'version', 'contentSummary', 'ownerTags', 'attachments', 'relations'))))
+                                           ('id', 'version', 'contentSummary', 'fieldPermissions',
+                                            'attachments', 'relations'))
+                       and 'tags' not in x.data and 'ownerTags' not in x.data
+                       and x.data['logDate'] == TODAY.isoformat()))
 
-    run('1a', 'A', '未登录创建', 401, None, lambda: api.req('POST', '/notes', None,
-                                                       {'content': 'x', 'logDate': TODAY.isoformat()}))
+    run('1a', 'A', '未登录创建', 401, None, lambda: api.req('POST', '/notes', None, {'content': 'x'}))
 
     def a1b():
-        return api.req('POST', '/notes', OUT, {'content': 'MTX-A1b outsider 自建', 'logDate': TODAY.isoformat(),
-                                               'tagIds': []})
+        return api.req('POST', '/notes', OUT, {'content': 'MTX-A1b outsider 自建'})
 
     run('1b', 'A', '任意登录用户创建自己的日志', 200, 0, a1b, lambda r: need(r, 0, lambda x: x.data.get('id') is not None))
 
     run('1c', 'A', 'content 超 20000', 200, 50002,
-        lambda: api.req('POST', '/notes', Z, {'content': 'x' * 20001, 'logDate': TODAY.isoformat(),
-                                              'tagIds': []}),
+        lambda: api.req('POST', '/notes', Z, {'content': 'x' * 20001}),
         lambda r: need(r, 50002))
 
-    run('1d', 'A', 'logDate=2026-13-15', 400, None,
-        lambda: api.req('POST', '/notes', Z, {'content': 'x', 'logDate': '2026-13-15',
-                                              'tagIds': []}))
-    run('1d-1', 'A', 'logDate=abc', 400, None,
-        lambda: api.req('POST', '/notes', Z, {'content': 'x', 'logDate': 'abc',
-                                              'tagIds': []}))
-    run('1d-2', 'A', 'logDate 未来超 7 天', 200, 50012,
-        lambda: api.req('POST', '/notes', Z, {'content': 'x', 'logDate': (TODAY + timedelta(days=30)).isoformat(),
-                                              'tagIds': []}),
-        lambda r: need(r, 50012))
+    # 日志日期不可选：创建入参的 logDate 已下线，传了也被忽略，落库恒为当天
+    run('1d', 'A', '创建传 logDate（非法值）也被忽略', 200, 0,
+        lambda: api.req('POST', '/notes', Z, {'content': 'MTX-1d', 'logDate': '2026-13-15'}),
+        lambda r: need(r, 0, lambda x: x.data['logDate'] == TODAY.isoformat()))
+    run('1d-1', 'A', '创建传未来 logDate 也被忽略', 200, 0,
+        lambda: api.req('POST', '/notes', Z, {'content': 'MTX-1d1',
+                                              'logDate': (TODAY + timedelta(days=30)).isoformat()}),
+        lambda r: need(r, 0, lambda x: x.data['logDate'] == TODAY.isoformat()))
+    run('1d-2', 'A', '编辑传 logDate → 400（日期不可改）', 400, None,
+        lambda: api.req('PUT', f"/notes/{api.new_note(Z)['id']}", Z,
+                        {'content': 'x', 'logDate': TODAY.isoformat(), 'version': 0}))
 
-    def a1e():
-        other_tag = api.req('POST', '/tags', L, {'name': 'MTX-L' + uuid.uuid4().hex[:4]}).data
-        tag_id = other_tag if isinstance(other_tag, int) else other_tag['id']
-        return api.req('POST', '/notes', Z, {'content': 'MTX-A1e', 'logDate': TODAY.isoformat(),
-                                             'tagIds': [tag_id]})
-
-    run('1e', 'A', '引用他人标签', 200, 50003, a1e, lambda r: need(r, 50003))
+    run('1e', 'A', '创建传 tagIds 被忽略（不落库不回显）', 200, 0,
+        lambda: api.req('POST', '/notes', Z, {'content': 'MTX-A1e', 'tagIds': [1, 2]}),
+        lambda r: need(r, 0, lambda x: 'tags' not in x.data))
     def a2():
         api.clear_dept(NODEPT)
-        return api.req('POST', '/notes', NODEPT, {'content': 'MTX-A2', 'logDate': TODAY.isoformat(),
-                                                  'tagIds': []})
+        return api.req('POST', '/notes', NODEPT, {'content': 'MTX-A2'})
 
     # 减法后 visibility 已下线：无部门用户也能创建；未知字段被忽略，详情不再回传 visibility/archived
     run('2', 'A', 'visibility 字段已废弃（传了也被忽略）', 200, 0, a2,
@@ -65,17 +60,13 @@ def build(api, U, FX, run, TODAY):
 
     def a4():
         n = api.new_note(Z)
-        return api.req('PUT', f"/notes/{n['id']}", Z, {'content': '改', 'version': n['version'] - 1,
-                                                       'logDate': n['logDate'],
-                                                       'tagIds': []})
+        return api.req('PUT', f"/notes/{n['id']}", Z, {'content': '改', 'version': n['version'] - 1})
 
     run('4', 'A', 'version 过期冲突', 200, 10006, a4, lambda r: need(r, 10006))
 
     def a4a():
         n = api.new_note(Z)
-        r = api.req('PUT', f"/notes/{n['id']}", Z, {'content': 'MTX-4a 新内容', 'version': n['version'],
-                                                    'logDate': n['logDate'],
-                                                    'tagIds': []})
+        r = api.req('PUT', f"/notes/{n['id']}", Z, {'content': 'MTX-4a 新内容', 'version': n['version']})
         assert r.code == 0 and r.data['version'] == n['version'] + 1, f"version 未递增: {r.data.get('version')}"
         return r
 
@@ -84,21 +75,20 @@ def build(api, U, FX, run, TODAY):
     def a5():
         n = api.new_note(Z)
         return api.req('PUT', f"/notes/{n['id']}", Z, {'version': n['version'],
-                                                      'content': n['contentSummary'], 'logDate': n['logDate'],
-                                                      'tagIds': [999999]})
+                                                      'content': n['contentSummary'], 'tagIds': [999999]})
 
-    run('5', 'A', 'owner 改 tagIds 为不存在标签', 200, 50003, a5, lambda r: need(r, 50003))
+    run('5', 'A', '编辑传 tagIds 被忽略（200 + 无 tags）', 200, 0, a5,
+        lambda r: need(r, 0, lambda x: 'tags' not in x.data))
 
     def a5a():
         n = api.new_note(Z)
-        return api.req('PUT', f"/notes/{n['id']}", 'mtxviewer', {'content': 'VIEWER 越权', 'version': n['version'],
-                                                                 'logDate': n['logDate'],
-                                                                 'tagIds': []})
+        return api.req('PUT', f"/notes/{n['id']}", 'mtxviewer', {'content': 'VIEWER 越权', 'version': n['version']})
 
     run('5a', 'A', '无关系用户编辑 → 404（授权已下线）', 404, None, a5a)
     run('6', 'A', '不可见用户读详情', 404, None, lambda: api.req('GET', f"/notes/{FX['z_private']['id']}", OUT))
     run('6a', 'A', 'owner 读详情', 200, 0, lambda: api.req('GET', f"/notes/{FX['z_note']['id']}", Z),
-        lambda r: need(r, 0, lambda x: all(k in x.data for k in ('content', 'ownerTags', 'canEdit', 'canManage'))))
+        lambda r: need(r, 0, lambda x: all(k in x.data for k in ('content', 'fieldPermissions', 'canEdit', 'canManage'))
+                       and 'ownerTags' not in x.data))
 
     def a7():
         n = api.new_note(Z)
@@ -139,11 +129,12 @@ def build(api, U, FX, run, TODAY):
     run('12c', 'B', 'archived 参数已废弃（被忽略）', 200, 0,
         lambda: api.req('GET', '/notes?scope=mine&archived=true', Z),
         lambda r: need(r, 0, lambda x: isinstance(x.data.get('list'), list)))
-    run('12d', 'B', 'tagName 不存在', 200, 0, lambda: api.req('GET', '/notes?scope=mine&tagName=不存在的标签xyz', Z),
-        lambda r: need(r, 0, lambda x: x.data.get('total') == 0))
-    run('12e', 'B', 'tagId 不存在', 200, 0, lambda: api.req('GET', '/notes?scope=mine&tagId=999999', Z),
-        lambda r: need(r, 0, lambda x: x.data.get('total') == 0))
-    run('12f', 'B', 'tagId 非数值', 400, None, lambda: api.req('GET', '/notes?scope=mine&tagId=abc', Z))
+    # 标签筛选已下线：tagName / tagId（含非数值）都被忽略，不再过滤也不再报错
+    run('12d', 'B', 'tagName 参数被忽略', 200, 0, lambda: api.req('GET', '/notes?scope=mine&tagName=不存在的标签xyz', Z),
+        lambda r: need(r, 0, lambda x: x.data.get('total', 0) >= 1))
+    run('12e', 'B', 'tagId 参数被忽略', 200, 0, lambda: api.req('GET', '/notes?scope=mine&tagId=999999', Z),
+        lambda r: need(r, 0, lambda x: x.data.get('total', 0) >= 1))
+    run('12f', 'B', 'tagId 非数值也被忽略', 200, 0, lambda: api.req('GET', '/notes?scope=mine&tagId=abc', Z))
     run('12g', 'B', 'keyword 模糊匹配', 200, 0, lambda: api.req('GET', '/notes?scope=mine&keyword=MTX', Z),
         lambda r: need(r, 0, lambda x: x.data.get('total', 0) >= 1))
 

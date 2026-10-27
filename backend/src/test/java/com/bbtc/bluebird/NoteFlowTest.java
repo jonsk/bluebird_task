@@ -6,8 +6,6 @@ import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
-import com.bbtc.bluebird.modules.task.domain.Tag;
-import com.bbtc.bluebird.modules.task.infrastructure.TagMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -68,9 +66,6 @@ class NoteFlowTest {
     DepartmentMapper departmentMapper;
 
     @Autowired
-    TagMapper tagMapper;
-
-    @Autowired
     AttachmentMapper attachmentMapper;
 
     @Autowired
@@ -111,11 +106,12 @@ class NoteFlowTest {
         return b.header("Authorization", token(u));
     }
 
-    private long createNote(SysUser u, String content, String logDate) throws Exception {
+    private static final String TODAY = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")).toString();
+
+    private long createNote(SysUser u, String content) throws Exception {
         String body = mvc.perform(auth(post("/api/v1/notes"), u)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"" + content + "\",\"logDate\":\"" + logDate
-                                + "\",\"tagIds\":[]}"))
+                        .content("{\"content\":\"" + content + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andReturn().getResponse().getContentAsString();
@@ -143,12 +139,14 @@ class NoteFlowTest {
         // 1. 创建 PRIVATE
         String created = mvc.perform(auth(post("/api/v1/notes"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"今天完成了接口设计\",\"logDate\":\"2026-10-20\","
-                                + "\"tagIds\":[]}"))
+                        .content("{\"content\":\"今天完成了接口设计\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.version").value(0))
-                .andExpect(jsonPath("$.data.ownerTags").isArray())
+                // 日志日期不可选：创建即记为当天（Asia/Shanghai）
+                .andExpect(jsonPath("$.data.logDate").value(TODAY))
+                .andExpect(jsonPath("$.data.ownerTags").doesNotExist())
+                .andExpect(jsonPath("$.data.tags").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
         long noteId = objectMapper.readTree(created).path("data").path("id").asLong();
 
@@ -196,28 +194,25 @@ class NoteFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(10006));
 
-        // 7. 标签 + facet
-        Tag tag = new Tag();
-        tag.setName("周报");
-        tag.setOwnerId(owner.getId());
-        tagMapper.insert(tag);
+        // 7. 标签能力已下线：facet 路径命中 /notes/{id}（id 非数字）→ 400 + 10001；tagIds 入参被忽略
+        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "mine"), owner))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(10001));
         mvc.perform(auth(put("/api/v1/notes/" + noteId), owner)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tagIds\":[" + tag.getId() + "],\"version\":1}"))
+                        .content("{\"tagIds\":[1],\"content\":\"带 tagIds 的修改\",\"version\":1}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.tags[0].name").value("周报"));
-        mvc.perform(auth(get("/api/v1/notes/tags").param("scope", "mine"), owner))
-                .andExpect(jsonPath("$.data[0].id").value(tag.getId()))
-                .andExpect(jsonPath("$.data[0].count").value(1));
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.content").value("带 tagIds 的修改"));
 
-        // 8. 日历
-        mvc.perform(auth(get("/api/v1/notes/calendar").param("year", "2026").param("month", "10"), owner))
+        // 8. 日历（按创建当天聚合）
+        mvc.perform(auth(get("/api/v1/notes/calendar").param("year", TODAY.substring(0, 4))
+                        .param("month", String.valueOf(Integer.parseInt(TODAY.substring(5, 7)))), owner))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].date").value("2026-10-20"))
-                .andExpect(jsonPath("$.data[0].count").value(1));
+                .andExpect(jsonPath("$.data[?(@.date == '" + TODAY + "')].count").value(1));
 
         // 9. 引用（note → note，幂等）
-        long note2 = createNote(owner, "被引用的日志", "2026-10-21");
+        long note2 = createNote(owner, "被引用的日志");
         String rel1 = mvc.perform(auth(post("/api/v1/notes/" + noteId + "/relations"), owner)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetType\":\"NOTE\",\"targetId\":" + note2 + "}"))
@@ -279,7 +274,7 @@ class NoteFlowTest {
         org.junit.jupiter.api.Assertions.assertNotNull(attachmentMapper.selectById(attachmentId));
 
         // 11. 下属可见（开关开启）：sub 的 PRIVATE 日志 owner 可读
-        long subNote = createNote(sub, "下属的工作日志", "2026-10-22");
+        long subNote = createNote(sub, "下属的工作日志");
         mvc.perform(auth(get("/api/v1/notes/" + subNote), owner))
                 .andExpect(status().isOk());
         mvc.perform(auth(get("/api/v1/notes").param("scope", "subordinate"), owner))
@@ -300,7 +295,7 @@ class NoteFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        // 14. 级联删除：删 note1 后引用/标签/附件关联清空，note2 保留
+        // 14. 级联删除：删 note1 后引用/附件关联清空，note2 保留
         mvc.perform(auth(delete("/api/v1/notes/" + noteId), owner))
                 .andExpect(status().isOk());
         mvc.perform(auth(get("/api/v1/notes/" + noteId), owner))

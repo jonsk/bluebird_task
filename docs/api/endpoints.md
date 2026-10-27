@@ -41,8 +41,7 @@
 | GET | /api/v1/notes | 工作日志 | 工作日志分页（4 种 scope + 过滤/排序） |
 | POST | /api/v1/notes | 工作日志 | 新建工作日志 |
 | GET | /api/v1/notes/calendar | 工作日志 | 日历聚合（按日计数） |
-| GET | /api/v1/notes/tags | 工作日志 | 标签 facet（mine 返回 id，其他 scope 返回 name + count） |
-| GET | /api/v1/notes/{id} | 工作日志 | 日志详情（含引用/被引/附件/ownerTags） |
+| GET | /api/v1/notes/{id} | 工作日志 | 日志详情（含引用/被引/附件/字段级权限） |
 | PUT | /api/v1/notes/{id} | 工作日志 | 修改日志（仅 owner/ADMIN；乐观锁 version） |
 | DELETE | /api/v1/notes/{id} | 工作日志 | 删除日志（owner/ADMIN；逻辑删除并级联清理关联表） |
 | GET | /api/v1/notes/{id}/attachments | 工作日志 | 附件列表（可见即可） |

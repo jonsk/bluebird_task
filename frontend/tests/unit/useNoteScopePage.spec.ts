@@ -20,12 +20,10 @@ const router = { push: vi.fn(() => Promise.resolve()), replace: vi.fn(() => Prom
 vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => router }))
 
 const listNotes = vi.fn()
-const listNoteTags = vi.fn()
 const deleteNote = vi.fn()
 const pinNote = vi.fn()
 vi.mock('@/api/note', () => ({
   listNotes: (...a: unknown[]) => listNotes(...a),
-  listNoteTags: (...a: unknown[]) => listNoteTags(...a),
   deleteNote: (...a: unknown[]) => deleteNote(...a),
   pinNote: (...a: unknown[]) => pinNote(...a),
   unpinNote: vi.fn(),
@@ -66,9 +64,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
   route.meta = { scope: 'mine' }
   route.query = {}
-  ;[listNotes, listNoteTags, deleteNote, pinNote, confirm, success, errorMsg].forEach((f) => f.mockReset())
+  ;[listNotes, deleteNote, pinNote, confirm, success, errorMsg].forEach((f) => f.mockReset())
   router.push.mockClear()
-  listNoteTags.mockResolvedValue([])
 })
 
 describe('useNoteScopePage', () => {
