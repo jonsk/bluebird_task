@@ -4,10 +4,10 @@
 
 ## 仓库状态
 
-> **当前阶段：任务模块 + 工作日志（Note）模块已完成前端全量实现、后端 note 模块入库；2026-10-26 完成工作日志两轮功能减法（去探索/本部门/归档；授权日志整块下线并 DROP 表），验收与测试基线已更新。**
+> **当前阶段：任务模块 + 工作日志（Note）模块已完成前端全量实现、后端 note 模块入库；2026-10-27 完成工作日志第三轮功能减法（标签整块下线并 DROP `note_tag`；日志日期创建后不可改；主题收敛为经典浅色/深色），验收与测试基线已更新。**
 >
 > 已完成的验证基线（可直接复跑，见下节「质量门禁」）：
-> - 前端类型检查 `vue-tsc --noEmit` 零错误；单测 **18 文件 / 103 例**（Vitest）
+> - 前端类型检查 `vue-tsc --noEmit` 零错误；单测 **17 文件 / 99 例**（Vitest）
 > - e2e **63 例**（Playwright：任务 18 / 日志 20 / 权限 6 / 视觉 18 / 左栏 1），含 1280×800 视觉基线
 > - 后端 `mvn test` **41 例**（含 Note 可见性矩阵、细分流程、引用/附件守卫）
 > - Note §9 接口验收矩阵脚本 **105 例主跑 + 4 例开关关闭** 全通过（0 例未自动化）（`scripts/acceptance/`）
@@ -55,7 +55,7 @@ cd frontend; pnpm install; pnpm dev      # http://localhost:5173
 ```powershell
 cd frontend
 pnpm exec vue-tsc --noEmit     # 类型检查
-pnpm test                      # 单测（Vitest，18 文件 / 103 例）
+pnpm test                      # 单测（Vitest，17 文件 / 99 例）
 pnpm test:e2e                  # e2e + 视觉回归（Playwright，本地复用系统 Edge）
 pnpm test:e2e:update           # 仅在**有意**改动布局时重生成基线，并在 PR 中说明
 

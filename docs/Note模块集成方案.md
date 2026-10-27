@@ -1596,3 +1596,39 @@ export type NoteQueryPatch = Omit<Partial<NoteQuery>, 'scope' | 'page' | 'size' 
 | 附件显式转交/共享              | 需要把别人附件转挂到自己日志        |
 | task owner 删除他人上传附件    | 产品需要（本期仅上传者/ADMIN 可删） |
 | 回收站                    | 需要恢复                  |
+
+---
+
+## 14. 第三轮功能减法（2026-10-27，已落地）
+
+> 本节为现行口径；前文涉及「标签」「日志日期可选」的描述均已失效，仅作历史设计留档。
+
+### 14.1 日志标签整块下线（A1 全量）
+
+- 后端：删 `NoteTag`、`NoteTagMapper`、`NoteTagCleaner`、`NoteTagFacetItem`；`V9__drop_note_tag.sql` DROP `note_tag`（先删 `idx_nt_note`/`idx_nt_tag`）并重建 `v_tag_relation` 仅 TASK 分支。
+- 接口：`GET /notes/tags` 删除；`POST /notes` 只收 `content`（`tagIds` 被忽略，200）；`PUT /notes/{id}` 忽略 `tagIds`；列表/日历的 `tagId`/`tagName` 参数被忽略（不过滤、不报错）。
+- 返回：`NoteVO`/`NoteBrief` 无 `tags`；`NoteDetailVO` 无 `ownerTags`；`NoteFieldPermissionsVO` 仅 `content`；`NoteQuery` 无 tag 字段。
+- 前端：删 `BbTagPicker.vue`、`types/tag.ts`、`useNoteFacets.ts`；编辑器去掉标签选择，筛选栏去掉标签下拉与 facet，卡片去掉标签徽标，详情页去掉标签区。
+- 错误码：`NOTE_TAG_INVALID(50003)` 删除。
+- 数据：删除前 31 行关联已备份 `backups/note_tag_backup_20261027.csv`（不可恢复）。任务侧 `tag`/`task_tag` 保持不动。
+
+### 14.2 日志日期创建后不可改
+
+- 新建：客户端不再传 `logDate`，服务端固定为 **Asia/Shanghai 当天**（`LocalDate.now(ZONE)`）。
+- 编辑：请求体出现 `logDate` → **400/10001**；前端编辑态只显示只读文案「日志日期：X（创建后不可修改）」。
+- 影响：跨日期补记不再支持；日历按月归属由创建日期决定。
+
+### 14.3 主题收敛
+
+`light-modern`（现代浅色）与 `teal`（青绿）下线，仅保留 `light-classic` / `dark`；历史值启动时回退经典浅色。
+
+### 14.4 本轮基线
+
+| 门禁 | 结果 |
+| --- | --- |
+| `vue-tsc --noEmit` | 0 错误 |
+| 前端单测 | 17 文件 / 99 例全通过 |
+| e2e + 视觉 | 63 例通过（仅重生成 `notes-inline-editor-1280x800.png`） |
+| 后端 `mvn -o test` | 41 例全通过 |
+| §9 矩阵 | 105 主跑 + 4 开关组全 PASS |
+| 契约 | 91 ops / 63 paths，`check-contract.mjs` 全绿 |
