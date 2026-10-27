@@ -27,6 +27,13 @@ const ROOT = resolve(__dirname, '..');
 // ---- 校验豁免（有充分理由的、经评审确认的偏差；键为归一化 "METHOD /path"）----
 const ENDPOINT_IGNORE = new Set([
   // 示例：'GET /internal/health',
+  // —— 文档规划项，代码从未实现（Task/01、Task/02 设计稿遗留；保留文档行以追溯设计）——
+  'GET /auth/external/callback',   // OIDC 回调由 Spring Security 过滤器整页接管，未以 Controller 暴露，openapi 以 /auth/oidc/* 记录
+  'GET /auth/wechat/callback',     // 企微回调未接入（仅 PROVIDER 开关与配置）
+  'GET /categories',               // 分类树能力已由「标签」取代，未实现
+  'POST /categories',
+  'PUT /categories/{id}',
+  'DELETE /categories/{id}',
 ]);
 
 // 写操作（POST/PUT/PATCH）可无请求体的合理豁免（无 body 语义）
@@ -35,6 +42,9 @@ const BODY_EXEMPT = new Set([
   'POST /org/sync',
   'POST /jobs/{name}/run',
   'POST /tasks/{id}/collect',
+  // 无请求体的动作型端点（开关/探测/幂等触发），语义上不需要 schema
+  'POST /notes/{id}/pin',
+  'POST /admin/config/casdoor/test',
 ]);
 
 const C = { red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m', dim: '\x1b[2m', reset: '\x1b[0m' };
@@ -103,7 +113,8 @@ for (const [p, ops] of Object.entries(api.paths || {})) {
   for (const m of Object.keys(ops)) apiOps.add(opKey(m, p));
 }
 
-const DOC_SOURCES = ['Task/02后端模块详细设计.md', 'Task/01蓝鸟重构方案.md'];
+// 文档侧来源：Task 设计稿（历史）+ 自动生成的端点总览（现行权威）
+const DOC_SOURCES = ['Task/02后端模块详细设计.md', 'Task/01蓝鸟重构方案.md', 'docs/api/endpoints.md'];
 const docOps = new Map(); // key -> sourceFile
 const rowRe = /^\|\s*((?:GET|POST|PUT|DELETE|PATCH)(?:\s*\/\s*(?:GET|POST|PUT|DELETE|PATCH))*)\s*\|\s*(\/api\/v1\/[^|\s]*)/;
 for (const rel of DOC_SOURCES) {

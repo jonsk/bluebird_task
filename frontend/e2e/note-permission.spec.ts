@@ -73,4 +73,12 @@ test.describe('工作日志 · 权限分支', () => {
     await expect(page.locator('[data-test="nav-note-grants"]')).toHaveCount(0)
     await expect(page.locator('[data-test="note-list-error"]')).toHaveCount(0)
   })
+
+  test('P-05a 审计员直达 /admin/notes → 403（全部日志仅 ADMIN）', async ({ page }) => {
+    await loginAs(page, 'auditor', 'Test@1234')
+    await page.goto('/admin/notes')
+    await expect(page).toHaveURL(/\/403/)
+    await expect(page.locator('.error-page h1')).toHaveText('403')
+    await expect(page.locator('.error-page__from')).toContainText('/admin/notes')
+  })
 })

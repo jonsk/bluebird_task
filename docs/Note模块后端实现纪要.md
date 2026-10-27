@@ -76,4 +76,4 @@ mvn -o test -Dtest=NoteFlowTest  # 单测
 ## 6. 后续可做
 
 - 标签 facet 的 `name` 口径（非 mine scope）依赖 `NoteVisibilitySqlBuilder`，新增 scope 时两处必须同步。
-- `/admin/notes` 目前仅 `ADMIN`；若审计角色需要只读全量日志，在 `routes.ts` 的 `roles` 加 `AUDITOR` 即可（后端已允许 ADMIN 语义）。
+- `/admin/notes` **仅 `ADMIN`**（2026-10-26 决策：全部日志只有管理员可见，`AUDITOR` 不加工作日志入口；e2e `P-05a` 守住直达 403）。
