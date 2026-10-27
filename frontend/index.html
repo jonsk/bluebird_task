@@ -10,7 +10,7 @@
       (function () {
         try {
           var t = localStorage.getItem('bb-theme');
-          if (['light-classic', 'light-modern', 'teal', 'dark'].indexOf(t) === -1) t = 'light-classic';
+          if (['light-classic', 'dark'].indexOf(t) === -1) t = 'light-classic';
           document.documentElement.setAttribute('data-theme', t);
         } catch (e) {
           /* ignore */

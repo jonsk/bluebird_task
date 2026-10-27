@@ -2,10 +2,10 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 /** 内置主题 key（务必与 tokens.css 的 :root[data-theme=…] 作用域一一对应）。 */
-export type ThemeKey = 'light-classic' | 'light-modern' | 'teal' | 'dark'
+export type ThemeKey = 'light-classic' | 'dark'
 
 const THEME_STORAGE_KEY = 'bb-theme'
-const THEMES: readonly ThemeKey[] = ['light-classic', 'light-modern', 'teal', 'dark']
+const THEMES: readonly ThemeKey[] = ['light-classic', 'dark']
 
 function isThemeKey(v: unknown): v is ThemeKey {
   return typeof v === 'string' && (THEMES as readonly string[]).includes(v)
@@ -16,7 +16,7 @@ export const useAppStore = defineStore('app', () => {
   const leftCollapsed = ref(false)
   const detailVisible = ref(false)
 
-  // 读取持久化主题；localStorage 不可用或非法值 → 回退默认经典浅色。
+  // 读取持久化主题；localStorage 不可用或非法值（含已下线的 light-modern / teal）→ 回退经典浅色。
   let stored: unknown = null
   try {
     stored = localStorage.getItem(THEME_STORAGE_KEY)
@@ -40,7 +40,14 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  // store 首次构建即同步 DOM，保证与持久化一致。
+  // store 首次构建即同步 DOM，保证与持久化一致；顺手清掉已下线主题的残留值。
+  if (!isThemeKey(stored)) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme.value)
+    } catch {
+      /* ignore */
+    }
+  }
   applyTheme(theme.value)
 
   function toggleLeft(): void {
