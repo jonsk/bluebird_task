@@ -4,16 +4,13 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import NoteListView from './NoteListView.vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
-import NoteCreatedDraftCard from '@/components/note/NoteCreatedDraftCard.vue'
 import NoteMiniList from '@/components/note/NoteMiniList.vue'
 import BbMiniCalendar from '@/components/bb/BbMiniCalendar.vue'
 import { useNoteScopePage } from '@/composables/useNoteScopePage'
 import { useNoteList } from '@/composables/useNoteList'
 import { calendar as noteCalendar } from '@/api/calendar'
-import { getNote } from '@/api/note'
 import { useNoteStore } from '@/stores/note'
 import { todayInShanghai } from '@/utils/date'
-import type { NoteDetailVO } from '@/types/note'
 
 /** 与 BbMiniCalendar.loader 返回结构一致（组件内不导出类型，避免 .vue 类型导出限制）。 */
 interface CalendarDayCount {
@@ -30,10 +27,6 @@ const noteStore = useNoteStore()
 const today = todayInShanghai()
 const selectedDate = ref<string | null>(today)
 const editId = ref<number | null>(null)
-/** 临时卡片持有**详情**（附件区依赖 detail.attachments，NoteBrief 没有该字段）。 */
-const draftNote = ref<NoteDetailVO | null>(null)
-const draftLoading = ref(false)
-const draftError = ref('')
 
 const page = useNoteScopePage({
   emptyText: '还没有工作日志，写下今天的第一条吧',
@@ -69,26 +62,7 @@ const activeId = computed(() =>
   noteStore.activeScopeId === 'mine' ? noteStore.activeNoteId : null,
 )
 
-/** 恢复"刚创建"临时卡片（TTL 内、仍可见）；失败即清理，避免反复尝试。 */
-async function restoreDraft(): Promise<void> {
-  const pending = noteStore.pendingCreatedNoteId
-  if (!pending) return
-  draftLoading.value = true
-  draftError.value = ''
-  try {
-    draftNote.value = await getNote(pending.id)
-  } catch (e) {
-    noteStore.clearPending()
-    draftNote.value = null
-    draftError.value = (e as Error)?.message || '刚才创建的日志已不存在'
-    ElMessage.warning('刚才创建的日志已不存在')
-  } finally {
-    draftLoading.value = false
-  }
-}
-
 onMounted(() => {
-  void restoreDraft()
   side.setQuery({ date: selectedDate.value ?? today })
 })
 
@@ -103,47 +77,11 @@ function onSelectDate(date: string | null): void {
   side.setQuery({ date: date ?? undefined })
 }
 
-function onCreated(detail: NoteDetailVO): void {
-  draftNote.value = detail
-  draftError.value = ''
-  noteStore.setPending(Number(detail.id))
-  // 新建后回到第一页并清空筛选（"新建后回第一页"是明确预期）
+function onCreated(): void {
+  // 创建后直接刷新列表，不再弹出附件上传临时卡片
   list.setQuery({ keyword: undefined, pinned: undefined, date: undefined })
   ElMessage.success('已保存并回到第一页')
-  // 必须强制重拉：同 key 的列表缓存会让刚创建的日志看不见
   list.refresh()
-}
-
-/** 附件变更（临时卡片内上传/解绑后）：重取详情，保持卡片与后端一致。 */
-async function onDraftChanged(): Promise<void> {
-  const id = draftNote.value?.id
-  if (id == null) return
-  try {
-    draftNote.value = await getNote(Number(id))
-  } catch {
-    /* 拉取失败保留旧卡片，下一次操作再试 */
-  }
-}
-
-function collapseDraft(): void {
-  noteStore.clearPending()
-  draftNote.value = null
-  draftError.value = ''
-}
-
-function onCompleteDraft(): void {
-  collapseDraft()
-  list.refresh()
-}
-
-/** 放弃 = 只移除临时卡片，不回滚已创建的日志（§7.2）。 */
-function onDiscardDraft(): void {
-  collapseDraft()
-}
-
-/** 开始输入下一条时先收起上一条的临时卡片，防止附件状态串条。 */
-function onComposerFocus(): void {
-  if (draftNote.value) collapseDraft()
 }
 
 function onEditorSaved(): void {
@@ -179,22 +117,7 @@ function openDetail(id: number): void {
     @remove="onRemove"
   >
     <template #composer>
-      <div @focusin="onComposerFocus">
-        <NoteEditor @saved="onCreated" />
-      </div>
-    </template>
-
-    <template #above-list>
-      <NoteCreatedDraftCard
-        v-if="draftNote || draftLoading"
-        :note-id="Number(draftNote?.id ?? noteStore.pendingCreatedNoteId?.id ?? 0)"
-        :detail="draftNote"
-        :loading="draftLoading"
-        :error="draftError"
-        @complete="onCompleteDraft"
-        @discard="onDiscardDraft"
-        @changed="onDraftChanged"
-      />
+      <NoteEditor @saved="onCreated" />
     </template>
 
     <template #editor>
