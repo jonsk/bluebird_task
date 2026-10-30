@@ -42,14 +42,13 @@ frontend/test-results*/
 playwright-report/
 frontend/playwright-report/
 
-# 前端基线：黄金截图 / 录屏证据不入库（二进制体量大；仅 README 说明入库，见 docs/frontend-baseline/screenshots/README.md）
-# 复现方式：scripts/golden-capture/（Playwright harness）
-docs/frontend-baseline/screenshots/**/*.png
-docs/frontend-baseline/screenshots/**/*.jpg
-docs/frontend-baseline/screenshots/**/*.jpeg
-docs/frontend-baseline/screenshots/**/*.webm
-docs/frontend-baseline/screenshots/**/*.mp4
-docs/frontend-baseline/screenshots/generated/
+# ---- 脚本工具（不入库）----
+# 验收矩阵、黄金截图、契约检查等本地工具脚本
+scripts/
+
+# ---- 前端基线文档（不入库）----
+# 组件契约、fixtures、截图占位等；体积大且频繁变动，不入库
+docs/frontend-baseline/
 
 # ---- 后端内嵌前端产物目录（ADR-009，构建期注入）----
 backend/src/main/resources/static/
