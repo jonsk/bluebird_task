@@ -132,10 +132,12 @@ cd frontend && pnpm test:e2e
 .
 ├── backend/     # Spring Boot 服务（打包时内嵌前端产物）
 ├── frontend/    # Vue 3 前端
-├── deploy/      # docker-compose 部署模板
-├── docs/        # API 契约与项目文档
-└── .github/     # CI 工作流
+├── deploy/      # 部署脚本（deploy.sh 一键构建并安装 jar）与 docker-compose 模板
+└── docs/        # API 契约与项目文档
 ```
+
+> 仓库托管在 Gitee，未启用托管 CI；契约校验等检查在本地执行：
+> `npm -C scripts install && node scripts/check-contract.mjs`。
 
 ## 贡献
 
