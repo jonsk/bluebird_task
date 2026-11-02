@@ -76,4 +76,5 @@ gitleaks-report.*
 /backend/application.yml
 /backend/data/
 data/
-
+# ---- 部署产物（deploy/package.sh 输出）----
+deploy/out/
