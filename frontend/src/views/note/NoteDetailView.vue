@@ -2,20 +2,17 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Edit, Plus } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, Edit } from '@element-plus/icons-vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
 import NoteAttachmentList from '@/components/note/NoteAttachmentList.vue'
-import NoteRelationPicker from '@/components/note/NoteRelationPicker.vue'
 import NoteNotFound from '@/components/note/NoteNotFound.vue'
 import { useNoteDetail } from '@/composables/useNoteDetail'
 import { useNoteActions } from '@/composables/useNoteActions'
-import { addRelation, removeRelation } from '@/api/note'
 import { useNoteStore } from '@/stores/note'
 import { formatHeaderDate } from '@/utils/date'
-import type { NoteTargetRef } from '@/types/note'
 
 /**
- * 日志详情：查看 + 行内编辑 + 附件 + 引用 + 被引用。
+ * 日志详情：查看 + 行内编辑 + 附件。
  * - 一切改动经 `useNoteDetail.reload()` 整体收敛（子组件不局部 append/merge）。
  * - 404/50001 → NoteNotFound（不显示重试、不改标题）。
  * - 按钮显隐一律用后端下发的 canEdit / canManage。
@@ -29,7 +26,6 @@ const actions = useNoteActions()
 const id = computed(() => Number(route.params.id))
 const detail = detailApi.detail
 const editing = ref(false)
-const relationPickerOpen = ref(false)
 
 function load(): void {
   void detailApi.load(id.value)
@@ -53,14 +49,6 @@ watch(detail, (d) => {
 onUnmounted(() => {
   document.title = BASE_TITLE || '蓝鸟任务管理系统'
 })
-
-const relations = computed(() => detail.value?.relations ?? [])
-const backlinks = computed(() => detail.value?.backlinks ?? [])
-const existingRefs = computed<NoteTargetRef[]>(() =>
-  relations.value
-    .filter((r) => r.targetType === 'NOTE' || r.targetType === 'TASK')
-    .map((r) => ({ targetType: r.targetType as 'NOTE' | 'TASK', targetId: Number(r.targetId) })),
-)
 
 function back(): void {
   void router.push({ name: 'NoteHome' })
@@ -87,39 +75,6 @@ function onSaved(): void {
   detailApi.reload()
   // 列表缓存与详情已不一致，回到列表时必须是新数据
   store.invalidate(['mine', 'subordinate', 'visible', 'all'])
-}
-
-async function addRef(payload: NoteTargetRef & { summary?: string }): Promise<void> {
-  const d = detail.value
-  if (!d) return
-  try {
-    await addRelation(Number(d.id), { targetType: payload.targetType, targetId: payload.targetId })
-    ElMessage.success('已添加引用')
-    detailApi.reload()
-  } catch (e) {
-    ElMessage.error((e as Error)?.message || '添加引用失败')
-  }
-}
-
-async function removeRef(relationId?: number): Promise<void> {
-  const d = detail.value
-  if (!d || relationId == null) return
-  try {
-    await removeRelation(Number(d.id), relationId)
-    ElMessage.success('已移除引用')
-    detailApi.reload()
-  } catch (e) {
-    ElMessage.error((e as Error)?.message || '移除引用失败')
-  }
-}
-
-function openRelation(targetType?: string, targetId?: number): void {
-  if (targetType === 'NOTE' && targetId != null) {
-    void router.push({ name: 'NoteDetail', params: { id: String(targetId) } })
-  }
-}
-function openBacklink(sourceNoteId?: number): void {
-  if (sourceNoteId != null) void router.push({ name: 'NoteDetail', params: { id: String(sourceNoteId) } })
 }
 </script>
 
@@ -177,44 +132,6 @@ function openBacklink(sourceNoteId?: number): void {
           @refresh="detailApi.reload()"
         />
       </section>
-
-      <section class="note-detail__block">
-        <div class="note-detail__block-head">
-          <h3 class="note-detail__block-title">引用（{{ relations.length }}）</h3>
-          <el-button v-if="detail.canEdit" text size="small" :icon="Plus" @click="relationPickerOpen = true">添加引用</el-button>
-        </div>
-        <ul v-if="relations.length" class="note-detail__refs">
-          <li v-for="r in relations" :key="r.id" class="note-detail__ref">
-            <el-tag size="small" effect="plain">{{ r.targetType === 'TASK' ? '任务' : '日志' }}</el-tag>
-            <span class="note-detail__ref-summary" @click="openRelation(r.targetType, r.targetId)">
-              {{ r.targetSummary || `#${r.targetId}` }}
-            </span>
-            <span class="note-detail__ref-by">{{ r.createdByName }}</span>
-            <el-button v-if="detail.canEdit" text size="small" type="danger" @click="removeRef(r.id)">移除</el-button>
-          </li>
-        </ul>
-        <div v-else class="note-detail__empty-line">暂无引用</div>
-      </section>
-
-      <section class="note-detail__block">
-        <h3 class="note-detail__block-title">被引用（{{ backlinks.length }}）</h3>
-        <ul v-if="backlinks.length" class="note-detail__refs">
-          <li v-for="b in backlinks" :key="b.relationId" class="note-detail__ref">
-            <span class="note-detail__ref-summary" @click="openBacklink(b.sourceNoteId)">
-              {{ b.sourceSummary || `#${b.sourceNoteId}` }}
-            </span>
-            <span class="note-detail__ref-by">{{ b.sourceOwnerName }} · {{ b.createdByName }}</span>
-          </li>
-        </ul>
-        <div v-else class="note-detail__empty-line">还没有其他日志引用这条</div>
-      </section>
-
-      <NoteRelationPicker
-        v-model="relationPickerOpen"
-        :exclude-note-id="Number(detail.id)"
-        :disabled-refs="existingRefs"
-        @pick="addRef"
-      />
     </template>
   </div>
 </template>
@@ -282,48 +199,10 @@ function openBacklink(sourceNoteId?: number): void {
   padding-top: 14px;
   border-top: 1px solid var(--el-border-color-lighter);
 }
-.note-detail__block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
 .note-detail__block-title {
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 500;
   color: var(--bb-text-secondary);
-}
-.note-detail__refs {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.note-detail__ref {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  font-size: 13px;
-}
-.note-detail__ref-summary {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  color: var(--bb-text-secondary);
-}
-.note-detail__ref-summary:hover {
-  color: var(--bg-accent);
-}
-.note-detail__ref-by {
-  font-size: 12px;
-  color: var(--bb-text-muted);
-}
-.note-detail__empty-line {
-  font-size: 12px;
-  color: var(--bb-text-muted);
 }
 </style>

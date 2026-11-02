@@ -1306,7 +1306,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 任务检索（note 引用选择器；仅返回当前用户可见任务，分页） */
+        /** 任务检索（仅返回当前用户可见任务，分页） */
         get: {
             parameters: {
                 query?: {
@@ -2401,7 +2401,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 日志详情（含引用/被引/附件/字段级权限） */
+        /** 日志详情（含附件/字段级权限） */
         get: {
             parameters: {
                 query?: never;
@@ -2516,159 +2516,6 @@ export interface paths {
                 };
             };
         };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/notes/{id}/relations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 出向引用列表 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiResult"] & {
-                            data?: components["schemas"]["NoteRelationVO"][];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        /** 新增引用（幂等；自引用 400；目标不可见 400/404） */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["NoteRelationCreateReq"];
-                };
-            };
-            responses: {
-                /** @description OK（已存在时返回既有引用） */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiResult"] & {
-                            data?: components["schemas"]["NoteRelationVO"];
-                        };
-                    };
-                };
-                /** @description 自引用/目标类型非法/目标不可见 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/notes/{id}/relations/{relationId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** 删除引用（创建者/源日志 owner/ADMIN） */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                    relationId: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["Ok"];
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/notes/{id}/backlinks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 被引用列表（谁引用了我） */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiResult"] & {
-                            data?: components["schemas"]["NoteBacklinkVO"][];
-                        };
-                    };
-                };
-                /** @description 不可见 */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3051,8 +2898,6 @@ export interface components {
             updatedAt?: string;
         };
         NoteDetailVO: components["schemas"]["NoteVO"] & {
-            relations?: components["schemas"]["NoteRelationVO"][];
-            backlinks?: components["schemas"]["NoteBacklinkVO"][];
             attachments?: components["schemas"]["NoteAttachmentVO"][];
             fieldPermissions?: components["schemas"]["NoteFieldPermissionsVO"];
         };
@@ -3081,47 +2926,6 @@ export interface components {
             logDate?: string;
             /** Format: int64 */
             version?: number;
-        };
-        NoteRelationCreateReq: {
-            /** @enum {string} */
-            targetType: "NOTE" | "TASK";
-            /** Format: int64 */
-            targetId: number;
-        };
-        NoteRelationVO: {
-            /** Format: int64 */
-            id?: number;
-            /** @enum {string} */
-            targetType?: "NOTE" | "TASK";
-            /** Format: int64 */
-            targetId?: number;
-            targetSummary?: string | null;
-            /**
-             * Format: date-time
-             * @description 引用时间
-             */
-            createdAt?: string;
-            /** Format: int64 */
-            createdBy?: number;
-            createdByName?: string;
-        };
-        NoteBacklinkVO: {
-            /** Format: int64 */
-            relationId?: number;
-            /** Format: int64 */
-            sourceNoteId?: number;
-            sourceSummary?: string;
-            /** Format: int64 */
-            sourceOwnerId?: number;
-            sourceOwnerName?: string;
-            /**
-             * Format: date-time
-             * @description 引用时间
-             */
-            createdAt?: string;
-            /** Format: int64 */
-            createdBy?: number;
-            createdByName?: string;
         };
         NoteAttachmentBindReq: {
             /** Format: int64 */

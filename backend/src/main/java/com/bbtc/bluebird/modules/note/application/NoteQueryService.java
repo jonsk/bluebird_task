@@ -14,24 +14,17 @@ import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
-import com.bbtc.bluebird.modules.note.domain.NoteRelation;
 import com.bbtc.bluebird.modules.note.dto.NoteAttachmentVO;
-import com.bbtc.bluebird.modules.note.dto.NoteBacklinkVO;
 import com.bbtc.bluebird.modules.note.dto.NoteBrief;
 import com.bbtc.bluebird.modules.note.dto.NoteCalendarDay;
 import com.bbtc.bluebird.modules.note.dto.NoteDetailVO;
 import com.bbtc.bluebird.modules.note.dto.NoteQuery;
-import com.bbtc.bluebird.modules.note.dto.NoteRelationVO;
 import com.bbtc.bluebird.modules.note.dto.NoteVO;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteAttachmentRefMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
-import com.bbtc.bluebird.modules.note.infrastructure.NoteRelationMapper;
 import com.bbtc.bluebird.modules.note.util.NoteVisibilitySqlBuilder;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
-import com.bbtc.bluebird.modules.task.application.TaskAuthService;
-import com.bbtc.bluebird.modules.task.domain.Task;
-import com.bbtc.bluebird.modules.task.infrastructure.TaskMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -59,12 +52,9 @@ public class NoteQueryService {
 
     private final NoteMapper noteMapper;
     private final NoteAttachmentRefMapper attachmentRefMapper;
-    private final NoteRelationMapper relationMapper;
     private final SysUserMapper userMapper;
     private final DepartmentMapper departmentMapper;
     private final AttachmentMapper attachmentMapper;
-    private final TaskMapper taskMapper;
-    private final TaskAuthService taskAuthService;
     private final NoteAuthService authService;
     private final NoteVisibilitySqlBuilder visibilitySql;
 
@@ -144,8 +134,6 @@ public class NoteQueryService {
         vo.setContent(note.getContent());
         vo.setFieldPermissions(authService.fieldPermissions(note, me));
         vo.setAttachments(attachmentVOs(note, me, admin));
-        vo.setRelations(relationVOs(note, me));
-        vo.setBacklinks(backlinkVOs(note, me));
         return vo;
     }
 
@@ -291,88 +279,6 @@ public class NoteQueryService {
                     "/notes/" + note.getId() + "/attachments/" + a.getId() + "/download",
                     a.getCreatedBy(), names.get(a.getCreatedBy()), a.getCreatedAt(),
                     canRemoveRef, canDelete));
-        }
-        return out;
-    }
-
-    private List<NoteRelationVO> relationVOs(Note note, Long me) {
-        List<NoteRelation> relations = relationMapper.selectList(
-                Wrappers.<NoteRelation>lambdaQuery()
-                        .eq(NoteRelation::getSourceNoteId, note.getId())
-                        .orderByDesc(NoteRelation::getCreatedAt));
-        if (relations.isEmpty()) {
-            return List.of();
-        }
-        Set<Long> noteIds = new HashSet<>();
-        Set<Long> taskIds = new HashSet<>();
-        for (NoteRelation r : relations) {
-            if (NoteRelation.TARGET_NOTE.equals(r.getTargetType())) {
-                noteIds.add(r.getTargetId());
-            } else {
-                taskIds.add(r.getTargetId());
-            }
-        }
-        Map<Long, Note> notes = new HashMap<>();
-        if (!noteIds.isEmpty()) {
-            noteMapper.selectBatchIds(noteIds).forEach(n -> notes.put(n.getId(), n));
-        }
-        Map<Long, Task> tasks = new HashMap<>();
-        if (!taskIds.isEmpty()) {
-            taskMapper.selectBatchIds(taskIds).forEach(t -> tasks.put(t.getId(), t));
-        }
-        Set<Long> creatorIds = new HashSet<>();
-        relations.forEach(r -> creatorIds.add(r.getCreatedBy()));
-        Map<Long, String> names = userNames(creatorIds);
-
-        List<NoteRelationVO> out = new ArrayList<>();
-        for (NoteRelation r : relations) {
-            String summary;
-            if (NoteRelation.TARGET_NOTE.equals(r.getTargetType())) {
-                Note target = notes.get(r.getTargetId());
-                if (target == null || !authService.isVisible(target, me)) {
-                    continue; // 不可见目标整条隐藏
-                }
-                summary = summary(target.getContent());
-            } else {
-                Task target = tasks.get(r.getTargetId());
-                if (target == null || !taskAuthService.isVisible(target, me)) {
-                    continue;
-                }
-                summary = target.getTitle();
-            }
-            out.add(new NoteRelationVO(r.getId(), r.getTargetType(), r.getTargetId(), summary,
-                    r.getCreatedAt(), r.getCreatedBy(), names.get(r.getCreatedBy())));
-        }
-        return out;
-    }
-
-    private List<NoteBacklinkVO> backlinkVOs(Note note, Long me) {
-        List<NoteRelation> relations = relationMapper.selectList(
-                Wrappers.<NoteRelation>lambdaQuery()
-                        .eq(NoteRelation::getTargetType, NoteRelation.TARGET_NOTE)
-                        .eq(NoteRelation::getTargetId, note.getId())
-                        .orderByDesc(NoteRelation::getCreatedAt));
-        if (relations.isEmpty()) {
-            return List.of();
-        }
-        Set<Long> sourceIds = new HashSet<>();
-        relations.forEach(r -> sourceIds.add(r.getSourceNoteId()));
-        Map<Long, Note> sources = new HashMap<>();
-        noteMapper.selectBatchIds(sourceIds).forEach(n -> sources.put(n.getId(), n));
-        Set<Long> userIds = new HashSet<>();
-        sources.values().forEach(n -> userIds.add(n.getOwnerId()));
-        relations.forEach(r -> userIds.add(r.getCreatedBy()));
-        Map<Long, String> names = userNames(userIds);
-
-        List<NoteBacklinkVO> out = new ArrayList<>();
-        for (NoteRelation r : relations) {
-            Note source = sources.get(r.getSourceNoteId());
-            if (source == null || !authService.isVisible(source, me)) {
-                continue;
-            }
-            out.add(new NoteBacklinkVO(r.getId(), source.getId(), summary(source.getContent()),
-                    source.getOwnerId(), names.get(source.getOwnerId()),
-                    r.getCreatedAt(), r.getCreatedBy(), names.get(r.getCreatedBy())));
         }
         return out;
     }

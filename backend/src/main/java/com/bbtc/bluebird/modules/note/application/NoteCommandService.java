@@ -7,13 +7,11 @@ import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
-import com.bbtc.bluebird.modules.note.domain.NoteRelation;
 import com.bbtc.bluebird.modules.note.dto.NoteCreateReq;
 import com.bbtc.bluebird.modules.note.dto.NoteDetailVO;
 import com.bbtc.bluebird.modules.note.dto.NoteUpdateReq;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteAttachmentRefMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
-import com.bbtc.bluebird.modules.note.infrastructure.NoteRelationMapper;
 import com.bbtc.bluebird.modules.org.application.CurrentUserDeptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -33,7 +31,6 @@ public class NoteCommandService {
 
     private final NoteMapper noteMapper;
     private final NoteAttachmentRefMapper attachmentRefMapper;
-    private final NoteRelationMapper relationMapper;
     private final NoteAuthService authService;
     private final NoteQueryService queryService;
     private final CurrentUserDeptService currentUserDeptService;
@@ -98,7 +95,7 @@ public class NoteCommandService {
     }
 
     /**
-     * 彻底删除（回收站专用，权限由调用方保证）：级联清理附件引用与双向引用关系后物理删行。
+     * 彻底删除（回收站专用，权限由调用方保证）：级联清理附件引用后物理删行。
      */
     @Transactional
     public void purge(Long id) {
@@ -108,11 +105,6 @@ public class NoteCommandService {
         }
         attachmentRefMapper.delete(Wrappers.<NoteAttachmentRef>lambdaQuery()
                 .eq(NoteAttachmentRef::getNoteId, note.getId()));
-        relationMapper.delete(Wrappers.<NoteRelation>lambdaQuery()
-                .eq(NoteRelation::getSourceNoteId, note.getId()));
-        relationMapper.delete(Wrappers.<NoteRelation>lambdaQuery()
-                .eq(NoteRelation::getTargetType, NoteRelation.TARGET_NOTE)
-                .eq(NoteRelation::getTargetId, note.getId()));
         noteMapper.hardDelete(note.getId());
     }
 

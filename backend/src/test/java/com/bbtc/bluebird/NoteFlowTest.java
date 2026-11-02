@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Note 模块端到端流程：CRUD、可见性、授权、引用、附件、标签 facet、日历、级联删除。
+ * Note 模块端到端流程：CRUD、可见性、授权、附件、标签 facet、日历、级联删除。
  */
 @SpringBootTest(properties = {
         "app.config.release=false",
@@ -211,31 +211,8 @@ class NoteFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[?(@.date == '" + TODAY + "')].count").value(1));
 
-        // 9. 引用（note → note，幂等）
-        long note2 = createNote(owner, "被引用的日志");
-        String rel1 = mvc.perform(auth(post("/api/v1/notes/" + noteId + "/relations"), owner)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetType\":\"NOTE\",\"targetId\":" + note2 + "}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.targetType").value("NOTE"))
-                .andReturn().getResponse().getContentAsString();
-        long relationId = objectMapper.readTree(rel1).path("data").path("id").asLong();
-        mvc.perform(auth(post("/api/v1/notes/" + noteId + "/relations"), owner)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetType\":\"NOTE\",\"targetId\":" + note2 + "}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(relationId));
-        // 自引用 → 400
-        mvc.perform(auth(post("/api/v1/notes/" + noteId + "/relations"), owner)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetType\":\"NOTE\",\"targetId\":" + noteId + "}"))
-                .andExpect(status().isBadRequest());
-        // backlinks
-        mvc.perform(auth(get("/api/v1/notes/" + note2 + "/backlinks"), owner))
-                .andExpect(jsonPath("$.data[0].sourceNoteId").value(noteId));
-        // 不可见 note 的 backlinks → 404
-        mvc.perform(auth(get("/api/v1/notes/" + note2 + "/backlinks"), stranger))
-                .andExpect(status().isNotFound());
+        // 9. 第二条日志（用于后续级联删除验证）
+        long note2 = createNote(owner, "另一条日志");
 
         // 10. 附件：通用上传（taskId 禁止）→ 上传 → 关联 → 列表 → 下载 → 移除
         MockMultipartFile file = new MockMultipartFile("file", "report.txt", "text/plain",
@@ -295,15 +272,13 @@ class NoteFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        // 14. 级联删除：删 note1 后引用/附件关联清空，note2 保留
+        // 14. 级联删除：删 note1 后附件关联清空，note2 保留
         mvc.perform(auth(delete("/api/v1/notes/" + noteId), owner))
                 .andExpect(status().isOk());
         mvc.perform(auth(get("/api/v1/notes/" + noteId), owner))
                 .andExpect(status().isNotFound());
         mvc.perform(auth(get("/api/v1/notes/" + note2), owner))
                 .andExpect(status().isOk());
-        mvc.perform(auth(get("/api/v1/notes/" + note2 + "/backlinks"), owner))
-                .andExpect(jsonPath("$.data").isEmpty());
         // 他人自始至终不可见（授权能力已下线）
         mvc.perform(auth(get("/api/v1/notes/" + note2), other))
                 .andExpect(status().isNotFound());

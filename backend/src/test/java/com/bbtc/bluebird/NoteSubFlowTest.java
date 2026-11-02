@@ -6,9 +6,7 @@ import com.bbtc.bluebird.modules.file.infrastructure.AttachmentMapper;
 import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
-import com.bbtc.bluebird.modules.note.domain.NoteRelation;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteAttachmentRefMapper;
-import com.bbtc.bluebird.modules.note.infrastructure.NoteRelationMapper;
 import com.bbtc.bluebird.modules.org.domain.Department;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import com.bbtc.bluebird.modules.task.domain.Tag;
@@ -33,7 +31,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -43,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Note 模块细分场景：授权下线后的可见性、附件绑定/解绑/删除守卫、引用可见性、标签级联与 facet、日历参数校验。
+ * Note 模块细分场景：授权下线后的可见性、附件绑定/解绑/删除守卫、标签级联与 facet、日历参数校验。
  *
  * <p>与 {@link NoteFlowTest} 互补：主流程只走一遍 happy path，这里覆盖各分支的错误码与副作用。
  */
@@ -78,8 +75,6 @@ class NoteSubFlowTest {
     TagMapper tagMapper;
     @Autowired
     TaskTagMapper taskTagMapper;
-    @Autowired
-    NoteRelationMapper noteRelationMapper;
     @Autowired
     NoteAttachmentRefMapper attachmentRefMapper;
     @Autowired
@@ -290,63 +285,6 @@ class NoteSubFlowTest {
                 new QueryWrapper<com.bbtc.bluebird.modules.file.domain.Attachment>().eq("id", file)).intValue());
     }
 
-    /* ==================== 5. 引用可见性 ==================== */
-
-    @Test
-    void relationVisibilityRules() throws Exception {
-        SysUser owner = user("owner", null, "COMMON");
-        SysUser hidden = user("hidden", null, "COMMON");
-        SysUser stranger = user("stranger", null, "COMMON");
-
-        long note = createNote(owner, "引用方");
-        long hiddenNote = createNote(hidden, "被引用但不可见");
-
-        // 引用不可见目标 → 50006
-        mvc.perform(auth(post("/api/v1/notes/" + note + "/relations"), owner)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetType\":\"NOTE\",\"targetId\":" + hiddenNote + "}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(50006));
-
-        // 正常引用 → 列表 + backlinks
-        long target = createNote(owner, "被引用方");
-        String relJson = mvc.perform(auth(post("/api/v1/notes/" + note + "/relations"), owner)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetType\":\"NOTE\",\"targetId\":" + target + "}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.targetId").value(target))
-                .andReturn().getResponse().getContentAsString();
-        long relId = body(relJson).path("data").path("id").asLong();
-
-        mvc.perform(auth(get("/api/v1/notes/" + note + "/relations"), owner))
-                .andExpect(jsonPath("$.data[0].targetId").value(target));
-        mvc.perform(auth(get("/api/v1/notes/" + target + "/backlinks"), owner))
-                .andExpect(jsonPath("$.data[0].sourceNoteId").value(note));
-
-        // 不可见方读引用/被引用 → 404
-        mvc.perform(auth(get("/api/v1/notes/" + note + "/relations"), stranger))
-                .andExpect(status().isNotFound());
-        mvc.perform(auth(get("/api/v1/notes/" + target + "/backlinks"), stranger))
-                .andExpect(status().isNotFound());
-
-        // 可见但非 owner（上级只读）删除引用 → 403；不可见 → 404
-        SysUser leader = user("leader", null, "COMMON");
-        Department root = dept("引用部", null, leader.getId());
-        Department child = dept("引用组", root.getId(), null);
-        leader.setDeptId(root.getId());
-        userMapper.updateById(leader);
-        owner.setDeptId(child.getId());
-        userMapper.updateById(owner);
-        mvc.perform(auth(delete("/api/v1/notes/" + note + "/relations/" + relId), leader))
-                .andExpect(status().isForbidden());
-        mvc.perform(auth(delete("/api/v1/notes/" + note + "/relations/" + relId), stranger))
-                .andExpect(status().isNotFound());
-        mvc.perform(auth(delete("/api/v1/notes/" + note + "/relations/" + relId), owner))
-                .andExpect(status().isOk());
-        assertEquals(0, noteRelationMapper.selectCount(
-                new QueryWrapper<NoteRelation>().eq("id", relId)).intValue());
-    }
-
     /* ==================== 6. 标签能力已下线 ==================== */
 
     @Test
@@ -476,8 +414,6 @@ class NoteSubFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.logDate").value(TODAY));
-
-        assertTrue(noteRelationMapper.selectCount(null) >= 0);
     }
 
 

@@ -41,17 +41,13 @@
 | GET | /api/v1/notes | 工作日志 | 工作日志分页（4 种 scope + 过滤/排序） |
 | POST | /api/v1/notes | 工作日志 | 新建工作日志 |
 | GET | /api/v1/notes/calendar | 工作日志 | 日历聚合（按日计数） |
-| GET | /api/v1/notes/{id} | 工作日志 | 日志详情（含引用/被引/附件/字段级权限） |
+| GET | /api/v1/notes/{id} | 工作日志 | 日志详情（含附件/字段级权限） |
 | PUT | /api/v1/notes/{id} | 工作日志 | 修改日志（仅 owner/ADMIN；乐观锁 version） |
 | DELETE | /api/v1/notes/{id} | 工作日志 | 删除日志（owner/ADMIN；逻辑删除并级联清理关联表） |
 | GET | /api/v1/notes/{id}/attachments | 工作日志 | 附件列表（可见即可） |
 | POST | /api/v1/notes/{id}/attachments | 工作日志 | 绑定附件（幂等；需写权限；仅允许本人上传且未被 task 引用的附件） |
 | DELETE | /api/v1/notes/{id}/attachments/{attachmentId} | 工作日志 | 解除附件引用（保留文件；写权限） |
 | GET | /api/v1/notes/{id}/attachments/{attachmentId}/download | 工作日志 | 附件下载（日志可见即可） |
-| GET | /api/v1/notes/{id}/backlinks | 工作日志 | 被引用列表（谁引用了我） |
-| GET | /api/v1/notes/{id}/relations | 工作日志 | 出向引用列表 |
-| POST | /api/v1/notes/{id}/relations | 工作日志 | 新增引用（幂等；自引用 400；目标不可见 400/404） |
-| DELETE | /api/v1/notes/{id}/relations/{relationId} | 工作日志 | 删除引用（创建者/源日志 owner/ADMIN） |
 | POST | /api/v1/org/push | 组织 | 私有 IDM 推送（独立 SecurityFilterChain 校验 Bearer ORGSYNC_PUSH_TOKEN） |
 | POST | /api/v1/org/sync | 组织 | 手动同步（PULL 模式，ADMIN） |
 | GET | /api/v1/org/sync/latest | 组织 | 最近一次同步记录（ADMIN / AUDITOR / USER_MANAGER） |

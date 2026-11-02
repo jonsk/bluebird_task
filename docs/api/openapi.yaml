@@ -474,7 +474,7 @@ paths:
   /tasks/search:
     get:
       tags: [task]
-      summary: 任务检索（note 引用选择器；仅返回当前用户可见任务，分页）
+      summary: 任务检索（仅返回当前用户可见任务，分页）
       parameters:
         - { name: keyword, in: query, schema: { type: string } }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
@@ -799,7 +799,7 @@ paths:
   /notes/{id}:
     get:
       tags: [note]
-      summary: 日志详情（含引用/被引/附件/字段级权限）
+      summary: 日志详情（含附件/字段级权限）
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses:
         '200':
@@ -834,52 +834,6 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Ok' }
         '403': { description: 无管理权 }
-        '404': { description: 不可见 }
-  /notes/{id}/relations:
-    get:
-      tags: [note]
-      summary: 出向引用列表
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteRelationVO' } } } }]
-    post:
-      tags: [note]
-      summary: 新增引用（幂等；自引用 400；目标不可见 400/404）
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/NoteRelationCreateReq' } } } }
-      responses:
-        '200':
-          description: OK（已存在时返回既有引用）
-          content:
-            application/json:
-              schema:
-                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { $ref: '#/components/schemas/NoteRelationVO' } } }]
-        '400': { description: 自引用/目标类型非法/目标不可见 }
-  /notes/{id}/relations/{relationId}:
-    delete:
-      tags: [note]
-      summary: 删除引用（创建者/源日志 owner/ADMIN）
-      parameters:
-        - { $ref: '#/components/parameters/Id' }
-        - { name: relationId, in: path, required: true, schema: { type: integer, format: int64 } }
-      responses: { '200': { $ref: '#/components/responses/Ok' } }
-  /notes/{id}/backlinks:
-    get:
-      tags: [note]
-      summary: 被引用列表（谁引用了我）
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                allOf: [{ $ref: '#/components/schemas/ApiResult' }, { properties: { data: { type: array, items: { $ref: '#/components/schemas/NoteBacklinkVO' } } } }]
         '404': { description: 不可见 }
   /notes/{id}/attachments:
     get:
@@ -1120,8 +1074,6 @@ components:
         - $ref: '#/components/schemas/NoteVO'
         - type: object
           properties:
-            relations: { type: array, items: { $ref: '#/components/schemas/NoteRelationVO' } }
-            backlinks: { type: array, items: { $ref: '#/components/schemas/NoteBacklinkVO' } }
             attachments: { type: array, items: { $ref: '#/components/schemas/NoteAttachmentVO' } }
             fieldPermissions: { $ref: '#/components/schemas/NoteFieldPermissionsVO' }
     NoteFieldPermissionsVO:
@@ -1156,33 +1108,6 @@ components:
           deprecated: true
           description: 已下线：创建后日志日期固定，传入即 400
         version: { type: integer, format: int64 }
-    NoteRelationCreateReq:
-      type: object
-      required: [targetType, targetId]
-      properties:
-        targetType: { type: string, enum: [NOTE, TASK] }
-        targetId: { type: integer, format: int64 }
-    NoteRelationVO:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        targetType: { type: string, enum: [NOTE, TASK] }
-        targetId: { type: integer, format: int64 }
-        targetSummary: { type: string, nullable: true }
-        createdAt: { type: string, format: date-time, description: 引用时间 }
-        createdBy: { type: integer, format: int64 }
-        createdByName: { type: string }
-    NoteBacklinkVO:
-      type: object
-      properties:
-        relationId: { type: integer, format: int64 }
-        sourceNoteId: { type: integer, format: int64 }
-        sourceSummary: { type: string }
-        sourceOwnerId: { type: integer, format: int64 }
-        sourceOwnerName: { type: string }
-        createdAt: { type: string, format: date-time, description: 引用时间 }
-        createdBy: { type: integer, format: int64 }
-        createdByName: { type: string }
     NoteAttachmentBindReq:
       type: object
       required: [attachmentId]

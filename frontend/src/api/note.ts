@@ -4,9 +4,6 @@ import type {
   NoteListData,
   NoteCreateReq,
   NoteUpdateReq,
-  NoteRelationCreateReq,
-  NoteRelationVO,
-  NoteBacklinkVO,
   NoteAttachmentBindReq,
   NoteAttachmentVO,
   NoteCalendarDay,
@@ -45,23 +42,6 @@ export function bindAttachment(id: number, payload: NoteAttachmentBindReq): Prom
 
 export function removeAttachment(id: number, attachmentId: number): Promise<void> {
   return del<void>(`/notes/${id}/attachments/${attachmentId}`)
-}
-
-// ---- 引用 ----
-export function listRelations(id: number): Promise<NoteRelationVO[]> {
-  return get<NoteRelationVO[]>(`/notes/${id}/relations`)
-}
-
-export function addRelation(id: number, payload: NoteRelationCreateReq): Promise<NoteRelationVO[]> {
-  return post<NoteRelationVO[]>(`/notes/${id}/relations`, payload)
-}
-
-export function removeRelation(id: number, relationId: number): Promise<void> {
-  return del<void>(`/notes/${id}/relations/${relationId}`)
-}
-
-export function listBacklinks(id: number): Promise<NoteBacklinkVO[]> {
-  return get<NoteBacklinkVO[]>(`/notes/${id}/backlinks`)
 }
 
 // ---- calendar ----

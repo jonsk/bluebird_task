@@ -84,13 +84,12 @@ test.describe('工作日志', () => {
     }
   })
 
-  test('N-05 详情页：正文 / 引用 / 返回', async ({ page }) => {
+  test('N-05 详情页：正文 / 附件 / 返回', async ({ page }) => {
     await page.goto('/notes')
     await page.locator('[data-test="note-card-1001"]').click()
     await expect(page).toHaveURL(/\/notes\/1001$/)
     await expect(page.locator('[data-test="note-detail-content"]')).toContainText('工作日志的前端骨架')
-    await expect(page.locator('.note-detail')).toContainText('引用（1）')
-    await expect(page.locator('.note-detail')).toContainText('被引用（0）')
+    await expect(page.locator('.note-detail')).toContainText('附件')
     await page.locator('[data-test="note-detail-back"]').click()
     await expect(page).toHaveURL(/\/notes$/)
   })

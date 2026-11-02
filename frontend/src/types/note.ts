@@ -7,15 +7,10 @@ export type NoteDetailVO = components['schemas']['NoteDetailVO']
 export type NoteListData = components['schemas']['NoteListData']
 export type NoteCreateReq = components['schemas']['NoteCreateReq']
 export type NoteUpdateReq = components['schemas']['NoteUpdateReq']
-export type NoteRelationCreateReq = components['schemas']['NoteRelationCreateReq']
-export type NoteRelationVO = components['schemas']['NoteRelationVO']
-export type NoteBacklinkVO = components['schemas']['NoteBacklinkVO']
 export type NoteAttachmentBindReq = components['schemas']['NoteAttachmentBindReq']
 export type NoteAttachmentVO = components['schemas']['NoteAttachmentVO']
 export type NoteCalendarDay = components['schemas']['NoteCalendarDay']
 export type TagVO = components['schemas']['TagVO']
-export type TaskSearchData = components['schemas']['TaskSearchData']
-export type TaskSearchItem = components['schemas']['TaskSearchItem']
 export type FileVO = components['schemas']['FileVO']
 
 /** 4 个列表作用域（visible 仅用于内部可见性等价，无独立列表页）。 */
@@ -45,8 +40,6 @@ export interface NoteDraft {
   id: number
   ts: number
 }
-
-export type NoteTargetRef = { targetType: 'NOTE' | 'TASK'; targetId: number }
 
 /** 品牌类型（落到 attachmentId 而非 fileId，类型系统阻止误传 id）。 */
 export type AttachmentRefId = number

@@ -40,7 +40,6 @@ public enum ErrorCode {
     NOTE_CONTENT_TOO_LONG(50002, "日志内容超过 20000 字符"),
     NOTE_ATTACHMENT_INVALID(50004, "附件不存在或不属于当前用户"),
     NOTE_ATTACHMENT_NOT_LINKED(50005, "附件未关联到该工作日志"),
-    NOTE_RELATION_TARGET_NOT_FOUND(50006, "引用目标不存在或不可见"),
     NOTE_LOG_DATE_INVALID(50012, "日志日期业务非法（未来超 7 天）；格式不可解析（如 2026-02-30）走 HTTP 400"),
     NOTE_SCOPE_DISABLED(50016, "当前作用域不可用（如下属可见开关关闭）"),
     NOTE_DEPT_REQUIRED(50017, "INTERNAL 日志需要 owner 有部门"),

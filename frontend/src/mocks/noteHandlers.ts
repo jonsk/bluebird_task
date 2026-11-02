@@ -5,8 +5,8 @@ import { canReadSubordinate, isAdminRequest } from './identity'
 /**
  * Note（工作日志）MSW Mock —— 内存实现，覆盖 `docs/api/openapi.yaml` 的 note 相关端点。
  *
- * 为什么单独成文件而不塞进 `handlers.ts`：note 有一整套独立的作用域/授权/引用语义
- * （4 个 scope + 附件 + 引用/被引用），与任务侧数据完全隔离，
+ * 为什么单独成文件而不塞进 `handlers.ts`：note 有一整套独立的作用域/授权语义
+ * （4 个 scope + 附件），与任务侧数据完全隔离，
  * 混在一起会出现「任务 fixture 变更顺手改坏日志 mock」的耦合。
  *
  * 数据基线对齐 E2E 冻结时间 `2026-09-28T10:00+08:00`（见 `e2e/helpers.ts`）：
@@ -42,16 +42,6 @@ interface NoteAttachmentRow {
   canRemoveRef: boolean
   canDelete: boolean
 }
-interface RelationRow {
-  id: number
-  noteId: number
-  targetType: 'NOTE' | 'TASK'
-  targetId: number
-  targetSummary: string
-  createdAt: string
-  createdBy: number
-  createdByName: string
-}
 const me = dataOf<{ id: number; name: string; username: string; roleCode: string; deptId?: number | null }>('users/GET.me')
 const ME = Number(me.id)
 const ME_NAME = me.name ?? me.username
@@ -67,7 +57,7 @@ const USERS: Record<number, { name: string; deptId: number | null; leader: numbe
 /** 初始日志：覆盖 mine（1001/1002）/ subordinate（李四、张三）/ visible / all（后台）。 */
 // 起始值需大于 fixture 最大 id（1007），否则新建日志会与既有卡片撞 id
 let noteSeq = 1100
-let refSeq = 5000
+let attachmentSeq = 5000
 const notes: NoteRow[] = [
   {
     id: 1001,
@@ -128,19 +118,6 @@ const notes: NoteRow[] = [
     deptId: 10,
     version: 1,
     deleted: false,
-  },
-]
-
-const relations: RelationRow[] = [
-  {
-    id: 5001,
-    noteId: 1001,
-    targetType: 'NOTE',
-    targetId: 1004,
-    targetSummary: '李四的日志：完成日志列表的懒加载与缓存淘汰。',
-    createdAt: '2026-09-28T11:00:00+08:00',
-    createdBy: ME,
-    createdByName: ME_NAME,
   },
 ]
 
@@ -222,22 +199,6 @@ function detailOf(n: NoteRow) {
     ...brief(n),
     content: n.content,
     fieldPermissions: perms,
-    relations: relations.filter((r) => r.noteId === n.id),
-    backlinks: relations
-      .filter((r) => r.targetType === 'NOTE' && Number(r.targetId) === n.id)
-      .map((r) => {
-        const src = notes.find((x) => x.id === r.noteId)
-        return {
-          relationId: r.id,
-          sourceNoteId: r.noteId,
-          sourceSummary: src ? summaryOf(src.content) : '',
-          sourceOwnerId: src?.ownerId ?? 0,
-          sourceOwnerName: src?.ownerName ?? '',
-          createdAt: r.createdAt,
-          createdBy: r.createdBy,
-          createdByName: r.createdByName,
-        }
-      }),
     attachments: attachments.filter((a) => a.noteId === n.id),
   }
 }
@@ -251,8 +212,6 @@ function sortNotes(list: NoteRow[], sort: string): NoteRow[] {
   })
   return sorted
 }
-
-const nowIso = (): string => new Date().toISOString()
 
 /* ---------------- handlers ---------------- */
 
@@ -451,7 +410,7 @@ export const noteHandlers = [
     const fid = Number(body.attachmentId)
     if (!files[fid]) return fail(50004, '附件不存在')
     const row: NoteAttachmentRow = {
-      id: refSeq++,
+      id: attachmentSeq++,
       noteId: note.id,
       attachmentId: fid,
       fileName: files[fid].fileName,
@@ -486,57 +445,6 @@ export const noteHandlers = [
     const f = row ? files[row.attachmentId] : undefined
     if (!row || !f) return fail(40001, '文件不存在', 404)
     return new HttpResponse(f.body, { headers: { 'Content-Type': f.contentType } })
-  }),
-
-  // ---- 引用 / 被引用 ----
-  http.get(`${AUTH}/notes/:id/relations`, ({ params }) => {
-    return ok(relations.filter((r) => String(r.noteId) === params.id))
-  }),
-  http.post(`${AUTH}/notes/:id/relations`, async ({ request, params }) => {
-    const note = notes.find((x) => String(x.id) === params.id)
-    if (!note) return fail(10004, '资源不存在', 404)
-    const body = (await request.json()) as { targetType?: 'NOTE' | 'TASK'; targetId?: number }
-    if (!body.targetType || body.targetId == null) return fail(10001, '参数错误', 400)
-    if (relations.some((r) => r.noteId === note.id && r.targetType === body.targetType && Number(r.targetId) === Number(body.targetId))) {
-      return fail(50009, '该引用已存在')
-    }
-    const target = body.targetType === 'NOTE' ? notes.find((n) => n.id === Number(body.targetId)) : undefined
-    relations.push({
-      id: refSeq++,
-      noteId: note.id,
-      targetType: body.targetType,
-      targetId: Number(body.targetId),
-      targetSummary: target ? summaryOf(target.content) : `任务 #${body.targetId}`,
-      createdAt: nowIso(),
-      createdBy: ME,
-      createdByName: ME_NAME,
-    })
-    return ok(relations.filter((r) => r.noteId === note.id))
-  }),
-  http.delete(`${AUTH}/notes/:id/relations/:rid`, ({ params }) => {
-    const i = relations.findIndex((r) => String(r.id) === params.rid)
-    if (i >= 0) relations.splice(i, 1)
-    return ok(null)
-  }),
-  http.get(`${AUTH}/notes/:id/backlinks`, ({ params }) => {
-    const id = Number(params.id)
-    return ok(
-      relations
-        .filter((r) => r.targetType === 'NOTE' && Number(r.targetId) === id)
-        .map((r) => {
-          const src = notes.find((x) => x.id === r.noteId)
-          return {
-            relationId: r.id,
-            sourceNoteId: r.noteId,
-            sourceSummary: src ? summaryOf(src.content) : '',
-            sourceOwnerId: src?.ownerId ?? 0,
-            sourceOwnerName: src?.ownerName ?? '',
-            createdAt: r.createdAt,
-            createdBy: r.createdBy,
-            createdByName: r.createdByName,
-          }
-        }),
-    )
   }),
 
   ...taskAttachmentHandlers(),
