@@ -2271,14 +2271,13 @@ export interface paths {
         };
         /**
          * 工作日志分页（4 种 scope + 过滤/排序）
-         * @description `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 标签能力已下线，不再有 `tagId`/`tagName` 过滤；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
+         * @description `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 标签能力已下线，不再有 `tagId`/`tagName` 过滤；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（传驼峰 `logDate_*` 会被忽略而回落默认）。
          */
         get: {
             parameters: {
                 query?: {
                     scope?: "mine" | "subordinate" | "visible" | "all";
                     keyword?: string;
-                    pinned?: boolean;
                     start?: string;
                     end?: string;
                     date?: string;
@@ -2515,50 +2514,6 @@ export interface paths {
                     };
                     content?: never;
                 };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/notes/{id}/pin": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 置顶 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["Ok"];
-            };
-        };
-        /** 取消置顶 */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["Ok"];
             };
         };
         options?: never;
@@ -3073,7 +3028,6 @@ export interface components {
              * @description YYYY-MM-DD
              */
             logDate?: string;
-            pinned?: boolean;
             /** Format: int64 */
             ownerId?: number;
             ownerName?: string;

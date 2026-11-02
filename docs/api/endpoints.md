@@ -49,8 +49,6 @@
 | DELETE | /api/v1/notes/{id}/attachments/{attachmentId} | 工作日志 | 解除附件引用（保留文件；写权限） |
 | GET | /api/v1/notes/{id}/attachments/{attachmentId}/download | 工作日志 | 附件下载（日志可见即可） |
 | GET | /api/v1/notes/{id}/backlinks | 工作日志 | 被引用列表（谁引用了我） |
-| POST | /api/v1/notes/{id}/pin | 工作日志 | 置顶 |
-| DELETE | /api/v1/notes/{id}/pin | 工作日志 | 取消置顶 |
 | GET | /api/v1/notes/{id}/relations | 工作日志 | 出向引用列表 |
 | POST | /api/v1/notes/{id}/relations | 工作日志 | 新增引用（幂等；自引用 400；目标不可见 400/404） |
 | DELETE | /api/v1/notes/{id}/relations/{relationId} | 工作日志 | 删除引用（创建者/源日志 owner/ADMIN） |

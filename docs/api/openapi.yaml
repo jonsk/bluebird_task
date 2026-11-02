@@ -751,11 +751,10 @@ paths:
       description: >
         `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）|
         `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。
-        标签能力已下线，不再有 `tagId`/`tagName` 过滤；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（注意：`pinned` 由后端恒定作为第一排序键，`pinned_first` 不存在，传驼峰 `logDate_*` 会被忽略而回落默认）。
+        标签能力已下线，不再有 `tagId`/`tagName` 过滤；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（传驼峰 `logDate_*` 会被忽略而回落默认）。
       parameters:
         - { name: scope, in: query, schema: { type: string, enum: [mine, subordinate, visible, all], default: mine } }
         - { name: keyword, in: query, schema: { type: string } }
-        - { name: pinned, in: query, schema: { type: boolean } }
         - { name: start, in: query, schema: { type: string, format: date } }
         - { name: end, in: query, schema: { type: string, format: date } }
         - { name: date, in: query, schema: { type: string, format: date } }
@@ -836,17 +835,6 @@ paths:
         '200': { $ref: '#/components/responses/Ok' }
         '403': { description: 无管理权 }
         '404': { description: 不可见 }
-  /notes/{id}/pin:
-    post:
-      tags: [note]
-      summary: 置顶
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { $ref: '#/components/responses/Ok' } }
-    delete:
-      tags: [note]
-      summary: 取消置顶
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses: { '200': { $ref: '#/components/responses/Ok' } }
   /notes/{id}/relations:
     get:
       tags: [note]
@@ -1112,7 +1100,6 @@ components:
         id: { type: integer, format: int64 }
         contentSummary: { type: string }
         logDate: { type: string, format: date, description: YYYY-MM-DD }
-        pinned: { type: boolean }
         ownerId: { type: integer, format: int64 }
         ownerName: { type: string }
         canEdit: { type: boolean }
