@@ -1,6 +1,7 @@
 package com.bbtc.bluebird.modules.note.controller;
 
 import com.bbtc.bluebird.common.api.ApiResult;
+import com.bbtc.bluebird.common.util.ContentTypes;
 import com.bbtc.bluebird.modules.audit.annotation.OperateLog;
 import com.bbtc.bluebird.modules.note.application.NoteAttachmentService;
 import com.bbtc.bluebird.modules.note.dto.NoteAttachmentBindReq;
@@ -66,6 +67,31 @@ public class NoteAttachmentController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString())
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(d.resource());
+    }
+
+    /**
+     * 内联预览（图片/PDF 等）：日志正文的 {@code ![](previewUrl)} 走这里。
+     *
+     * <p>与 {@code /download} 的差别只有两点：{@code Content-Disposition: inline} 与按扩展名给出的真实
+     * Content-Type——{@code octet-stream} 会让浏览器把它当下载处理，{@code <img>} 就会渲染成破图。
+     * 权限与下载完全一致（日志可见 + 关联存在，否则 404 不泄露存在性）。
+     */
+    @Operation(summary = "附件内联预览")
+    @GetMapping("/{id}/attachments/{attachmentId}/preview")
+    public ResponseEntity<Resource> preview(@PathVariable Long id, @PathVariable Long attachmentId) {
+        FileService.Download d = attachmentService.download(id, attachmentId);
+        String contentType = ContentTypes.of(d.fileName());
+        if (!ContentTypes.isInlineSafe(contentType)) {
+            // HTML/SVG 内联等于把上传内容当同源页面执行，直接降级为下载。
+            return download(id, attachmentId);
+        }
+        ContentDisposition cd = ContentDisposition.inline()
+                .filename(d.fileName(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString())
+                .contentType(MediaType.parseMediaType(contentType))
                 .body(d.resource());
     }
 }

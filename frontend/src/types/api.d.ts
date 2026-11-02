@@ -2671,6 +2671,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notes/{id}/attachments/{attachmentId}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 附件内联预览（日志可见即可；Content-Type 按扩展名给出，图片/文本/PDF 等内联，其余降级为下载） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    attachmentId: components["parameters"]["AttachmentId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 文件流（inline） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit/operates": {
         parameters: {
             query?: never;
@@ -2945,6 +2982,8 @@ export interface components {
             contentType?: string | null;
             /** @description /notes/{id}/attachments/{attachmentId}/download */
             downloadUrl?: string;
+            /** @description 内联预览地址 '/notes/{id}/attachments/{attachmentId}/preview'。 日志正文的图片以 `![](previewUrl)` 引用；端点同样要求 Bearer，前端按 blob 取图后再渲染。 */
+            previewUrl?: string;
             /**
              * Format: date-time
              * @description 附件上传时间（取自 attachment 表，非关联时间）

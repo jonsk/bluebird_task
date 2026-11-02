@@ -48,6 +48,7 @@
 | POST | /api/v1/notes/{id}/attachments | 工作日志 | 绑定附件（幂等；需写权限；仅允许本人上传且未被 task 引用的附件） |
 | DELETE | /api/v1/notes/{id}/attachments/{attachmentId} | 工作日志 | 解除附件引用（保留文件；写权限） |
 | GET | /api/v1/notes/{id}/attachments/{attachmentId}/download | 工作日志 | 附件下载（日志可见即可） |
+| GET | /api/v1/notes/{id}/attachments/{attachmentId}/preview | 工作日志 | 附件内联预览（日志可见即可；Content-Type 按扩展名给出，图片/文本/PDF 等内联，其余降级为下载） |
 | POST | /api/v1/org/push | 组织 | 私有 IDM 推送（独立 SecurityFilterChain 校验 Bearer ORGSYNC_PUSH_TOKEN） |
 | POST | /api/v1/org/sync | 组织 | 手动同步（PULL 模式，ADMIN） |
 | GET | /api/v1/org/sync/latest | 组织 | 最近一次同步记录（ADMIN / AUDITOR / USER_MANAGER） |
@@ -71,7 +72,7 @@
 | POST | /api/v1/tasks | 任务 | 新建主任务 |
 | GET | /api/v1/tasks/calendar | 任务 | 日历区间（有任务日期/实例） |
 | GET | /api/v1/tasks/count | 任务 | 各视图计数（recurring 按展开实例） |
-| GET | /api/v1/tasks/search | 任务 | 任务检索（note 引用选择器；仅返回当前用户可见任务，分页） |
+| GET | /api/v1/tasks/search | 任务 | 任务检索（仅返回当前用户可见任务，分页） |
 | GET | /api/v1/tasks/subtasks | 任务 | 子任务列表 |
 | GET | /api/v1/tasks/{id} | 任务 | 任务详情 |
 | PUT | /api/v1/tasks/{id} | 任务 | 更新任务（须携带 `version`） |

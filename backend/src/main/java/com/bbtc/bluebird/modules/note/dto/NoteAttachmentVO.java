@@ -15,6 +15,8 @@ public record NoteAttachmentVO(
         Long size,
         String contentType,
         String downloadUrl,
+        /** 内联预览地址（日志正文 {@code ![](url)} 引用它；需 Bearer，前端按 blob 取图）。 */
+        String previewUrl,
         Long createdBy,
         String createdByName,
         Instant createdAt,

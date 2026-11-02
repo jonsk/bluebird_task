@@ -28,6 +28,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -239,6 +241,19 @@ class NoteFlowTest {
                 .andExpect(jsonPath("$.data.canRemoveRef").value(true));
         mvc.perform(auth(get("/api/v1/notes/" + noteId + "/attachments/" + attachmentId + "/download"), owner))
                 .andExpect(status().isOk());
+        // 内联预览：inline + 真实 Content-Type（否则 <img> 会退化成下载）
+        String previewUrl = mvc.perform(auth(get("/api/v1/notes/" + noteId + "/attachments"), owner))
+                .andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(
+                objectMapper.readTree(previewUrl).path("data").get(0).path("previewUrl").asText()
+                        .endsWith("/attachments/" + attachmentId + "/preview"));
+        mvc.perform(auth(get("/api/v1/notes/" + noteId + "/attachments/" + attachmentId + "/preview"), owner))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.startsWith("inline")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN));
+        // 预览走同一套可见性：他人 404
+        mvc.perform(auth(get("/api/v1/notes/" + noteId + "/attachments/" + attachmentId + "/preview"), other))
+                .andExpect(status().isNotFound());
         // 通用 /files/{id} 仅创建者/ADMIN
         mvc.perform(auth(get("/api/v1/files/" + attachmentId), other))
                 .andExpect(status().isForbidden());

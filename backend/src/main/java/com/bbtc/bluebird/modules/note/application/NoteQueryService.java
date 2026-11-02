@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bbtc.bluebird.common.domain.PageResult;
 import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
+import com.bbtc.bluebird.common.util.ContentTypes;
+import com.bbtc.bluebird.common.util.MarkdownText;
 import com.bbtc.bluebird.modules.file.domain.Attachment;
 import com.bbtc.bluebird.modules.file.infrastructure.AttachmentMapper;
 import com.bbtc.bluebird.modules.identity.domain.SysUser;
@@ -274,9 +276,11 @@ public class NoteQueryService {
                 continue;
             }
             boolean canDelete = admin || (a.getCreatedBy() != null && a.getCreatedBy().equals(me));
+            String prefix = "/notes/" + note.getId() + "/attachments/" + a.getId();
             out.add(new NoteAttachmentVO(r.getId(), a.getId(), a.getFileName(), a.getSize(),
-                    contentType(a.getFileName()),
-                    "/notes/" + note.getId() + "/attachments/" + a.getId() + "/download",
+                    ContentTypes.of(a.getFileName()),
+                    prefix + "/download",
+                    prefix + "/preview",
                     a.getCreatedBy(), names.get(a.getCreatedBy()), a.getCreatedAt(),
                     canRemoveRef, canDelete));
         }
@@ -285,16 +289,22 @@ public class NoteQueryService {
 
     /* ==================== 工具 ==================== */
 
-    /** 摘要：前 200 码位（保留换行，不补省略号）。 */
+    /**
+     * 摘要：先剥离 Markdown 标记，再取前 200 码位（不补省略号）。
+     *
+     * <p>正文自 Markdown 化后，直接截断原文会把 {@code ##}/{@code **}/{@code ```} 露到卡片上，
+     * 甚至把代码围栏切成两半；因此截断前先走 {@link MarkdownText#plain}。
+     */
     public static String summary(String content) {
         if (content == null) {
             return null;
         }
-        if (content.codePointCount(0, content.length()) <= SUMMARY_LIMIT) {
-            return content;
+        String plain = MarkdownText.plain(content);
+        if (plain.codePointCount(0, plain.length()) <= SUMMARY_LIMIT) {
+            return plain;
         }
-        int end = content.offsetByCodePoints(0, SUMMARY_LIMIT);
-        return content.substring(0, end);
+        int end = plain.offsetByCodePoints(0, SUMMARY_LIMIT);
+        return plain.substring(0, end);
     }
 
     private Long versionOf(Note note) {
@@ -303,32 +313,6 @@ public class NoteQueryService {
 
     private boolean isTrue(Integer v) {
         return v != null && v == 1;
-    }
-
-    private String contentType(String fileName) {
-        if (fileName == null) {
-            return null;
-        }
-        String lower = fileName.toLowerCase();
-        if (lower.endsWith(".pdf")) {
-            return "application/pdf";
-        }
-        if (lower.endsWith(".png")) {
-            return "image/png";
-        }
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
-            return "image/jpeg";
-        }
-        if (lower.endsWith(".gif")) {
-            return "image/gif";
-        }
-        if (lower.endsWith(".webp")) {
-            return "image/webp";
-        }
-        if (lower.endsWith(".txt")) {
-            return "text/plain";
-        }
-        return "application/octet-stream";
     }
 
     /** 供创造/更新后返回详情（同一事务内可直接读）。 */

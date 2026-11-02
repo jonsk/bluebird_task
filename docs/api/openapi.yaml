@@ -877,6 +877,14 @@ paths:
         - { $ref: '#/components/parameters/Id' }
         - { $ref: '#/components/parameters/AttachmentId' }
       responses: { '200': { description: 文件流 } }
+  /notes/{id}/attachments/{attachmentId}/preview:
+    get:
+      tags: [note]
+      summary: 附件内联预览（日志可见即可；Content-Type 按扩展名给出，图片/文本/PDF 等内联，其余降级为下载）
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/AttachmentId' }
+      responses: { '200': { description: 文件流（inline） } }
 
   /audit/operates:
     get:
@@ -1122,6 +1130,11 @@ components:
         size: { type: integer, format: int64 }
         contentType: { type: string, nullable: true }
         downloadUrl: { type: string, description: '/notes/{id}/attachments/{attachmentId}/download' }
+        previewUrl:
+          type: string
+          description: >
+            内联预览地址 '/notes/{id}/attachments/{attachmentId}/preview'。
+            日志正文的图片以 `![](previewUrl)` 引用；端点同样要求 Bearer，前端按 blob 取图后再渲染。
         createdAt: { type: string, format: date-time, description: 附件上传时间（取自 attachment 表，非关联时间） }
         createdBy: { type: integer, format: int64 }
         createdByName: { type: string }
