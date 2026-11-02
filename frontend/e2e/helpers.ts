@@ -4,7 +4,7 @@ import { expect, type Page } from '@playwright/test'
  * E2E 共享辅助（03 §2.3.3）。
  *
  * 冻结点时间：fixtures 以 2026-09 为基线（如 dueAt 2026-09-24 逾期 / 2026-10-01 临期），
- * 冻结 `Date` 后逾期/临期着色与日历月份确定，视觉基线可复现。
+ * 冻结 `Date` 后逾期/临期着色与日历月份确定，页面状态可复现。
  */
 export const FIXED_TIME = new Date('2026-09-28T10:00:00+08:00')
 

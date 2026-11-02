@@ -4,11 +4,11 @@
 
 ## 仓库状态
 
-> **当前阶段：任务模块 + 工作日志（Note）模块已完成前端全量实现、后端 note 模块入库；2026-11-02 完成工作日志第五轮功能减法（引用 / 被引用整块下线并 DROP `note_relation`），验收与测试基线已更新。**
+> **当前阶段：任务模块 + 工作日志（Note）模块已完成前端全量实现、后端 note 模块入库；2026-11-02 完成工作日志第五轮功能减法（引用 / 被引用整块下线并 DROP `note_relation`），并下线 e2e 截图回归（功能 E2E 保留），验收与测试基线已更新。**
 >
 > 已完成的验证基线（可直接复跑，见下节「质量门禁」）：
 > - 前端类型检查 `vue-tsc --noEmit` 零错误；单测 **17 文件 / 94 例**（Vitest）
-> - e2e **63 例**（Playwright：任务 18 / 日志 20 / 权限 6 / 视觉 18 / 左栏 1），含 1280×800 视觉基线
+> - e2e **44 例**（Playwright 功能回归：任务 18 / 日志 19 / 权限 6 / 左栏 1），不做截图回归
 > - 后端 `mvn test` **43 例**（含 Note 可见性矩阵、细分流程、附件守卫）
 > - Note §9 接口验收矩阵脚本 **94 例主跑 + 4 例开关关闭** 全通过（0 例未自动化）（`scripts/acceptance/`）
 
@@ -56,8 +56,7 @@ cd frontend; pnpm install; pnpm dev      # http://localhost:5173
 cd frontend
 pnpm exec vue-tsc --noEmit     # 类型检查
 pnpm test                      # 单测（Vitest，17 文件 / 94 例）
-pnpm test:e2e                  # e2e + 视觉回归（Playwright，本地复用系统 Edge）
-pnpm test:e2e:update           # 仅在**有意**改动布局时重生成基线，并在 PR 中说明
+pnpm test:e2e                  # 功能 e2e（Playwright，本地复用系统 Edge；无截图基线）
 
 cd ..\backend
 mvn -o test                    # 后端测试（43 例）

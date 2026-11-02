@@ -17,13 +17,12 @@
 
 ## Mock 与 E2E（契约同源）
 
-- **MSW 直连 fixtures**：`src/mocks/fixtures.ts` 用 `import.meta.glob` 注册 `../docs/frontend-baseline/fixtures/api/**`（键 `<目录>/<METHOD>.<name>`）；`src/mocks/handlers.ts` 读态原样返回、错误分支复用 `_errors/`、写态在内存副本变更（自定义栏为**内存 CRUD**）。覆盖度断言见 `tests/unit/mocks-fixtures.spec.ts`。
-- **E2E / 视觉回归**（Playwright Test）：`e2e/filter-rail.spec.ts`（E-08 左栏筛选）+ `e2e/task-flow.spec.ts`（E-01..E-17）+ `e2e/visual.spec.ts`（9 张，基线入库于 `e2e/__screenshots__/`）。
-  - `pnpm test:e2e` / `pnpm test:e2e:update`（更新基线）；本地默认复用系统 **Edge**（`channel: msedge`，免下载），CI 用随包 Chromium（`playwright install chromium`）。
+- **MSW 直连 fixtures**：`src/mocks/fixtures.ts` 用 `import.meta.glob` 注册 `./fixtures/api/**`（键 `<目录>/<METHOD>.<name>`）；`src/mocks/handlers.ts` 读态原样返回、错误分支复用 `_errors/`、写态在内存副本变更（自定义栏为**内存 CRUD**）。覆盖度断言见 `tests/unit/mocks-fixtures.spec.ts`。
+- **功能 E2E**（Playwright Test）：`e2e/task-flow.spec.ts`（E-01..E-17）+ `e2e/note-flow.spec.ts`（日志 N-*）+ `e2e/note-permission.spec.ts`（权限）+ `e2e/filter-rail.spec.ts`（E-08 左栏筛选），共 44 例；**不做截图回归**。
+  - `pnpm test:e2e`；本地默认复用系统 **Edge**（`channel: msedge`，免下载），CI 用随包 Chromium（`playwright install chromium`）。
   - 视口 1440×900、时区 Asia/Shanghai、`page.clock` 冻结时间 → 确定性。
   - 选择器约定：下拉项用 `.el-dropdown-menu__item:visible`（所有节点的 dropdown 菜单都常驻 DOM）；树的点选用 `.cat-node__label`（徽标已 `pointer-events:none`）；左栏管理入口 `[data-test="nav-calendar|nav-adminOrg|nav-adminAudit"]`；不使用 toast（瞬态）作为断言依据。
-  - `settle()`（`e2e/helpers.ts`）会等左栏**异步**数据落地（`.layout__count` × 6、`.cat-node` × 7、`[data-test="menu-row"]` × 3）后才截图/断言——否则与 MSW 响应竞态，基线会缺左栏内容。
-  - ⚠️ 视觉门禁为「默认逐像素 `threshold` + `maxDiffPixelRatio: 0.02`」，**浅色文本差异可能不触发失败**；改动左栏/布局后请**显式重生基线**（`pnpm test:e2e:update`，必要时先删旧 PNG）。
+  - `settle()`（`e2e/helpers.ts`）会等左栏**异步**数据落地（`.layout__count` × 6、`.cat-node` × 7、`[data-test="menu-row"]` × 3）后再断言——否则与 MSW 响应竞态。
 
 ## 旧系统 UI 对齐的刻意偏离（2026-09-30）
 
@@ -58,12 +57,11 @@ frontend/
 │   ├── layouts/ router/ stores/ views/ utils/
 │   └── main.ts  App.vue
 ├── tests/unit/         # Vitest 单测
-└── e2e/                # Playwright（E2E + 视觉基线 __screenshots__/，入库）
+└── e2e/                # Playwright 功能 E2E（无截图基线）
 ```
 
 ## 契约与基线（仓根共享，不在此目录）
 
 - `../docs/api/openapi.yaml` — API 契约单一事实源（前后端共享）
-- `../docs/frontend-baseline/` — 基线冻结产物（行为契约 / 黄金截图 / E2E 清单 / fixtures）
 
 ## 工程初始化（随 M0 脚手架落地，此目录当前无代码）
