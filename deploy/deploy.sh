@@ -24,7 +24,13 @@
 # 运行目录不会被覆盖：application.yml 与 data/ 始终保留。
 set -Eeuo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 脚本可能放在仓库根，也可能放在 deploy/ 下：统一用 git 找仓库根
+if REPO_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+  :
+else
+  REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
 BRANCH="${BRANCH:-main}"
 APP_DIR="${APP_DIR:-$REPO_DIR/runtime}"
 JAR_NAME="bluebird-task.jar"
@@ -76,9 +82,18 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 
 step "环境检查"
 command -v java >/dev/null 2>&1 || die "缺少 java（需要 21+）"
-java_version="$(java -version 2>&1 | head -1)"
-java_major="$(sed -n 's/.*version "\([0-9]*\).*/\1/p' <<<"$java_version" | head -1)"
-[[ -n "$java_major" && "$java_major" -ge 21 ]] || die "java 需要 >= 21，当前 $java_version"
+
+# 注意：`java -version` 的第一行可能是 JAVA_TOOL_OPTIONS 的提示（容器/云主机常见），
+# 不能直接取 head -1；优先读 java.specification.version，再退回解析 version "x.y"。
+java_props="$(java -XshowSettings:properties -version 2>&1 || true)"
+java_major="$(awk -F'= *' '/java\.specification\.version/ {print $2; exit}' <<<"$java_props")"
+if [[ -z "$java_major" ]]; then
+  java_major="$(sed -n 's/.*version "\([0-9][0-9]*\)[."].*/\1/p' <<<"$java_props" | head -1)"
+fi
+java_version_line="$(grep -m1 -E 'version "' <<<"$java_props" || true)"
+java_version_line="${java_version_line:-$(head -1 <<<"$java_props")}"
+[[ -n "$java_major" && "$java_major" -ge 21 ]] \
+  || die "java 需要 >= 21，当前 ${java_version_line:-未知}（JAVA_HOME=$(command -v java); JAVA_TOOL_OPTIONS 提示不影响检测）"
 
 if [[ "$PULL" -eq 1 ]]; then
   command -v git >/dev/null 2>&1 || die "缺少 git（或用 --no-pull）"
@@ -93,7 +108,7 @@ if [[ "$BUILD" -eq 1 ]]; then
   node_major="$(node -p 'process.versions.node.split(".")[0]')"
   [[ "$node_major" -ge 20 ]] || die "node 需要 >= 20，当前 $(node -v)"
 fi
-echo "   java=$java_version  repo=$REPO_DIR  app=$APP_DIR  port=$PORT"
+echo "   java=$java_major（$java_version_line）  repo=$REPO_DIR  app=$APP_DIR  port=$PORT"
 
 # ---------------------------------------------------------------- 拉取代码
 
@@ -132,13 +147,19 @@ fi
 # ---------------------------------------------------------------- 构建
 
 if [[ "$BUILD" -eq 1 ]]; then
-  step "构建单制品 jar"
-  JAR_OUT="$REPO_DIR/deploy/out/bluebird-task.jar"
-  run bash "$REPO_DIR/deploy/package.sh" --out "$JAR_OUT"
-  NEW_JAR="$JAR_OUT"
+  step "构建前端（含 Vditor 资源 vendor）"
+  run pnpm -C "$REPO_DIR/frontend" install --frozen-lockfile
+  run pnpm -C "$REPO_DIR/frontend" build
+  if [[ "$DRY_RUN" -eq 0 && ! -f "$REPO_DIR/frontend/public/vditor/dist/js/lute/lute.min.js" ]]; then
+    die "Vditor 资源缺失：frontend/public/vditor/dist（tools/vendor-vditor.mjs 未执行？）"
+  fi
+
+  step "构建后端单制品 jar（内嵌前端）"
+  run mvn -B -f "$REPO_DIR/backend/pom.xml" -DskipTests package
+  NEW_JAR="$REPO_DIR/backend/target/bluebird-task.jar"
 else
   step "跳过构建"
-  [[ -n "$NEW_JAR" ]] || NEW_JAR="$REPO_DIR/deploy/out/bluebird-task.jar"
+  [[ -n "$NEW_JAR" ]] || NEW_JAR="$REPO_DIR/backend/target/bluebird-task.jar"
 fi
 
 [[ -f "$NEW_JAR" ]] || die "找不到待部署的 jar：$NEW_JAR"
