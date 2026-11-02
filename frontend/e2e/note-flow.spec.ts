@@ -59,7 +59,7 @@ test.describe('工作日志', () => {
     await expect(host.locator('.cm-content')).toContainText(/移动端适配方案/)
 
     await host.locator('.cm-content').fill('私有：移动端适配方案已改为两栏布局')
-    await host.getByRole('button', { name: '保存' }).click()
+    await host.locator('[data-test="note-editor-save"]').click()
     await expect(host).toHaveCount(0)
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('已改为两栏布局')
   })
@@ -188,7 +188,7 @@ test.describe('工作日志', () => {
     // mock 的一次性冲突钩子（模拟"保存前该日志已被他人改动"）
     await page.evaluate(() => localStorage.setItem('bb_mock_force_conflict', '1'))
     await host.locator('.cm-content').fill('冲突场景：这段内容必须保留')
-    await host.getByRole('button', { name: '保存' }).click()
+    await host.locator('[data-test="note-editor-save"]').click()
 
     await expect(page.locator('.el-message--error')).toContainText('内容已被他人修改')
     // 面板不关闭、草稿仍在
@@ -237,6 +237,63 @@ test.describe('工作日志', () => {
       () => document.documentElement.scrollWidth - window.innerWidth,
     )
     expect(overflow).toBeLessThanOrEqual(1)
+  })
+
+  test('N-21 工具栏保持库默认项：图片入口存在，工具栏保存与底部保存同效', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    await expect(host).toBeVisible()
+
+    // 默认工具栏（未做 toolbarsExclude）：图片与保存都在
+    await expect(host.locator('.md-editor-toolbar-item[title="图片"]')).toHaveCount(1)
+    const toolbarSave = host.locator('.md-editor-toolbar-item[title="保存"]')
+    await expect(toolbarSave).toHaveCount(1)
+
+    await host.locator('.cm-content').fill('工具栏保存：这段内容必须落库')
+    await toolbarSave.click()
+    await expect(host).toHaveCount(0)
+    await expect(page.locator('[data-test="note-card-1002"]')).toContainText('工具栏保存')
+  })
+
+  test('N-22 左写右看：输入即渲染，公式与 mermaid 用本地扩展（不点预览按钮、不依赖 CDN）', async ({
+    page,
+  }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    await expect(host).toBeVisible()
+
+    // 默认就是双栏：编辑区与预览区同时可见，不需要点工具栏「预览」
+    await expect(host.locator('.cm-content')).toBeVisible()
+    await expect(host.locator('.md-editor-preview')).toBeVisible()
+
+    await host
+      .locator('.cm-content')
+      .fill('# 标题\n\n公式 $E=mc^2$\n\n```mermaid\ngraph TD\nA-->B\n```\n')
+
+    // 实时渲染：不点任何按钮，预览区自己出标题、公式、图
+    await expect(host.locator('.md-editor-preview h1')).toHaveText('标题')
+    // katex 同步渲染；mermaid 异步，给足时间
+    await expect(host.locator('.md-editor-preview .katex').first()).toBeVisible({ timeout: 15000 })
+    await expect(host.locator('.md-editor-preview svg').first()).toBeVisible({ timeout: 20000 })
+  })
+
+  test('N-23 详情页正文图片：带 Bearer 取图后替换为 blob（不出现破图）', async ({ page }) => {
+    // mock 预置：1002 正文含 ![](/notes/1002/attachments/8801/preview)
+    await page.goto('/notes/1002')
+    const img = page.locator('[data-test="note-detail-content"] img').first()
+    await expect(img).toBeVisible({ timeout: 15000 })
+    await expect(img).toHaveAttribute('data-bb-img', 'done')
+    await expect(img).toHaveAttribute('src', /^blob:/)
+  })
+
+  test('N-24 详情页含公式：按需装配 katex 后渲染（正文不空白）', async ({ page }) => {
+    await page.goto('/notes/1001')
+    await expect(page.locator('[data-test="note-detail-content"]')).toContainText('工作日志的前端骨架')
+    await expect(page.locator('[data-test="note-detail-content"] .katex').first()).toBeVisible({
+      timeout: 15000,
+    })
   })
 
   test('N-20 全部日志在后台：仅 ADMIN 可见，列出全员日志', async ({ page }) => {

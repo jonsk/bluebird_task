@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getNote, createNote, updateNote } from '@/api/note'
+import { getNote, createNote, updateNote, bindAttachment } from '@/api/note'
+import { uploadFile } from '@/api/file'
 import { BizError, HttpError } from '@/api/http'
 import { ERROR_CODE } from '@/utils/errorCode'
 import { useAppStore } from '@/stores/app'
+import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
 import type { NoteDetailVO } from '@/types/note'
 
 /**
@@ -13,16 +15,23 @@ import type { NoteDetailVO } from '@/types/note'
  * 编辑：GET 详情回显，提交带 version（乐观锁 10006 冲突提示并保留草稿）。
  * 日志日期创建后不可修改（后端对携带 logDate 的更新返回 400）。
  *
+ * 编辑区为「左写右看」双栏：md-editor-v3 的预览栏就是 `<MdPreview>` 本体，
+ * 输入即时渲染（同一个 markdown-it 实例、同一套主题与代码高亮），不需要额外挂第二个预览组件。
+ *
  * 编辑器使用 md-editor-v3：按需异步加载，避免 CodeMirror 进入首屏 chunk。
  */
 const CONTENT_LIMIT = 20000
+/** 双栏下 300px 太矮，编辑区与预览区都要能看几屏。 */
+const EDITOR_HEIGHT = '400px'
 
 const MdEditor = defineAsyncComponent(async () => {
   await import('md-editor-v3/lib/style.css')
+  // 预览栏与详情页共用同一套排版样式（style.css 已含大部分，这里补全 markdown 内容样式）
+  await import('md-editor-v3/lib/preview.css')
   const mod = await import('md-editor-v3')
-  // 本地 highlight.js + 关闭外部 CDN 扩展（见 plugins/markdown.ts）
-  const { setupMarkdown } = await import('@/plugins/markdown')
-  setupMarkdown()
+  // 本地 highlight.js + 本地扩展实例（prettier/mermaid/katex/echarts/cropper/screenfull）
+  const { setupMarkdownEditor } = await import('@/plugins/markdown')
+  await setupMarkdownEditor()
   return mod.MdEditor
 })
 
@@ -57,6 +66,8 @@ const canEditContent = computed(() => {
 const emit = defineEmits<{
   (e: 'saved', detail: NoteDetailVO): void
   (e: 'cancel'): void
+  /** 正文里插入了新图片（附件已绑定），宿主据此刷新附件列表。 */
+  (e: 'attachments-changed'): void
 }>()
 
 const app = useAppStore()
@@ -103,6 +114,16 @@ watch(
   () => init(),
 )
 
+/** 编辑器预览栏里的图片同样要带 Bearer，交给水合器换 blob（新增图片、切换预览都会命中）。 */
+const rootRef = ref<HTMLElement | null>(null)
+let hydrator: ImageHydrator | null = null
+onMounted(() => {
+  hydrator = watchMarkdownImages(() => rootRef.value)
+})
+onUnmounted(() => {
+  hydrator?.stop()
+  hydrator = null
+})
 const canSave = computed(() => !submitting.value)
 
 function overLimit(): boolean {
@@ -156,10 +177,58 @@ function onKeydown(e?: Event): void {
     void onSubmit()
   }
 }
+
+const IMAGE_ACCEPT = /^image\/(png|jpe?g|gif|webp|bmp)$/i
+
+/**
+ * 工具栏「上传图片」：先 `POST /files` 落盘，再 `POST /notes/{id}/attachments` 关联，
+ * 插入正文的是 note 专用预览地址（`/notes/{id}/attachments/{aid}/preview`）——
+ * 通用 `/files/{id}/preview` 只有上传者/ADMIN 能看，别人看到的日志会是一堆破图。
+ *
+ * <p>新建态还没有 noteId，无法关联，直接提示先保存（否则图片会挂在一个不存在的日志上）。
+ */
+async function onUploadImg(
+  files: File[],
+  callback: (urls: string[]) => void,
+): Promise<void> {
+  if (!canEditContent.value) {
+    callback([])
+    return
+  }
+  if (props.noteId == null) {
+    ElMessage.warning('请先保存日志，再插入图片')
+    callback([])
+    return
+  }
+  const urls: string[] = []
+  let failed = 0
+  for (const file of files) {
+    if (!IMAGE_ACCEPT.test(file.type)) {
+      ElMessage.error(`${file.name} 不是支持的图片格式（png/jpeg/gif/webp/bmp）`)
+      failed += 1
+      continue
+    }
+    try {
+      const vo = await uploadFile(file)
+      const att = await bindAttachment(props.noteId, { attachmentId: Number(vo.id) })
+      const url = att.previewUrl || att.downloadUrl
+      if (url) urls.push(url)
+    } catch (e) {
+      failed += 1
+      ElMessage.error(`${file.name}：${(e as Error)?.message || '上传失败'}`)
+    }
+  }
+  if (urls.length) emit('attachments-changed')
+  if (failed && !urls.length) {
+    callback([])
+    return
+  }
+  callback(urls)
+}
 </script>
 
 <template>
-  <div class="note-editor" data-test="note-editor" @keydown.capture="onKeydown">
+  <div ref="rootRef" class="note-editor" data-test="note-editor" @keydown.capture="onKeydown">
     <div v-if="isEdit && loading" v-loading="loading" class="note-editor__loading">加载中…</div>
 
     <template v-else>
@@ -168,15 +237,14 @@ function onKeydown(e?: Event): void {
         class="note-editor__content"
         language="zh-CN"
         :theme="editorTheme"
-        :style="{ height: '300px' }"
-        :preview="false"
+        :style="{ height: EDITOR_HEIGHT }"
+        :preview="true"
         :max-length="CONTENT_LIMIT"
         :read-only="!canEditContent"
-        :toolbars-exclude="['save', 'image']"
-        :no-upload-img="true"
         placeholder="记录今日工作…（Ctrl+Enter 保存）"
         data-test="note-editor-content"
         @on-save="onSubmit"
+        :on-upload-img="onUploadImg"
       />
 
       <p v-if="isEdit && logDate" class="note-editor__meta" data-test="note-editor-logdate">
@@ -187,7 +255,13 @@ function onKeydown(e?: Event): void {
       </p>
 
       <div class="note-editor__ops">
-        <el-button type="primary" :disabled="!canSave" :loading="submitting" @click="onSubmit">
+        <el-button
+          type="primary"
+          :disabled="!canSave"
+          :loading="submitting"
+          data-test="note-editor-save"
+          @click="onSubmit"
+        >
           {{ isEdit ? '保存' : '创建' }}
         </el-button>
         <el-button @click="emit('cancel')">取消</el-button>

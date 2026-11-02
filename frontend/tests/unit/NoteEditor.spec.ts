@@ -17,10 +17,25 @@ import { createPinia, setActivePinia } from 'pinia'
 const getNote = vi.fn()
 const updateNote = vi.fn()
 const createNote = vi.fn()
+const bindAttachment = vi.fn()
+const uploadFile = vi.fn()
 vi.mock('@/api/note', () => ({
   getNote: (...a: unknown[]) => getNote(...a),
   updateNote: (...a: unknown[]) => updateNote(...a),
   createNote: (...a: unknown[]) => createNote(...a),
+  bindAttachment: (...a: unknown[]) => bindAttachment(...a),
+}))
+vi.mock('@/api/file', () => ({
+  uploadFile: (...a: unknown[]) => uploadFile(...a),
+}))
+
+/**
+ * 插件在真实环境里会动态 import prettier/mermaid/echarts（体积大、jsdom 跑不动），
+ * 这里直接短路——本用例关心的是权限 prop 与提交载荷，不是扩展装配。
+ */
+vi.mock('@/plugins/markdown', () => ({
+  setupMarkdown: vi.fn(),
+  setupMarkdownEditor: vi.fn(async () => undefined),
 }))
 
 vi.mock('element-plus', () => ({
@@ -43,6 +58,7 @@ vi.mock('md-editor-v3', () => {
       'noEcharts',
       'noPrettier',
       'noUploadImg',
+      'onUploadImg',
       'placeholder',
     ],
     emits: ['update:modelValue', 'onSave'],
@@ -105,7 +121,7 @@ async function mountEdit(payload: Record<string, unknown>): Promise<VueWrapper> 
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  ;[getNote, updateNote, createNote].forEach((f) => f.mockReset())
+  ;[getNote, updateNote, createNote, bindAttachment, uploadFile].forEach((f) => f.mockReset())
 })
 
 describe('NoteEditor × fieldPermissions', () => {
@@ -165,5 +181,43 @@ describe('NoteEditor × fieldPermissions', () => {
     const w = mount(NoteEditor, { props: { noteId: 1001 }, global: { components } })
     await settle()
     expect(w.find('.note-editor__loading').exists()).toBe(false)
+  })
+})
+
+describe('NoteEditor × 图片上传', () => {
+  const png = () => new File([new Uint8Array([1, 2, 3])], 'shot.png', { type: 'image/png' })
+
+  it('先上传后绑定，回调传入 note 预览地址（不是 /files/{id}）', async () => {
+    const w = await mountEdit(detail())
+    uploadFile.mockResolvedValue({ id: 9001 })
+    bindAttachment.mockResolvedValue({ previewUrl: '/notes/1001/attachments/9001/preview' })
+
+    const cb = vi.fn()
+    await editorOf(w).props('onUploadImg')([png()], cb)
+
+    expect(uploadFile).toHaveBeenCalledTimes(1)
+    expect(bindAttachment).toHaveBeenCalledWith(1001, { attachmentId: 9001 })
+    expect(cb).toHaveBeenCalledWith(['/notes/1001/attachments/9001/preview'])
+    expect(w.emitted('attachments-changed')).toHaveLength(1)
+  })
+
+  it('新建态（无 noteId）：拒绝上传并提示先保存', async () => {
+    const w = mount(NoteEditor, { global: { components } })
+    await settle()
+    const cb = vi.fn()
+    await editorOf(w).props('onUploadImg')([png()], cb)
+
+    expect(uploadFile).not.toHaveBeenCalled()
+    expect(cb).toHaveBeenCalledWith([])
+  })
+
+  it('非图片文件直接拒绝，不发请求', async () => {
+    const w = await mountEdit(detail())
+    const cb = vi.fn()
+    const txt = new File(['x'], 'a.txt', { type: 'text/plain' })
+    await editorOf(w).props('onUploadImg')([txt], cb)
+
+    expect(uploadFile).not.toHaveBeenCalled()
+    expect(cb).toHaveBeenCalledWith([])
   })
 })

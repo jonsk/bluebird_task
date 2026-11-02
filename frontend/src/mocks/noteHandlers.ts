@@ -61,7 +61,7 @@ let attachmentSeq = 5000
 const notes: NoteRow[] = [
   {
     id: 1001,
-    content: '今天把工作日志的前端骨架搭起来了：列表壳、筛选条、右栏当日日志。',
+    content: '今天把工作日志的前端骨架搭起来了：列表壳、筛选条、右栏当日日志。\n\n公式 $E=mc^2$ 走本地 katex。',
     logDate: '2026-09-28',
     ownerId: ME,
     ownerName: ME_NAME,
@@ -71,7 +71,7 @@ const notes: NoteRow[] = [
   },
   {
     id: 1002,
-    content: '私有草稿：明天再补日志的移动端适配方案。',
+    content: '私有草稿：明天再补日志的移动端适配方案。\n\n![架构图](/notes/1002/attachments/8801/preview)',
     logDate: '2026-09-27',
     ownerId: ME,
     ownerName: ME_NAME,
@@ -124,6 +124,28 @@ const notes: NoteRow[] = [
 const attachments: NoteAttachmentRow[] = []
 const files: Record<number, { fileName: string; size: number; contentType: string; body: Uint8Array }> = {}
 let fileSeq = 8800
+
+/**
+ * 预置一张图片附件给 1002：正文里是 `![](/notes/1002/attachments/8801/preview)`，
+ * 供 E2E 验证"带 Bearer 取图 → blob 水合"这条链路（`<img src>` 带不了请求头）。
+ */
+const PNG_1X1 = Uint8Array.from(
+  atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='),
+  (c) => c.charCodeAt(0),
+)
+files[8801] = { fileName: 'arch.png', size: PNG_1X1.length, contentType: 'image/png', body: PNG_1X1 }
+attachments.push({
+  id: 5001,
+  noteId: 1002,
+  attachmentId: 8801,
+  fileName: 'arch.png',
+  size: PNG_1X1.length,
+  contentType: 'image/png',
+  createdBy: ME,
+  createdByName: ME_NAME,
+  canRemoveRef: true,
+  canDelete: true,
+})
 
 /* ---------------- helpers ---------------- */
 
@@ -199,8 +221,14 @@ function detailOf(n: NoteRow) {
     ...brief(n),
     content: n.content,
     fieldPermissions: perms,
-    attachments: attachments.filter((a) => a.noteId === n.id),
+    attachments: attachments.filter((a) => a.noteId === n.id).map(withUrls),
   }
+}
+
+/** 与后端 `NoteAttachmentVO` 对齐：补 downloadUrl / previewUrl（正文图片引用 previewUrl）。 */
+function withUrls(row: NoteAttachmentRow) {
+  const base = `/notes/${row.noteId}/attachments/${row.attachmentId}`
+  return { ...row, downloadUrl: `${base}/download`, previewUrl: `${base}/preview` }
 }
 
 function sortNotes(list: NoteRow[], sort: string): NoteRow[] {
@@ -401,7 +429,7 @@ export const noteHandlers = [
 
   // ---- 附件 ----
   http.get(`${AUTH}/notes/:id/attachments`, ({ params }) => {
-    return ok(attachments.filter((a) => String(a.noteId) === params.id))
+    return ok(attachments.filter((a) => String(a.noteId) === params.id).map(withUrls))
   }),
   http.post(`${AUTH}/notes/:id/attachments`, async ({ request, params }) => {
     const note = notes.find((x) => String(x.id) === params.id)
@@ -422,15 +450,15 @@ export const noteHandlers = [
       canDelete: true,
     }
     attachments.push(row)
-    return ok(row)
+    return ok(withUrls(row))
   }),
   http.delete(`${AUTH}/notes/:id/attachments/:aid`, ({ params }) => {
-    const idx = attachments.findIndex((a) => String(a.id) === params.aid)
+    const idx = attachments.findIndex((a) => String(a.attachmentId) === params.aid)
     if (idx >= 0) attachments.splice(idx, 1)
     return ok(null)
   }),
   http.get(`${AUTH}/notes/:id/attachments/:aid/download`, ({ params }) => {
-    const row = attachments.find((a) => String(a.id) === params.aid)
+    const row = attachments.find((a) => String(a.attachmentId) === params.aid)
     const f = row ? files[row.attachmentId] : undefined
     if (!row || !f) return fail(40001, '文件不存在', 404)
     return new HttpResponse(f.body, {
@@ -441,7 +469,7 @@ export const noteHandlers = [
     })
   }),
   http.get(`${AUTH}/notes/:id/attachments/:aid/preview`, ({ params }) => {
-    const row = attachments.find((a) => String(a.id) === params.aid)
+    const row = attachments.find((a) => String(a.attachmentId) === params.aid)
     const f = row ? files[row.attachmentId] : undefined
     if (!row || !f) return fail(40001, '文件不存在', 404)
     return new HttpResponse(f.body, { headers: { 'Content-Type': f.contentType } })

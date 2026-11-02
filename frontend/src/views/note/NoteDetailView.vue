@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Delete, Edit } from '@element-plus/icons-vue'
@@ -12,6 +12,7 @@ import { useNoteStore } from '@/stores/note'
 import { useAppStore } from '@/stores/app'
 import { formatHeaderDate } from '@/utils/date'
 import { stripMarkdown } from '@/utils/markdown'
+import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
 
 /**
  * 详情页是深链直达，不一定经过 NoteHome（编辑器 chunk 未加载），
@@ -43,6 +44,29 @@ const id = computed(() => Number(route.params.id))
 const detail = detailApi.detail
 const editing = ref(false)
 
+/**
+ * 正文里真的有公式 / mermaid / echarts 才去装渲染档扩展（约几百 KB）。
+ * 绝大多数日志是纯文本 + 代码块，没必要为一篇日志把整套图表库拉下来。
+ */
+const RICH_MARKDOWN = /```\s*(?:mermaid|echarts)\b|\$\$|\$[^$\s][^$\n]*\$/i
+const previewReady = ref(false)
+watch(
+  detail,
+  async (d) => {
+    previewReady.value = false
+    try {
+      if (d?.content && RICH_MARKDOWN.test(d.content)) {
+        const { setupMarkdownRender } = await import('@/plugins/markdown')
+        await setupMarkdownRender()
+      }
+    } finally {
+      // 扩展加载失败也要放行正文：宁可公式显示为源码，也不能整篇空白
+      previewReady.value = true
+    }
+  },
+  { immediate: true },
+)
+
 function load(): void {
   void detailApi.load(id.value)
 }
@@ -64,6 +88,32 @@ watch(detail, (d) => {
 })
 onUnmounted(() => {
   document.title = BASE_TITLE || '蓝鸟任务管理系统'
+})
+
+/**
+ * 正文图片鉴权：`![](…/preview)` 渲染后由这里换成本地 blob（`<img>` 带不了 Bearer）。
+ * 容器随 `detail` 重建时会重新挂 observer，故在每次内容变化后重启一次。
+ */
+const contentRef = ref<HTMLElement | null>(null)
+let hydrator: ImageHydrator | null = null
+function rehydrate(): void {
+  hydrator?.stop()
+  hydrator = null
+  void nextTick(() => {
+    hydrator = watchMarkdownImages(() => contentRef.value)
+  })
+}
+watch([detail, editing], () => {
+  if (editing.value) {
+    hydrator?.stop()
+    hydrator = null
+    return
+  }
+  rehydrate()
+})
+onUnmounted(() => {
+  hydrator?.stop()
+  hydrator = null
 })
 
 function back(): void {
@@ -135,10 +185,20 @@ function onSaved(): void {
       </section>
 
       <section v-if="editing" class="note-detail__editor">
-        <NoteEditor :note-id="Number(detail.id)" @saved="onSaved" @cancel="editing = false" />
+        <NoteEditor
+          :note-id="Number(detail.id)"
+          @saved="onSaved"
+          @cancel="editing = false"
+          @attachments-changed="detailApi.reload()"
+        />
       </section>
-      <section v-else class="note-detail__content" data-test="note-detail-content">
-        <MdPreview :model-value="detail.content ?? ''" language="zh-CN" :theme="previewTheme" />
+      <section v-else ref="contentRef" class="note-detail__content" data-test="note-detail-content">
+        <MdPreview
+          v-if="previewReady"
+          :model-value="detail.content ?? ''"
+          language="zh-CN"
+          :theme="previewTheme"
+        />
       </section>
 
       <section class="note-detail__block">

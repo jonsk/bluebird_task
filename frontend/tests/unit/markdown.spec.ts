@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { stripMarkdown } from '@/utils/markdown'
+import { isNotePreviewSrc } from '@/utils/markdownImages'
 
 /**
  * 摘要清洗：后端 contentSummary 是原文前 200 码位（不做解析），
@@ -38,5 +39,15 @@ describe('stripMarkdown', () => {
     expect(stripMarkdown(null)).toBe('')
     expect(stripMarkdown(undefined)).toBe('')
     expect(stripMarkdown('   \n  ')).toBe('')
+  })
+})
+
+describe('isNotePreviewSrc', () => {
+  it('只认本站日志附件的预览地址（含 /api/v1 前缀）', () => {
+    expect(isNotePreviewSrc('/notes/1/attachments/2/preview')).toBe(true)
+    expect(isNotePreviewSrc('/api/v1/notes/1/attachments/2/preview?x=1')).toBe(true)
+    expect(isNotePreviewSrc('/notes/1/attachments/2/download')).toBe(false)
+    expect(isNotePreviewSrc('https://example.com/a.png')).toBe(false)
+    expect(isNotePreviewSrc('/files/7/preview')).toBe(false)
   })
 })
