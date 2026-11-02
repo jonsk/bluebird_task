@@ -2,10 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 /**
- * NoteCard：纯展示卡片。断言 4 类：
+ * NoteCard：纯展示卡片。断言：
  * 1) 点击卡片 emit open(id)；2) canEdit / canManage 控制按钮显隐；
- * 3) 置顶按钮按当前状态 emit pin|unpin；
- * 4) 操作区点击不冒泡成 open。
+ * 3) 操作区点击不冒泡成 open。置顶能力已下线，不再有置顶按钮/徽标。
  */
 
 const ElButton = {
@@ -20,8 +19,6 @@ const ElTag = { name: 'ElTag', template: '<span class="tag"><slot /></span>' }
 vi.mock('@element-plus/icons-vue', () => {
   const icon = { template: '<i />' }
   return {
-    StarFilled: icon,
-    Star: icon,
     Delete: icon,
     Edit: icon,
   }
@@ -37,7 +34,6 @@ function base(over: Note = {}): Note {
     logDate: '2026-09-28',
     ownerName: '张三',
     contentSummary: '今日完成日志模块',
-    pinned: false,
     canEdit: false,
     canManage: false,
     ...over,
@@ -72,32 +68,12 @@ describe('NoteCard', () => {
 
   it('canEdit=false 且 canManage=false：不渲染操作区', () => {
     const w = mountCard(base())
-    expect(w.find('[data-test="note-card-pin"]').exists()).toBe(false)
     expect(w.find('[data-test="note-card-delete"]').exists()).toBe(false)
   })
 
-  it('canManage 但非 canEdit：只有删除，没有置顶/归档', () => {
+  it('canManage 但非 canEdit：只有删除', () => {
     const w = mountCard(base({ canManage: true }))
     expect(w.find('[data-test="note-card-delete"]').exists()).toBe(true)
-    expect(w.find('[data-test="note-card-pin"]').exists()).toBe(false)
-  })
-
-  it('未置顶点置顶 → emit pin；已置顶点 → emit unpin', async () => {
-    const w = mountCard(base({ canEdit: true }))
-    await w.find('[data-test="note-card-pin"]').trigger('click')
-    expect(w.emitted('pin')).toEqual([[1001]])
-    expect(w.emitted('unpin')).toBeUndefined()
-
-    const w2 = mountCard(base({ canEdit: true, pinned: true }))
-    await w2.find('[data-test="note-card-pin"]').trigger('click')
-    expect(w2.emitted('unpin')).toEqual([[1001]])
-  })
-
-  it('置顶态渲染 is-on 与徽标', () => {
-    const w3 = mountCard(base({ canEdit: true, pinned: true }))
-    const pin = w3.find('[data-test="note-card-pin"]')
-    expect(pin.classes()).toContain('is-on')
-    expect(w3.find('.note-card__badge--pin').exists()).toBe(true)
   })
 
   it('删除按钮 emit remove，且操作区点击不会触发 open', async () => {

@@ -165,21 +165,6 @@ test.describe('工作日志', () => {
     await expect(page.locator('.note-list__pager')).toHaveCount(0)
   })
 
-  test('N-13 置顶：卡片星标高亮并出现置顶徽标', async ({ page }) => {
-    await page.goto('/notes')
-    const target = page.locator('[data-test="note-card-1002"]')
-    await target.locator('[data-test="note-card-pin"]').click()
-    await expect(page.locator('.el-message--success')).toContainText('操作成功')
-
-    await expect(page.locator('[data-test="note-card-1002"] [data-test="note-card-pin"]')).toHaveClass(/is-on/)
-    await expect(page.locator('[data-test="note-card-1002"] .note-card__badge--pin')).toBeVisible()
-
-    // 取消置顶：星标回退、徽标消失
-    await page.locator('[data-test="note-card-1002"] [data-test="note-card-pin"]').click()
-    await expect(page.locator('[data-test="note-card-1002"] [data-test="note-card-pin"]')).not.toHaveClass(/is-on/)
-    await expect(page.locator('[data-test="note-card-1002"] .note-card__badge--pin')).toHaveCount(0)
-  })
-
   test('N-14 归档能力已下线：卡片无归档按钮', async ({ page }) => {
     await page.goto('/notes')
     await expect(page.locator('.note-card')).toHaveCount(2)

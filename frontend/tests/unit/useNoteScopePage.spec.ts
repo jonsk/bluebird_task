@@ -21,12 +21,9 @@ vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => router })
 
 const listNotes = vi.fn()
 const deleteNote = vi.fn()
-const pinNote = vi.fn()
 vi.mock('@/api/note', () => ({
   listNotes: (...a: unknown[]) => listNotes(...a),
   deleteNote: (...a: unknown[]) => deleteNote(...a),
-  pinNote: (...a: unknown[]) => pinNote(...a),
-  unpinNote: vi.fn(),
 }))
 
 const confirm = vi.fn()
@@ -64,7 +61,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   route.meta = { scope: 'mine' }
   route.query = {}
-  ;[listNotes, deleteNote, pinNote, confirm, success, errorMsg].forEach((f) => f.mockReset())
+  ;[listNotes, deleteNote, confirm, success, errorMsg].forEach((f) => f.mockReset())
   router.push.mockClear()
 })
 
@@ -135,14 +132,5 @@ describe('useNoteScopePage', () => {
     expect(deleteNote).toHaveBeenCalledWith(1001)
     expect(listNotes.mock.calls.length).toBeGreaterThan(before)
     expect(success).toHaveBeenCalledWith('已删除')
-  })
-
-  it('onPin 找不到行时静默返回', async () => {
-    listNotes.mockResolvedValue({ list: [], total: 0, page: 1, size: 20 })
-    const { api } = mountPage()
-    api.list.reloadFirst()
-    await flush()
-    await api.onPin(999)
-    expect(pinNote).not.toHaveBeenCalled()
   })
 })

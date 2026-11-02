@@ -2,16 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 /**
- * useNoteActions：pin/remove 的互斥端点、受影响 scope 的缓存失效、
+ * useNoteActions：remove 端点、受影响 scope 的缓存失效、
  * 成功/失败 toast 文案（错误统一走 errorCode.messageOf 产生的 message）。
+ * 置顶能力已下线，不再有 togglePin。
  */
 
-const pinNote = vi.fn()
-const unpinNote = vi.fn()
 const deleteNote = vi.fn()
 vi.mock('@/api/note', () => ({
-  pinNote: (...a: unknown[]) => pinNote(...a),
-  unpinNote: (...a: unknown[]) => unpinNote(...a),
   deleteNote: (...a: unknown[]) => deleteNote(...a),
 }))
 
@@ -23,31 +20,14 @@ vi.mock('element-plus', () => ({
 
 import { useNoteActions } from '@/composables/useNoteActions'
 import { useNoteStore } from '@/stores/note'
-import { BizError, HttpError } from '@/api/http'
+import { HttpError } from '@/api/http'
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  ;[pinNote, unpinNote, deleteNote, success, error].forEach((f) => f.mockReset())
+  ;[deleteNote, success, error].forEach((f) => f.mockReset())
 })
 
 describe('useNoteActions', () => {
-  it('togglePin：未置顶调 pin，置顶调 unpin，并失效列表缓存', async () => {
-    const store = useNoteStore()
-    const spy = vi.spyOn(store, 'invalidate')
-    const actions = useNoteActions()
-
-    pinNote.mockResolvedValueOnce(undefined)
-    await actions.togglePin({ id: 1, pinned: false })
-    expect(pinNote).toHaveBeenCalledWith(1)
-    expect(unpinNote).not.toHaveBeenCalled()
-    expect(spy).toHaveBeenCalledWith(['mine', 'subordinate', 'all'])
-    expect(success).toHaveBeenCalledWith('操作成功')
-
-    unpinNote.mockResolvedValueOnce(undefined)
-    await actions.togglePin({ id: 1, pinned: true })
-    expect(unpinNote).toHaveBeenCalledWith(1)
-  })
-
   it('remove：成功后失效缓存并提示「已删除」', async () => {
     const store = useNoteStore()
     const spy = vi.spyOn(store, 'invalidate')
@@ -57,16 +37,6 @@ describe('useNoteActions', () => {
     expect(deleteNote).toHaveBeenCalledWith(3)
     expect(spy).toHaveBeenCalledWith(['mine', 'subordinate', 'all'])
     expect(success).toHaveBeenCalledWith('已删除')
-  })
-
-  it('业务错误：toast 用 BizError.message，且不失效缓存', async () => {
-    const store = useNoteStore()
-    const spy = vi.spyOn(store, 'invalidate')
-    const actions = useNoteActions()
-    pinNote.mockRejectedValueOnce(new BizError(50013, '该字段不可修改'))
-    await actions.togglePin({ id: 4, pinned: false })
-    expect(error).toHaveBeenCalledWith('该字段不可修改')
-    expect(spy).not.toHaveBeenCalled()
   })
 
   it('HTTP 错误（如 403）同样走 message', async () => {
