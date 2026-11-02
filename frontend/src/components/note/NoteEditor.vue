@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getNote, createNote, updateNote, bindAttachment } from '@/api/note'
 import { uploadFile } from '@/api/file'
@@ -7,7 +7,15 @@ import { BizError, HttpError } from '@/api/http'
 import { ERROR_CODE } from '@/utils/errorCode'
 import { useAppStore } from '@/stores/app'
 import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
+import {
+  VDITOR_CDN,
+  loadVditor,
+  vditorContentTheme,
+  vditorHljs,
+  vditorTheme,
+} from '@/utils/vditor'
 import type { NoteDetailVO } from '@/types/note'
+import type Vditor from 'vditor'
 
 /**
  * NoteEditor — 新建 / 编辑日志（Markdown 编辑器）。
@@ -15,25 +23,14 @@ import type { NoteDetailVO } from '@/types/note'
  * 编辑：GET 详情回显，提交带 version（乐观锁 10006 冲突提示并保留草稿）。
  * 日志日期创建后不可修改（后端对携带 logDate 的更新返回 400）。
  *
- * 编辑区为「左写右看」双栏：md-editor-v3 的预览栏就是 `<MdPreview>` 本体，
- * 输入即时渲染（同一个 markdown-it 实例、同一套主题与代码高亮），不需要额外挂第二个预览组件。
+ * 编辑器用 Vditor 的 **IR（即时渲染）模式**：单栏，敲 `# ` 当场变标题、`**粗**` 当场变粗体，
+ * 没有「左边源码 / 右边预览」的双栏。只读态仍是同一渲染器，只是隐藏工具栏并锁输入。
  *
- * 编辑器使用 md-editor-v3：按需异步加载，避免 CodeMirror 进入首屏 chunk。
+ * Vditor 的 lute 引擎、工具栏图标、i18n 是按 `cdn` 前缀动态插 <script> 加载的，bundler 管不到；
+ * 因此构建时把 `node_modules/vditor/dist` 的子集拷到 `public/vditor/dist`，`cdn: '/vditor'` 走同源。
  */
 const CONTENT_LIMIT = 20000
-/** 双栏下 300px 太矮，编辑区与预览区都要能看几屏。 */
-const EDITOR_HEIGHT = '400px'
-
-const MdEditor = defineAsyncComponent(async () => {
-  await import('md-editor-v3/lib/style.css')
-  // 预览栏与详情页共用同一套排版样式（style.css 已含大部分，这里补全 markdown 内容样式）
-  await import('md-editor-v3/lib/preview.css')
-  const mod = await import('md-editor-v3')
-  // 本地 highlight.js + 本地扩展实例（prettier/mermaid/katex/echarts/cropper/screenfull）
-  const { setupMarkdownEditor } = await import('@/plugins/markdown')
-  await setupMarkdownEditor()
-  return mod.MdEditor
-})
+const EDITOR_HEIGHT = 420
 
 const props = withDefaults(
   defineProps<{
@@ -71,7 +68,7 @@ const emit = defineEmits<{
 }>()
 
 const app = useAppStore()
-const editorTheme = computed<'light' | 'dark'>(() => (app.theme === 'dark' ? 'dark' : 'light'))
+const isDark = computed(() => app.theme === 'dark')
 
 const isEdit = computed(() => props.noteId != null)
 
@@ -114,30 +111,106 @@ watch(
   () => init(),
 )
 
-/** 编辑器预览栏里的图片同样要带 Bearer，交给水合器换 blob（新增图片、切换预览都会命中）。 */
-const rootRef = ref<HTMLElement | null>(null)
+/* ==================== Vditor ==================== */
+
+const hostRef = ref<HTMLElement | null>(null)
+let vditor: Vditor | null = null
 let hydrator: ImageHydrator | null = null
-onMounted(() => {
-  hydrator = watchMarkdownImages(() => rootRef.value)
-})
-onUnmounted(() => {
+let creating: Promise<void> | null = null
+
+/**
+ * 创建编辑器实例。只读态仍是 IR 渲染器（Vditor 没有 preview 编辑模式），
+ * 隐藏工具栏并 `disabled()` 锁输入，保证与可编辑态同一套排版。
+ */
+async function createVditor(): Promise<void> {
+  const host = hostRef.value
+  if (!host || vditor || creating) return
+  creating = (async () => {
+    const VditorCtor = await loadVditor()
+    if (!hostRef.value) return
+    const readOnly = !canEditContent.value
+    vditor = new VditorCtor(hostRef.value, {
+      cdn: VDITOR_CDN,
+      lang: 'zh_CN',
+      mode: 'ir',
+      value: content.value,
+      height: EDITOR_HEIGHT,
+      cache: { enable: false },
+      theme: vditorTheme(isDark.value),
+      icon: 'ant',
+      placeholder: '记录今日工作…（Ctrl+Enter 保存）',
+      counter: { enable: true, type: 'markdown', max: CONTENT_LIMIT },
+      toolbarConfig: { hide: readOnly, pin: true },
+      preview: {
+        theme: { current: vditorContentTheme(isDark.value) },
+        hljs: vditorHljs(isDark.value),
+        math: { engine: 'KaTeX' },
+      },
+      input: (value: string) => {
+        content.value = value
+      },
+      upload: {
+        accept: 'image/png,image/jpeg,image/gif,image/webp,image/bmp',
+        handler: (files: File[]) => onUploadImg(files),
+      },
+    })
+    if (readOnly) vditor.disabled()
+    await nextTick()
+    hydrator = watchMarkdownImages(() => hostRef.value)
+  })()
+  await creating
+  creating = null
+}
+
+function destroyVditor(): void {
   hydrator?.stop()
   hydrator = null
-})
-const canSave = computed(() => !submitting.value)
-
-function overLimit(): boolean {
-  // 后端按 Unicode 码位计数（NOTE_CONTENT_TOO_LONG / 50002），这里保持同一口径。
-  return [...content.value].length > CONTENT_LIMIT
+  vditor?.destroy()
+  vditor = null
 }
+
+/** 详情加载完成后（v-if 放行）再挂载；切换日志时重建，避免把上一条的内容留在编辑器里。 */
+watch(
+  loading,
+  async (busy) => {
+    if (busy) {
+      destroyVditor()
+      return
+    }
+    await nextTick()
+    await createVditor()
+  },
+  { immediate: true },
+)
+
+/** 主题切换：Vditor 需要同时切编辑器与预览两套主题。 */
+watch(isDark, (dark) => {
+  vditor?.setTheme(dark ? 'dark' : 'classic', dark ? 'dark' : 'light', dark ? 'monokai' : 'github')
+})
+
+/** 可编辑性变化（如权限回填）：Vditor 不支持原地切工具栏显隐，直接重建实例。 */
+watch(canEditContent, async () => {
+  destroyVditor()
+  await nextTick()
+  await createVditor()
+})
+
+onUnmounted(destroyVditor)
+
+/* ==================== 保存 ==================== */
+
+const canSave = computed(() => !submitting.value)
 
 async function onSubmit(): Promise<void> {
   if (submitting.value) return
-  if (!content.value.trim()) {
+  // 以编辑器里的实时值提交：`input` 回调有渲染延迟（粘贴 Markdown、输入法上屏后立即点保存时
+  // `content` 可能还没跟上），直接读编辑器可避免存下旧内容。
+  const value = vditor?.getValue ? vditor.getValue() : content.value
+  if (!value.trim()) {
     ElMessage.warning('内容不能为空')
     return
   }
-  if (overLimit()) {
+  if ([...value].length > CONTENT_LIMIT) {
     ElMessage.warning(`内容不能超过 ${CONTENT_LIMIT} 字`)
     return
   }
@@ -148,11 +221,11 @@ async function onSubmit(): Promise<void> {
     let detail: NoteDetailVO
     if (isEdit.value && props.noteId != null) {
       detail = await updateNote(props.noteId, {
-        content: content.value,
+        content: value,
         version: version.value,
       })
     } else {
-      detail = await createNote({ content: content.value })
+      detail = await createNote({ content: value })
     }
     emit('saved', detail)
   } catch (e) {
@@ -168,15 +241,18 @@ async function onSubmit(): Promise<void> {
   }
 }
 
-/** 编辑器自带的保存快捷键是 Ctrl+S；这里补 Ctrl+Enter，并跳过输入法组词。 */
+/** Vditor 只有默认快捷键；这里补 Ctrl+S / Ctrl+Enter，并跳过输入法组词。 */
 function onKeydown(e?: Event): void {
   const event = e as KeyboardEvent | undefined
   if (!event || event.isComposing) return
-  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+  const mod = event.ctrlKey || event.metaKey
+  if (mod && (event.key === 'Enter' || event.key.toLowerCase() === 's')) {
     event.preventDefault()
     void onSubmit()
   }
 }
+
+/* ==================== 图片上传 ==================== */
 
 const IMAGE_ACCEPT = /^image\/(png|jpe?g|gif|webp|bmp)$/i
 
@@ -186,19 +262,14 @@ const IMAGE_ACCEPT = /^image\/(png|jpe?g|gif|webp|bmp)$/i
  * 通用 `/files/{id}/preview` 只有上传者/ADMIN 能看，别人看到的日志会是一堆破图。
  *
  * <p>新建态还没有 noteId，无法关联，直接提示先保存（否则图片会挂在一个不存在的日志上）。
+ *
+ * @returns 空串 = 成功（Vditor 约定：返回非空字符串即错误提示）
  */
-async function onUploadImg(
-  files: File[],
-  callback: (urls: string[]) => void,
-): Promise<void> {
-  if (!canEditContent.value) {
-    callback([])
-    return
-  }
+async function onUploadImg(files: File[]): Promise<string> {
+  if (!canEditContent.value) return '当前为只读视图'
   if (props.noteId == null) {
     ElMessage.warning('请先保存日志，再插入图片')
-    callback([])
-    return
+    return '请先保存日志，再插入图片'
   }
   const urls: string[] = []
   let failed = 0
@@ -218,34 +289,24 @@ async function onUploadImg(
       ElMessage.error(`${file.name}：${(e as Error)?.message || '上传失败'}`)
     }
   }
-  if (urls.length) emit('attachments-changed')
-  if (failed && !urls.length) {
-    callback([])
-    return
+  if (urls.length) {
+    vditor?.insertValue(
+      urls.map((url) => `![](${url})`).join('\n'),
+      true,
+    )
+    emit('attachments-changed')
   }
-  callback(urls)
+  if (failed && !urls.length) return '图片上传失败'
+  return ''
 }
 </script>
 
 <template>
-  <div ref="rootRef" class="note-editor" data-test="note-editor" @keydown.capture="onKeydown">
+  <div class="note-editor" data-test="note-editor" @keydown.capture="onKeydown">
     <div v-if="isEdit && loading" v-loading="loading" class="note-editor__loading">加载中…</div>
 
     <template v-else>
-      <MdEditor
-        v-model="content"
-        class="note-editor__content"
-        language="zh-CN"
-        :theme="editorTheme"
-        :style="{ height: EDITOR_HEIGHT }"
-        :preview="true"
-        :max-length="CONTENT_LIMIT"
-        :read-only="!canEditContent"
-        placeholder="记录今日工作…（Ctrl+Enter 保存）"
-        data-test="note-editor-content"
-        @on-save="onSubmit"
-        :on-upload-img="onUploadImg"
-      />
+      <div ref="hostRef" class="note-editor__content" data-test="note-editor-content" />
 
       <p v-if="isEdit && logDate" class="note-editor__meta" data-test="note-editor-logdate">
         日志日期：{{ logDate }}（创建后不可修改）
@@ -284,6 +345,7 @@ async function onUploadImg(
 .note-editor__content {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--bb-radius-sm);
+  overflow: hidden;
 }
 .note-editor__meta {
   margin: 8px 0 0;
@@ -300,5 +362,10 @@ async function onUploadImg(
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
+}
+
+/* Vditor 内容区最小高度：空文档时也有可点击的书写区域 */
+.note-editor__content :deep(.vditor-reset) {
+  min-height: 240px;
 }
 </style>

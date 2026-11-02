@@ -9,3 +9,6 @@ blob-report/
 e2e/.report/
 # 真实后端联调（pnpm test:e2e:real）的运行期产物
 test-results-real/
+
+# Vditor 运行期静态资源（tools/vendor-vditor.mjs 从 node_modules 生成）
+public/vditor/

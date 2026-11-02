@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Delete, Edit } from '@element-plus/icons-vue'
@@ -13,21 +13,12 @@ import { useAppStore } from '@/stores/app'
 import { formatHeaderDate } from '@/utils/date'
 import { stripMarkdown } from '@/utils/markdown'
 import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
-
-/**
- * 详情页是深链直达，不一定经过 NoteHome（编辑器 chunk 未加载），
- * 因此预览组件与样式也走异步加载。
- */
-const MdPreview = defineAsyncComponent(async () => {
-  await import('md-editor-v3/lib/preview.css')
-  const mod = await import('md-editor-v3')
-  const { setupMarkdown } = await import('@/plugins/markdown')
-  setupMarkdown()
-  return mod.MdPreview
-})
+import { renderVditorPreview } from '@/utils/vditor'
 
 /**
  * 日志详情：查看 + 行内编辑 + 附件。
+ * - 正文渲染器与编辑器统一为 Vditor（`Vditor.preview`），保证同一篇日志在两处的排版、代码高亮、
+ *   公式/图表表现完全一致；深链直达时按需异步加载。
  * - 一切改动经 `useNoteDetail.reload()` 整体收敛（子组件不局部 append/merge）。
  * - 404/50001 → NoteNotFound（不显示重试、不改标题）。
  * - 按钮显隐一律用后端下发的 canEdit / canManage。
@@ -38,34 +29,9 @@ const store = useNoteStore()
 const app = useAppStore()
 const detailApi = useNoteDetail()
 const actions = useNoteActions()
-const previewTheme = computed<'light' | 'dark'>(() => (app.theme === 'dark' ? 'dark' : 'light'))
-
 const id = computed(() => Number(route.params.id))
 const detail = detailApi.detail
 const editing = ref(false)
-
-/**
- * 正文里真的有公式 / mermaid / echarts 才去装渲染档扩展（约几百 KB）。
- * 绝大多数日志是纯文本 + 代码块，没必要为一篇日志把整套图表库拉下来。
- */
-const RICH_MARKDOWN = /```\s*(?:mermaid|echarts)\b|\$\$|\$[^$\s][^$\n]*\$/i
-const previewReady = ref(false)
-watch(
-  detail,
-  async (d) => {
-    previewReady.value = false
-    try {
-      if (d?.content && RICH_MARKDOWN.test(d.content)) {
-        const { setupMarkdownRender } = await import('@/plugins/markdown')
-        await setupMarkdownRender()
-      }
-    } finally {
-      // 扩展加载失败也要放行正文：宁可公式显示为源码，也不能整篇空白
-      previewReady.value = true
-    }
-  },
-  { immediate: true },
-)
 
 function load(): void {
   void detailApi.load(id.value)
@@ -94,24 +60,54 @@ onUnmounted(() => {
  * 正文图片鉴权：`![](…/preview)` 渲染后由这里换成本地 blob（`<img>` 带不了 Bearer）。
  * 容器随 `detail` 重建时会重新挂 observer，故在每次内容变化后重启一次。
  */
-const contentRef = ref<HTMLElement | null>(null)
+const preRootRef = ref<HTMLDivElement | null>(null)
 let hydrator: ImageHydrator | null = null
 function rehydrate(): void {
   hydrator?.stop()
   hydrator = null
   void nextTick(() => {
-    hydrator = watchMarkdownImages(() => contentRef.value)
+    hydrator = watchMarkdownImages(() => preRootRef.value)
   })
 }
-watch([detail, editing], () => {
-  if (editing.value) {
-    hydrator?.stop()
-    hydrator = null
-    return
+
+/**
+ * 正文渲染：`Vditor.preview` 是命令式的，内容 / 主题变化都要重画一次。
+ * 用 token 丢弃过期渲染（快速切换日志时后发的请求可能先回来）。
+ */
+let renderToken = 0
+async function renderPreview(): Promise<void> {
+  const d = detail.value
+  const el = preRootRef.value
+  if (!d || !el) return
+  const token = ++renderToken
+  try {
+    await renderVditorPreview(el, d.content ?? '', {
+      dark: app.theme === 'dark',
+      after: () => {
+        if (token === renderToken) rehydrate()
+      },
+    })
+  } catch {
+    // 渲染器加载失败时降级为纯文本：宁可看到源码，也不能整篇空白
+    if (token === renderToken) el.textContent = d.content ?? ''
   }
-  rehydrate()
-})
+}
+
+watch(
+  [detail, editing, () => app.theme],
+  async () => {
+    if (editing.value) {
+      hydrator?.stop()
+      hydrator = null
+      return
+    }
+    await nextTick()
+    await renderPreview()
+  },
+  { immediate: true },
+)
 onUnmounted(() => {
+  renderToken += 1
   hydrator?.stop()
   hydrator = null
 })
@@ -192,14 +188,7 @@ function onSaved(): void {
           @attachments-changed="detailApi.reload()"
         />
       </section>
-      <section v-else ref="contentRef" class="note-detail__content" data-test="note-detail-content">
-        <MdPreview
-          v-if="previewReady"
-          :model-value="detail.content ?? ''"
-          language="zh-CN"
-          :theme="previewTheme"
-        />
-      </section>
+      <div v-else ref="preRootRef" class="note-detail__content" data-test="note-detail-content" />
 
       <section class="note-detail__block">
         <h3 class="note-detail__block-title">附件</h3>
@@ -267,6 +256,14 @@ function onSaved(): void {
   line-height: 1.8;
   color: var(--bb-text-secondary);
   word-break: break-word;
+}
+/* Vditor 预览的排版对齐详情页正文（同一篇日志在两处字号/行高一致） */
+.note-detail__content :deep(.vditor-reset) {
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.8;
+  color: inherit;
+  background: transparent;
 }
 .note-detail__editor {
   padding: 12px 0;
