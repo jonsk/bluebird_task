@@ -93,7 +93,39 @@ fi
 java_version_line="$(grep -m1 -E 'version "' <<<"$java_props" || true)"
 java_version_line="${java_version_line:-$(head -1 <<<"$java_props")}"
 [[ -n "$java_major" && "$java_major" -ge 21 ]] \
-  || die "java 需要 >= 21，当前 ${java_version_line:-未知}（JAVA_HOME=$(command -v java); JAVA_TOOL_OPTIONS 提示不影响检测）"
+  || die "java 需要 >= 21，当前 ${java_version_line:-未知}（java=$(command -v java)）"
+
+# mvn 启动脚本依赖 JAVA_HOME；很多云主机只配了 PATH + JAVA_TOOL_OPTIONS。
+# 没配或配错时按 java 可执行文件反推（解析 /usr/bin/java 这类软链）。
+resolve_java_home() {
+  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    local home_major
+    home_major="$("$JAVA_HOME/bin/java" -XshowSettings:properties -version 2>&1 \
+      | awk -F'= *' '/java\.specification\.version/ {print $2; exit}')"
+    [[ -n "$home_major" && "$home_major" -ge 21 ]] && return 0
+    echo "   JAVA_HOME=$JAVA_HOME 的 java 版本为 ${home_major:-未知}（<21），改用 PATH 中的 java"
+  fi
+  local bin
+  bin="$(command -v java 2>/dev/null)" || return 0
+  if command -v readlink >/dev/null 2>&1 && readlink -f "$bin" >/dev/null 2>&1; then
+    bin="$(readlink -f "$bin")"
+  else
+    while [[ -L "$bin" ]]; do
+      local dir target
+      dir="$(cd "$(dirname "$bin")" && pwd)"
+      target="$(readlink "$bin")"
+      [[ "$target" = /* ]] || target="$dir/$target"
+      bin="$target"
+    done
+  fi
+  local home
+  home="$(cd "$(dirname "$bin")/.." && pwd)"
+  if [[ -x "$home/bin/java" ]]; then
+    export JAVA_HOME="$home"
+    echo "   使用 JAVA_HOME=$JAVA_HOME（由 PATH 中的 java 推断）"
+  fi
+}
+resolve_java_home
 
 if [[ "$PULL" -eq 1 ]]; then
   command -v git >/dev/null 2>&1 || die "缺少 git（或用 --no-pull）"
@@ -108,7 +140,7 @@ if [[ "$BUILD" -eq 1 ]]; then
   node_major="$(node -p 'process.versions.node.split(".")[0]')"
   [[ "$node_major" -ge 20 ]] || die "node 需要 >= 20，当前 $(node -v)"
 fi
-echo "   java=$java_major（$java_version_line）  repo=$REPO_DIR  app=$APP_DIR  port=$PORT"
+echo "   java=$java_major（$java_version_line）  JAVA_HOME=${JAVA_HOME:-<未设置>}  repo=$REPO_DIR  app=$APP_DIR  port=$PORT"
 
 # ---------------------------------------------------------------- 拉取代码
 
@@ -155,6 +187,8 @@ if [[ "$BUILD" -eq 1 ]]; then
   fi
 
   step "构建后端单制品 jar（内嵌前端）"
+  [[ -n "${JAVA_HOME:-}" ]] \
+    || die "mvn 需要 JAVA_HOME；请先 export JAVA_HOME=<JDK21 目录> 再重试（当前 java=$(command -v java)）"
   run mvn -B -f "$REPO_DIR/backend/pom.xml" -DskipTests package
   NEW_JAR="$REPO_DIR/backend/target/bluebird-task.jar"
 else
