@@ -30,11 +30,35 @@ export function vditorHljs(dark: boolean): { style: string; lineNumber: boolean 
   return { style: dark ? 'monokai' : 'github', lineNumber: false }
 }
 
+/** Vditor 约定：图标脚本的 id；它内部用这个 id 判断「是否已加载」。 */
+const ICON_SCRIPT_ID = 'vditorIconScript'
+const ICON_SCRIPT_SRC = `${VDITOR_CDN}/dist/js/icons/ant.js`
+
+/**
+ * 预加载工具栏图标脚本。
+ *
+ * Vditor 构造函数里会对图标走 `addScriptSync`：XHR 拉取后用 **内联 `<script>`** 求值，
+ * 在生产 CSP（`script-src 'self'`）下会被拦掉，编辑器直接初始化失败。
+ * 这里先用同源 `<script src>` 加载同 id 的脚本，Vditor 检测到 id 已存在就会跳过内联注入。
+ */
+async function ensureIcons(): Promise<void> {
+  if (typeof document === 'undefined' || document.getElementById(ICON_SCRIPT_ID)) return
+  await new Promise<void>((resolve, reject) => {
+    const el = document.createElement('script')
+    el.id = ICON_SCRIPT_ID
+    el.src = ICON_SCRIPT_SRC
+    el.async = true
+    el.onload = () => resolve()
+    el.onerror = () => reject(new Error(`Vditor 图标资源加载失败：${ICON_SCRIPT_SRC}`))
+    document.head.appendChild(el)
+  })
+}
+
 let loading: Promise<typeof VditorType> | null = null
 
-/** 异步加载 Vditor 类与样式（幂等，失败后允许重试）。 */
+/** 异步加载 Vditor 类、样式与图标（幂等，失败后允许重试）。 */
 export function loadVditor(): Promise<typeof VditorType> {
-  loading ??= Promise.all([import('vditor'), import('vditor/dist/index.css')])
+  loading ??= Promise.all([import('vditor'), import('vditor/dist/index.css'), ensureIcons()])
     .then(([mod]) => mod.default)
     .catch((e) => {
       loading = null
