@@ -89,4 +89,4 @@ fi
 
 printf '\n==> 完成：%s（%s）\n' "$OUT" "$(du -h "$OUT" | cut -f1)"
 printf '    sha256: %s\n' "$sum"
-printf '    下一步：把 jar 传到服务器后执行 deploy/deploy.sh --jar <路径>\n'
+printf '    下一步：服务器上直接跑 deploy/deploy.sh（默认会自己拉代码 + 构建 + 部署）\n'
