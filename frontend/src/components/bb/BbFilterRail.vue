@@ -137,8 +137,12 @@ function goCalendar(): void {
   goView('calendar')
 }
 
-function selectMenu(menu: Menu): void {
-  if (menu.id == null) return
+/** 底部回收站图标：任务与工作日志共用一个入口（回收站内按类型筛选）。 */
+function goRecycle(): void {
+  if (route.name !== 'recycle') void router.push({ name: 'recycle' })
+}
+
+function selectMenu(menu: Menu): void {  if (menu.id == null) return
   if (editingId.value != null) return
   taskStore.setMenuFilter(Number(menu.id))
   if (route.name !== 'allTask') void router.push({ name: 'allTask' })
@@ -381,6 +385,14 @@ function onThemeCommand(command: string | number | object): void {
     <div class="left-box__bottom">
       <el-tooltip content="日历" placement="top" effect="light">
         <el-icon class="left-box__bottom-icon" title="日历" data-test="nav-calendar" @click="goCalendar"><Calendar /></el-icon>
+      </el-tooltip>
+      <el-tooltip content="回收站" placement="top" effect="light">
+        <el-icon
+          class="left-box__bottom-icon"
+          title="回收站"
+          data-test="nav-recycle"
+          @click="goRecycle"
+        ><Delete /></el-icon>
       </el-tooltip>
       <el-tooltip v-if="canEnterAdmin" content="后台管理" placement="top" effect="light">
         <el-icon class="left-box__bottom-icon" title="后台管理" data-test="nav-admin" @click="router.push('/admin')"><Setting /></el-icon>

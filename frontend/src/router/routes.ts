@@ -48,6 +48,13 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/task/CalendarView.vue'),
         meta: { title: '日历' },
       },
+      /** 回收站（左栏底部垃圾桶入口，任务 + 工作日志统一）：只看自己删的，彻底删除仅 ADMIN。 */
+      {
+        path: 'recycle',
+        name: 'recycle',
+        component: () => import('@/views/recycle/RecycleView.vue'),
+        meta: { title: '回收站' },
+      },
       /**
        * 工作日志（note）。**声明顺序是硬约束**：静态段必须排在 `notes/:id(\d+)` 之前，
        * 否则 `/notes/calendar` 会被 `:id` 吞（`\d+` 只能挡住字母段，不能作为依赖）。
