@@ -1,0 +1,12 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-audit-op-0001",
+  "data": {
+    "list": [
+      { "id": 6001, "module": "task", "action": "complete", "uri": "/api/v1/tasks/1201/complete", "userId": 1, "ip": "10.0.0.21", "duration": 24, "status": "SUCCESS", "createdAt": "2026-09-28T09:10:00+08:00" },
+      { "id": 6002, "module": "task", "action": "delete", "uri": "/api/v1/tasks/1202", "userId": 1, "ip": "10.0.0.21", "duration": 31, "status": "SUCCESS", "createdAt": "2026-09-28T09:12:00+08:00" }
+    ],
+    "total": 2, "page": 1, "size": 20
+  }
+}

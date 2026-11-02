@@ -1,0 +1,6 @@
+{
+  "code": 40003,
+  "message": "文件类型不允许",
+  "data": null,
+  "traceId": "fix-err-40003-0001"
+}

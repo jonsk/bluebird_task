@@ -1,0 +1,6 @@
+{
+  "code": 20004,
+  "message": "外部身份源无权限",
+  "data": null,
+  "traceId": "fix-err-20004-0001"
+}

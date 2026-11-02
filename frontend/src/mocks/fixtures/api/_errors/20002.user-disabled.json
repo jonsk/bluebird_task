@@ -1,0 +1,6 @@
+{
+  "code": 20002,
+  "message": "用户被禁用",
+  "data": null,
+  "traceId": "fix-err-20002-0001"
+}

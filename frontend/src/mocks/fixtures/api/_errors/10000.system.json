@@ -1,0 +1,6 @@
+{
+  "code": 10000,
+  "message": "系统异常",
+  "data": null,
+  "traceId": "fix-err-10000-0001"
+}

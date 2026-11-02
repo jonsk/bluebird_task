@@ -1,0 +1,6 @@
+{
+  "code": 0,
+  "message": "ok",
+  "traceId": "fix-file-upload-0001",
+  "data": { "id": 5601, "fileName": "季度报告.pdf", "size": 204800 }
+}

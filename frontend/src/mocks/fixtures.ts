@@ -16,9 +16,9 @@ export interface ApiResult<T = unknown> {
   traceId?: string
 }
 
-const PREFIX = '../../../docs/frontend-baseline/fixtures/api/'
+const PREFIX = './fixtures/api/'
 
-const modules = import.meta.glob('../../../docs/frontend-baseline/fixtures/api/**/*.json', {
+const modules = import.meta.glob('./fixtures/api/**/*.json', {
   eager: true,
   import: 'default',
 }) as Record<string, ApiResult>
