@@ -29,29 +29,22 @@ test.describe('工作日志', () => {
     }
   })
 
-  test('N-02 新建日志：临时卡片 + 第一页刷新 + 附件上传 + 完成', async ({ page }) => {
+  test('N-02 新建日志：保存后回到第一页并刷新列表', async ({ page }) => {
     await page.goto('/notes')
     await expect(page.locator('.note-card')).toHaveCount(2)
 
-    await page.fill('[data-test="note-editor"] textarea', '联调：工作日志新建与附件链路')
+    await page.locator('[data-test="note-editor"] .cm-content').fill('## 联调\n- 工作日志新建与附件链路')
     await page.getByRole('button', { name: '创建' }).click()
 
-    const draft = page.locator('[data-test="note-draft-card"]')
-    await expect(draft).toBeVisible()
-    await expect(draft).toContainText('联调：工作日志新建与附件链路')
     await expect(page.locator('.el-message--success')).toContainText('已保存并回到第一页')
     // 新建后列表刷新第一页（含刚创建的一条）
     await expect(page.locator('.note-card')).toHaveCount(3)
 
-    // 附件区就在临时卡片里（这是"新建后仍能补附件"的唯一入口）
-    await page.setInputFiles('[data-test="note-draft-card"] [data-test="note-attachment-input"]', {
-      name: '联调记录.txt',
-      mimeType: 'text/plain',
-      buffer: Buffer.from('note e2e attachment'),
-    })
-    await expect(draft).toContainText('联调记录.txt')
-
-    await page.locator('[data-test="note-draft-complete"]').click()
+    // 新日志直接进入列表；摘要已做 Markdown 清洗，不露 `##` / `-`
+    const created = page.locator('.note-card').filter({ hasText: '工作日志新建与附件链路' })
+    await expect(created).toBeVisible()
+    await expect(created.locator('.note-card__summary')).not.toContainText('##')
+    // 临时卡片（note-draft-card）已下线，不再出现
     await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
   })
 
@@ -63,9 +56,9 @@ test.describe('工作日志', () => {
     await expect(host).toBeVisible()
     await expect(page.locator('.el-dialog')).toHaveCount(0)
     // 编辑器必须回显详情全文（不是列表摘要）
-    await expect(host.locator('textarea')).toHaveValue(/移动端适配方案/)
+    await expect(host.locator('.cm-content')).toContainText(/移动端适配方案/)
 
-    await host.locator('textarea').fill('私有：移动端适配方案已改为两栏布局')
+    await host.locator('.cm-content').fill('私有：移动端适配方案已改为两栏布局')
     await host.getByRole('button', { name: '保存' }).click()
     await expect(host).toHaveCount(0)
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('已改为两栏布局')
@@ -194,13 +187,13 @@ test.describe('工作日志', () => {
 
     // mock 的一次性冲突钩子（模拟"保存前该日志已被他人改动"）
     await page.evaluate(() => localStorage.setItem('bb_mock_force_conflict', '1'))
-    await host.locator('textarea').fill('冲突场景：这段内容必须保留')
+    await host.locator('.cm-content').fill('冲突场景：这段内容必须保留')
     await host.getByRole('button', { name: '保存' }).click()
 
     await expect(page.locator('.el-message--error')).toContainText('内容已被他人修改')
     // 面板不关闭、草稿仍在
     await expect(host).toBeVisible()
-    await expect(host.locator('textarea')).toHaveValue(/这段内容必须保留/)
+    await expect(host.locator('.cm-content')).toContainText(/这段内容必须保留/)
   })
 
   test('N-17 Ctrl+Enter 保存：不点按钮也能提交', async ({ page }) => {
@@ -208,30 +201,29 @@ test.describe('工作日志', () => {
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
     const host = page.locator('[data-test="note-inline-editor"]')
     await expect(host).toBeVisible()
-    const textarea = host.locator('textarea')
-    await textarea.fill('快捷键保存的内容')
-    await textarea.press('Control+Enter')
+    const editor = host.locator('.cm-content')
+    await editor.fill('快捷键保存的内容')
+    await editor.press('Control+Enter')
 
     await expect(host).toHaveCount(0)
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('快捷键保存的内容')
   })
 
-  test('N-18 临时卡片跨路由恢复：进详情再返回仍在', async ({ page }) => {
+  test('N-18 新建后跨路由往返：回到列表仍能看到新日志', async ({ page }) => {
     await page.goto('/notes')
-    await page.fill('[data-test="note-editor"] textarea', '跨路由恢复用日志')
+    await page.locator('[data-test="note-editor"] .cm-content').fill('跨路由恢复用日志')
     await page.getByRole('button', { name: '创建' }).click()
-    const draft = page.locator('[data-test="note-draft-card"]')
-    await expect(draft).toBeVisible()
+    await expect(page.locator('.note-card')).toHaveCount(3)
+    await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
 
-    // 离开 → 返回（HomeView 重新挂载，靠 session 恢复）
+    // 离开 → 返回（HomeView 重新挂载后重新拉列表）
     await page.locator('[data-test="note-card-1001"]').click()
     await expect(page).toHaveURL(/\/notes\/1001$/)
     await page.locator('[data-test="note-detail-back"]').click()
     await expect(page).toHaveURL(/\/notes$/)
 
-    await expect(page.locator('[data-test="note-draft-card"]')).toContainText('跨路由恢复用日志')
-    await page.locator('[data-test="note-draft-discard"]').click()
-    await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
+    await expect(page.locator('.note-card')).toHaveCount(3)
+    await expect(page.locator('.note-card').filter({ hasText: '跨路由恢复用日志' })).toBeVisible()
   })
 
   test('N-19 1280 窄屏：布局不横向溢出且主区可用', async ({ page }) => {

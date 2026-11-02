@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Delete, Edit } from '@element-plus/icons-vue'
@@ -9,7 +9,21 @@ import NoteNotFound from '@/components/note/NoteNotFound.vue'
 import { useNoteDetail } from '@/composables/useNoteDetail'
 import { useNoteActions } from '@/composables/useNoteActions'
 import { useNoteStore } from '@/stores/note'
+import { useAppStore } from '@/stores/app'
 import { formatHeaderDate } from '@/utils/date'
+import { stripMarkdown } from '@/utils/markdown'
+
+/**
+ * 详情页是深链直达，不一定经过 NoteHome（编辑器 chunk 未加载），
+ * 因此预览组件与样式也走异步加载。
+ */
+const MdPreview = defineAsyncComponent(async () => {
+  await import('md-editor-v3/lib/preview.css')
+  const mod = await import('md-editor-v3')
+  const { setupMarkdown } = await import('@/plugins/markdown')
+  setupMarkdown()
+  return mod.MdPreview
+})
 
 /**
  * 日志详情：查看 + 行内编辑 + 附件。
@@ -20,8 +34,10 @@ import { formatHeaderDate } from '@/utils/date'
 const route = useRoute()
 const router = useRouter()
 const store = useNoteStore()
+const app = useAppStore()
 const detailApi = useNoteDetail()
 const actions = useNoteActions()
+const previewTheme = computed<'light' | 'dark'>(() => (app.theme === 'dark' ? 'dark' : 'light'))
 
 const id = computed(() => Number(route.params.id))
 const detail = detailApi.detail
@@ -43,7 +59,7 @@ watch(id, () => {
 const BASE_TITLE = document.title
 watch(detail, (d) => {
   if (!d) return
-  const flat = (d.content ?? '').replace(/\s+/g, ' ').trim()
+  const flat = stripMarkdown(d.content)
   document.title = `日志详情 · ${flat.slice(0, 12)}`
 })
 onUnmounted(() => {
@@ -121,7 +137,9 @@ function onSaved(): void {
       <section v-if="editing" class="note-detail__editor">
         <NoteEditor :note-id="Number(detail.id)" @saved="onSaved" @cancel="editing = false" />
       </section>
-      <section v-else class="note-detail__content" data-test="note-detail-content">{{ detail.content }}</section>
+      <section v-else class="note-detail__content" data-test="note-detail-content">
+        <MdPreview :model-value="detail.content ?? ''" language="zh-CN" :theme="previewTheme" />
+      </section>
 
       <section class="note-detail__block">
         <h3 class="note-detail__block-title">附件</h3>
@@ -188,7 +206,6 @@ function onSaved(): void {
   font-size: 15px;
   line-height: 1.8;
   color: var(--bb-text-secondary);
-  white-space: pre-wrap;
   word-break: break-word;
 }
 .note-detail__editor {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArrowRight } from '@element-plus/icons-vue'
+import { stripMarkdown } from '@/utils/markdown'
 import type { NoteBrief } from '@/types/note'
 
 /** NoteMiniList — 右栏小列表（无分页），底部「查看全部」跳转。 */
@@ -31,7 +32,7 @@ const emit = defineEmits<{
         @click="note.id != null && emit('open', note.id)"
       >
         <span class="note-mini-list__date">{{ note.logDate }}</span>
-        <span class="note-mini-list__summary">{{ note.contentSummary || '（无内容）' }}</span>
+        <span class="note-mini-list__summary">{{ stripMarkdown(note.contentSummary) || '（无内容）' }}</span>
       </li>
     </ul>
     <div class="note-mini-list__footer">

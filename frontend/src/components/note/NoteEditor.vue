@@ -1,17 +1,31 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getNote, createNote, updateNote } from '@/api/note'
 import { BizError, HttpError } from '@/api/http'
 import { ERROR_CODE } from '@/utils/errorCode'
+import { useAppStore } from '@/stores/app'
 import type { NoteDetailVO } from '@/types/note'
 
 /**
- * NoteEditor — 新建 / 编辑日志。
+ * NoteEditor — 新建 / 编辑日志（Markdown 编辑器）。
  * 新建：content，日志日期由后端固定为当天（不再提供日期选择）。
  * 编辑：GET 详情回显，提交带 version（乐观锁 10006 冲突提示并保留草稿）。
  * 日志日期创建后不可修改（后端对携带 logDate 的更新返回 400）。
+ *
+ * 编辑器使用 md-editor-v3：按需异步加载，避免 CodeMirror 进入首屏 chunk。
  */
+const CONTENT_LIMIT = 20000
+
+const MdEditor = defineAsyncComponent(async () => {
+  await import('md-editor-v3/lib/style.css')
+  const mod = await import('md-editor-v3')
+  // 本地 highlight.js + 关闭外部 CDN 扩展（见 plugins/markdown.ts）
+  const { setupMarkdown } = await import('@/plugins/markdown')
+  setupMarkdown()
+  return mod.MdEditor
+})
+
 const props = withDefaults(
   defineProps<{
     noteId?: number | null
@@ -44,6 +58,9 @@ const emit = defineEmits<{
   (e: 'saved', detail: NoteDetailVO): void
   (e: 'cancel'): void
 }>()
+
+const app = useAppStore()
+const editorTheme = computed<'light' | 'dark'>(() => (app.theme === 'dark' ? 'dark' : 'light'))
 
 const isEdit = computed(() => props.noteId != null)
 
@@ -88,10 +105,19 @@ watch(
 
 const canSave = computed(() => !submitting.value)
 
+function overLimit(): boolean {
+  // 后端按 Unicode 码位计数（NOTE_CONTENT_TOO_LONG / 50002），这里保持同一口径。
+  return [...content.value].length > CONTENT_LIMIT
+}
+
 async function onSubmit(): Promise<void> {
   if (submitting.value) return
   if (!content.value.trim()) {
     ElMessage.warning('内容不能为空')
+    return
+  }
+  if (overLimit()) {
+    ElMessage.warning(`内容不能超过 ${CONTENT_LIMIT} 字`)
     return
   }
   submitting.value = true
@@ -121,29 +147,36 @@ async function onSubmit(): Promise<void> {
   }
 }
 
-function onCtrlEnter(e?: Event): void {
-  if ((e as KeyboardEvent | undefined)?.isComposing) return
-  void onSubmit()
+/** 编辑器自带的保存快捷键是 Ctrl+S；这里补 Ctrl+Enter，并跳过输入法组词。 */
+function onKeydown(e?: Event): void {
+  const event = e as KeyboardEvent | undefined
+  if (!event || event.isComposing) return
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault()
+    void onSubmit()
+  }
 }
 </script>
 
 <template>
-  <div class="note-editor" data-test="note-editor">
+  <div class="note-editor" data-test="note-editor" @keydown.capture="onKeydown">
     <div v-if="isEdit && loading" v-loading="loading" class="note-editor__loading">加载中…</div>
 
     <template v-else>
-      <el-input
+      <MdEditor
         v-model="content"
-        type="textarea"
-        :rows="6"
-        maxlength="20000"
-        show-word-limit
-        resize="vertical"
-        :readonly="!canEditContent"
-        placeholder="记录今日工作…（Ctrl+Enter 保存）"
         class="note-editor__content"
+        language="zh-CN"
+        :theme="editorTheme"
+        :style="{ height: '300px' }"
+        :preview="false"
+        :max-length="CONTENT_LIMIT"
+        :read-only="!canEditContent"
+        :toolbars-exclude="['save', 'image']"
+        :no-upload-img="true"
+        placeholder="记录今日工作…（Ctrl+Enter 保存）"
         data-test="note-editor-content"
-        @keydown.ctrl.enter="onCtrlEnter"
+        @on-save="onSubmit"
       />
 
       <p v-if="isEdit && logDate" class="note-editor__meta" data-test="note-editor-logdate">
@@ -174,8 +207,9 @@ function onCtrlEnter(e?: Event): void {
   justify-content: center;
   color: var(--bb-text-muted);
 }
-.note-editor__content :deep(textarea) {
-  white-space: pre-wrap;
+.note-editor__content {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--bb-radius-sm);
 }
 .note-editor__meta {
   margin: 8px 0 0;

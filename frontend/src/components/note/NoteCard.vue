@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Delete, Edit } from '@element-plus/icons-vue'
+import { stripMarkdown } from '@/utils/markdown'
 import type { NoteBrief } from '@/types/note'
 
 /**
@@ -35,7 +36,7 @@ function stop(e: Event): void {
       <span class="note-card__owner">{{ note.ownerName }}</span>
     </div>
 
-    <p class="note-card__summary">{{ note.contentSummary || '（无内容）' }}</p>
+    <p class="note-card__summary">{{ stripMarkdown(note.contentSummary) || '（无内容）' }}</p>
 
     <div v-if="note.canEdit || note.canManage" class="note-card__ops" @click="stop">
       <el-button
