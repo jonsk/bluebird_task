@@ -1,81 +1,151 @@
-# BlueBird Task（蓝鸟任务）
+# BlueBird Task
 
-私有化任务 / 待办管理系统（重构替代旧 `bluebird_task_Front` + `bluebird_task_End`，单制品 jar 交付）。
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Vue](https://img.shields.io/badge/Vue-3-42b883)
 
-## 仓库状态
+一个自托管的团队任务与工作日志管理系统。后端基于 Spring Boot 3，前端基于 Vue 3，
+使用 SQLite 作为嵌入式数据库，开箱即用，无需额外安装数据库或缓存服务。
 
-> **当前阶段：任务模块 + 工作日志（Note）模块已完成前端全量实现、后端 note 模块入库；2026-11-02 完成工作日志第五轮功能减法（引用 / 被引用整块下线并 DROP `note_relation`），并下线 e2e 截图回归（功能 E2E 保留），验收与测试基线已更新。**
->
-> 已完成的验证基线（可直接复跑，见下节「质量门禁」）：
-> - 前端类型检查 `vue-tsc --noEmit` 零错误；单测 **17 文件 / 94 例**（Vitest）
-> - e2e **44 例**（Playwright 功能回归：任务 18 / 日志 19 / 权限 6 / 左栏 1），不做截图回归
-> - 后端 `mvn test` **43 例**（含 Note 可见性矩阵、细分流程、附件守卫）
-> - Note §9 接口验收矩阵脚本 **94 例主跑 + 4 例开关关闭** 全通过（0 例未自动化）（`scripts/acceptance/`）
+## 功能特性
 
-## 技术要点（摘要，详见 `Task/04决策记录(ADR).md` / `01蓝鸟重构方案.md`）
+- **任务管理**：创建、编辑、完成、收藏、指派、优先级、标签、截止时间与提醒
+- **重复任务**：按规则计算展开，支持日历视图按实例查看
+- **子任务**：在任务详情中直接添加步骤
+- **自定义任务栏**：按项目或场景组织任务，支持重命名与删除
+- **日历**：任务与工作日志的月视图，支持按天查看
+- **工作日志**：每日记录、附件上传、下级日志查看、日志日历
+- **回收站**：任务与日志统一回收、恢复
+- **权限与组织**：管理员 / 用户管理员 / 审计员 / 普通成员四种角色，部门树与数据可见范围控制
+- **审计日志**：登录与关键操作留痕，支持查询
+- **认证方式**：本地账号密码；可选 OIDC（Casdoor）与企业微信登录
+- **界面**：浅色 / 深色主题，桌面端布局
 
-- **Monorepo**：`backend/`（Spring Boot 3 + Java 21 + MyBatis-Plus 3.5.x + **SQLite**）+ `frontend/`（Vue 3 + TS + Vite + Element Plus + Tailwind）。**无 Redis、无缓存**（ADR-016）。
-- **单制品（ADR-009）**：前端 `dist` 打包期注入 `backend/src/main/resources/static/`，产出**唯一 `bluebird-task.jar`**，不使用 Nginx，SPA 回退由后端 `SpaForwardController` 兜底。**无外部 DB/缓存服务**（SQLite 嵌入式单文件）。
-- **认证（ADR-006/008）**：默认 `provider=LOCAL`（仅账号密码）；OIDC / 企微为可选（条件装配，默认关闭）。
-- **周期任务**：计算式展开（`cycle_rule` TEXT(JSON) + `cycle_last_completed`），不物化多行。
-- **前端质量（ADR-007/011）**：基线冻结（行为契约/黄金截图/E2E/fixtures）+ 设计系统（BB 组件）+ 契约 Mock（MSW）。
+## 技术栈
 
-## 目录结构（单一权威：`Task/01蓝鸟重构方案.md §6`）
-
-```
-bluebird-task/
-├── docs/                        # 仓根共享文档（架构/数据模型/openapi/部署/基线）
-│   ├── api/openapi.yaml         # API 契约单一事实源（前后端共享）
-│   ├── Note模块前端开发方案.md    # Note 模块方案 + §9 验收矩阵 + §12 as-built
-│   └── frontend-baseline/       # 前端基线冻结产物（行为契约/黄金截图/E2E/fixtures）
-├── deploy/                      # docker-compose（单服务：backend 单制品；无 pg/redis）
-├── backend/                     # 后端工程（Spring Boot）
-├── frontend/                    # 前端工程（Vue 3）
-└── scripts/
-    ├── check-contract.mjs       # 契约一致性门禁（openapi ↔ docs ↔ ErrorCode/fixtures）
-    └── acceptance/              # Note §9 接口验收矩阵脚本（可接 CI）
-```
+| 层 | 技术 |
+|---|---|
+| 后端 | Java 21、Spring Boot 3、Spring Security、MyBatis-Plus、Flyway |
+| 数据库 | SQLite（嵌入式单文件，无需独立服务） |
+| 前端 | Vue 3、TypeScript、Vite、Pinia、Vue Router、Element Plus、Tailwind CSS |
+| 测试 | JUnit 5、Vitest、Playwright |
 
 ## 快速开始
 
-本地依赖**无**（SQLite 嵌入式、无缓存，ADR-016）。
+### 环境要求
 
-```powershell
-# 后端：自动创建 backend/data/bluebird.db，监听 8080
-cd backend; mvn -o spring-boot:run
+- JDK 21+
+- Maven 3.9+
+- Node.js 20+、pnpm 12+
 
-# 前端：联调真实后端（VITE_USE_MOCK=false）；默认 mock（MSW 直连 fixtures）
-cd frontend; pnpm install; pnpm dev      # http://localhost:5173
+### 1. 启动后端
 
-# 构建单制品：前端 build → 拷贝 dist → backend/src/main/resources/static/ → mvn verify
+```bash
+cd backend
+
+# 首次启动时创建管理员账号（用户名默认 admin，密码取此变量）
+export BOOTSTRAP_ADMIN_PASSWORD='ChangeMe123'
+
+mvn spring-boot:run
 ```
 
-## 质量门禁（提交前必跑）
+服务默认监听 `http://localhost:8080`，数据库文件自动创建在 `backend/data/bluebird.db`。
 
-```powershell
+> Windows PowerShell 使用 `$env:BOOTSTRAP_ADMIN_PASSWORD="ChangeMe123"`。
+> 若未设置该变量，也可以在空库状态下调用 `POST /api/v1/bootstrap/admin` 创建首个管理员。
+> 管理员首次登录后需要修改密码。
+
+### 2. 启动前端
+
+```bash
 cd frontend
-pnpm exec vue-tsc --noEmit     # 类型检查
-pnpm test                      # 单测（Vitest，17 文件 / 94 例）
-pnpm test:e2e                  # 功能 e2e（Playwright，本地复用系统 Edge；无截图基线）
-
-cd ..\backend
-mvn -o test                    # 后端测试（43 例）
-
-# Note §9 接口验收矩阵（需后端已启动；开关场景需以 MANAGER_CAN_READ_SUBORDINATE=false 重启）
-cd ..\scripts\acceptance
-py seed_accounts.py; py matrix_main.py   # 退出码 0 = 全通过
+pnpm install
+pnpm dev
 ```
 
-CI（`.github/workflows/ci.yml`）：契约一致性 + 密钥扫描 + 前端类型/单测/构建 + 后端 `mvn verify` + e2e；验收矩阵为手动触发（`workflow_dispatch` → `run_acceptance=true`）。
+打开 `http://localhost:5173`。开发环境默认启用接口 Mock（MSW），无需后端即可浏览界面。
 
-## 设计文档（权威源）
+如需连接真实后端，创建 `frontend/.env.development.local`：
 
-- `Task/01蓝鸟重构方案.md` — 总方案
-- `Task/02后端模块详细设计.md` — 后端详设
-- `Task/03前端模块详细设计.md` — 前端详设
-- `Task/04决策记录(ADR).md` — 架构决策记录
-- 本仓 `docs/` — 定稿镜像与模块级方案（`Note模块前端开发方案.md` 含验收矩阵与 as-built）
+```dotenv
+VITE_USE_MOCK=false
+```
 
-## License
+开发服务器会把 `/api` 代理到 `http://localhost:8080`。
 
-Apache-2.0（见 `LICENSE`）。
+## 构建与部署
+
+前端产物会在打包时自动内嵌到后端，最终只产出一个可执行 Jar：
+
+```bash
+cd frontend
+pnpm install
+pnpm build
+
+cd ../backend
+mvn -DskipTests package
+
+java -jar target/bluebird-task-0.1.0.jar
+```
+
+运行时数据默认保存在当前工作目录的 `data/` 下（SQLite 数据库与附件）。
+`deploy/` 目录提供了单服务 docker-compose 模板，可按需构建镜像后使用。
+
+## 配置
+
+常用环境变量：
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `SERVER_PORT` | `8080` | 服务端口 |
+| `SQLITE_URL` | `jdbc:sqlite:./data/bluebird.db` | SQLite 连接串 |
+| `STORAGE_PATH` | `./data/files` | 附件存储目录 |
+| `JWT_SECRET` | 空 | 令牌签名密钥，生产环境务必设置 |
+| `BOOTSTRAP_ADMIN_PASSWORD` | 空 | 空库首次启动时创建的管理员密码 |
+| `IDENTITY_PROVIDER` | `LOCAL` | 认证方式：`LOCAL` / `OIDC` / `WECHAT` |
+| `ORGSYNC_MODE` | `NONE` | 组织同步方式：`NONE` / `SCIM` / `PULL` / `PUSH` |
+| `LOG_DIR` | Jar 所在目录下的 `log/` | 运行日志目录 |
+| `LOG_MAX_HISTORY` | `30` | 日志保留天数 |
+
+## API 文档
+
+- 契约文件：[`docs/api/openapi.yaml`](docs/api/openapi.yaml)
+- 接口清单：[`docs/api/endpoints.md`](docs/api/endpoints.md)
+- 开发环境启动后端后，可访问 Swagger UI：`http://localhost:8080/swagger-ui.html`
+
+## 测试
+
+```bash
+# 后端
+cd backend && mvn test
+
+# 前端单元测试
+cd frontend && pnpm test
+
+# 前端端到端测试（Playwright，默认复用系统 Edge）
+cd frontend && pnpm test:e2e
+```
+
+## 项目结构
+
+```
+.
+├── backend/     # Spring Boot 服务（打包时内嵌前端产物）
+├── frontend/    # Vue 3 前端
+├── deploy/      # docker-compose 部署模板
+├── docs/        # API 契约与项目文档
+└── .github/     # CI 工作流
+```
+
+## 贡献
+
+欢迎提交 Issue 与 Pull Request。
+
+1. Fork 本仓库并创建分支
+2. 完成改动并补充相应测试
+3. 确保 `mvn test`、`pnpm test`、`pnpm test:e2e` 通过
+4. 提交 Pull Request，说明改动内容与验证方式
+
+## 许可证
+
+本项目基于 [Apache License 2.0](LICENSE) 开源。
