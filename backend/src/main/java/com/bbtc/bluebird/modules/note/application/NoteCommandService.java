@@ -19,10 +19,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 
-/** 日志写操作：创建/更新/删除/置顶 + 字段级权限 + 级联清理。 */
+/** 日志写操作：创建/更新/删除 + 字段级权限 + 级联清理。 */
 @Service
 @RequiredArgsConstructor
 public class NoteCommandService {
@@ -46,7 +47,6 @@ public class NoteCommandService {
         note.setContent(req.content());
         // 日志日期不可选：一律记为创建当天（Asia/Shanghai）。
         note.setLogDate(LocalDate.now(ZONE).toString());
-        note.setPinned(0);
         note.setOwnerId(me);
         Long deptId = currentUserDeptService.deptIdOf(me);
         note.setDeptId(deptId);
@@ -92,7 +92,20 @@ public class NoteCommandService {
     @Transactional
     public void delete(Long id) {
         Note note = authService.requireManageable(id);
-        // 级联清理（日志为个人记录，无跨人授权关系需维护）
+        // 回收站语义（2026-10-30）：只打逻辑删标记，附件引用 / 引用关系保留到彻底删除，
+        // 否则恢复出来的日志会丢掉附件与「引用/被引用」关系。
+        noteMapper.markDeleted(note.getId(), Instant.now(), UserContext.currentUserId());
+    }
+
+    /**
+     * 彻底删除（回收站专用，权限由调用方保证）：级联清理附件引用与双向引用关系后物理删行。
+     */
+    @Transactional
+    public void purge(Long id) {
+        Note note = noteMapper.selectDeletedById(id);
+        if (note == null) {
+            return;
+        }
         attachmentRefMapper.delete(Wrappers.<NoteAttachmentRef>lambdaQuery()
                 .eq(NoteAttachmentRef::getNoteId, note.getId()));
         relationMapper.delete(Wrappers.<NoteRelation>lambdaQuery()
@@ -100,14 +113,7 @@ public class NoteCommandService {
         relationMapper.delete(Wrappers.<NoteRelation>lambdaQuery()
                 .eq(NoteRelation::getTargetType, NoteRelation.TARGET_NOTE)
                 .eq(NoteRelation::getTargetId, note.getId()));
-        noteMapper.deleteById(note.getId());
-    }
-
-    @Transactional
-    public void pin(Long id, boolean pinned) {
-        Note note = authService.requireManageable(id);
-        note.setPinned(pinned ? 1 : 0);
-        noteMapper.updateById(note);
+        noteMapper.hardDelete(note.getId());
     }
 
     /* ==================== 校验 ==================== */

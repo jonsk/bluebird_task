@@ -95,7 +95,6 @@ class NoteAuthMatrixTest {
         n.setLogDate("2026-10-20");
         n.setOwnerId(ownerId);
         n.setDeptId(deptId);
-        n.setPinned(0);
         n.setDeleted(deleted);
         n.setVersion(0);
         return n;

@@ -13,7 +13,6 @@ import java.time.LocalDate;
 public record NoteQuery(
         String scope,
         String keyword,
-        Boolean pinned,
         LocalDate start,
         LocalDate end,
         LocalDate date,

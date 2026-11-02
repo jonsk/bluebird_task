@@ -82,7 +82,6 @@ public class NoteQueryService {
 
         LambdaQueryWrapper<Note> w = Wrappers.lambdaQuery();
         w.apply(visibilitySql.scopePredicate(scope, me, admin));
-        applyPinned(w, q.pinned());
         applyKeyword(w, q.keyword());
         applyDate(w, q);
         applySort(w, q.sort());
@@ -90,12 +89,6 @@ public class NoteQueryService {
         IPage<Note> p = noteMapper.selectPage(new Page<>(page, size), w);
         List<NoteBrief> list = toBriefs(p.getRecords());
         return PageResult.of(list, p.getTotal(), p.getCurrent(), p.getSize());
-    }
-
-    private void applyPinned(LambdaQueryWrapper<Note> w, Boolean pinned) {
-        if (pinned != null) {
-            w.eq(Note::getPinned, pinned ? 1 : 0);
-        }
     }
 
     private void applyKeyword(LambdaQueryWrapper<Note> w, String keyword) {
@@ -122,7 +115,6 @@ public class NoteQueryService {
     }
 
     private void applySort(LambdaQueryWrapper<Note> w, String sort) {
-        w.orderByDesc(Note::getPinned);
         String s = StringUtils.hasText(sort) ? sort : "log_date_desc";
         switch (s) {
             case "log_date_asc" -> w.orderByAsc(Note::getLogDate).orderByAsc(Note::getCreatedAt);
@@ -215,7 +207,7 @@ public class NoteQueryService {
         List<NoteBrief> out = new ArrayList<>();
         for (Note n : notes) {
             out.add(new NoteBrief(n.getId(), summary(n.getContent()), n.getLogDate(),
-                    isTrue(n.getPinned()), n.getOwnerId(),
+                    n.getOwnerId(),
                     ownerNames.get(n.getOwnerId()),
                     canEdit(n, me, admin), canManage(n, me, admin), versionOf(n)));
         }
@@ -226,7 +218,6 @@ public class NoteQueryService {
         vo.setId(note.getId());
         vo.setContentSummary(summary(note.getContent()));
         vo.setLogDate(note.getLogDate());
-        vo.setPinned(isTrue(note.getPinned()));
         vo.setOwnerId(note.getOwnerId());
         Map<Long, String> names = userNames(Set.of(note.getOwnerId()));
         vo.setOwnerName(names.get(note.getOwnerId()));

@@ -44,14 +44,13 @@ public class NoteController {
     public ApiResult<PageResult<NoteBrief>> page(
             @RequestParam(defaultValue = "mine") String scope,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Boolean pinned,
             @RequestParam(required = false) String start,
             @RequestParam(required = false) String end,
             @RequestParam(required = false) String date,
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long size) {
-        NoteQuery query = new NoteQuery(scope, keyword, pinned,
+        NoteQuery query = new NoteQuery(scope, keyword,
                 parseDate(start), parseDate(end), parseDate(date), sort, page, size);
         return ApiResult.ok(queryService.page(query));
     }
@@ -80,20 +79,6 @@ public class NoteController {
     @DeleteMapping("/{id}")
     public ApiResult<Void> delete(@PathVariable Long id) {
         commandService.delete(id);
-        return ApiResult.ok();
-    }
-
-    @Operation(summary = "置顶")
-    @PostMapping("/{id}/pin")
-    public ApiResult<Void> pin(@PathVariable Long id) {
-        commandService.pin(id, true);
-        return ApiResult.ok();
-    }
-
-    @Operation(summary = "取消置顶")
-    @DeleteMapping("/{id}/pin")
-    public ApiResult<Void> unpin(@PathVariable Long id) {
-        commandService.pin(id, false);
         return ApiResult.ok();
     }
 

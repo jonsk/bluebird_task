@@ -5,7 +5,6 @@ public record NoteBrief(
         Long id,
         String contentSummary,
         String logDate,
-        boolean pinned,
         Long ownerId,
         String ownerName,
         boolean canEdit,

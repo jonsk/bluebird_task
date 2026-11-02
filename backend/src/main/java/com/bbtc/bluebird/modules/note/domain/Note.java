@@ -9,6 +9,8 @@ import com.bbtc.bluebird.common.domain.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.Instant;
+
 /**
  * 工作日志（note）。纯文本 + 工作日 log_date + 乐观锁 + 逻辑删除。
  *
@@ -26,7 +28,6 @@ public class Note extends BaseEntity {
     private String content;
     /** 工作日 YYYY-MM-DD（按日聚合，一天可多条）。 */
     private String logDate;
-    private Integer pinned;
     private Long ownerId;
     /** owner 部门快照（用于详情展示部门名）。 */
     private Long deptId;
@@ -36,4 +37,10 @@ public class Note extends BaseEntity {
 
     @TableLogic
     private Integer deleted;
+
+    /** 回收站：删除时间（历史已删行为 null，界面按「未知」展示）。 */
+    private Instant deletedAt;
+
+    /** 回收站：删除人（历史已删行为 null）。 */
+    private Long deletedBy;
 }

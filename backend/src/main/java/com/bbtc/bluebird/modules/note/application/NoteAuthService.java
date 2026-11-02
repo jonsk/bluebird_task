@@ -79,7 +79,7 @@ public class NoteAuthService {
         return isAdmin() || (me != null && me.equals(note.getOwnerId()));
     }
 
-    /** 管理权：tagIds/pin/delete/引用移除/附件移除。 */
+    /** 管理权：tagIds/delete/引用移除/附件移除。 */
     public boolean canManage(Note note, Long me) {
         return canEdit(note, me);
     }
