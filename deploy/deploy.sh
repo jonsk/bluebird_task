@@ -1,349 +1,64 @@
 #!/usr/bin/env bash
-# 一键部署：git pull -> 构建（前端 + 后端单制品 jar）-> 安装 -> 重启 -> 健康检查（失败自动回滚）。
+# 简单部署：检查目录 -> 拉取代码 -> 构建 -> 拷贝 jar 到 bluebird-deploy
 #
-# 默认零参数即可：
-#   ./deploy/deploy.sh
-# 默认值：
-#   代码目录   = 本脚本所在仓库根（自动识别）
-#   分支       = main
-#   运行目录   = 仓库根的同级目录 bluebird-deploy（jar、application.yml、data/、logs/、releases/）
-#   端口       = 8080（SERVER_PORT 可覆盖）
-#   服务名     = bluebird（有该 systemd unit 就用它，否则 pidfile + nohup）
+# 目录约定（不写死用户名，按脚本位置推导）：
+#   代码目录 = 本脚本所在仓库根
+#   部署目录 = 代码目录的同级 bluebird-deploy
 #
-# 常用覆盖：
-#   --dir /opt/bluebird     换运行目录（默认 <仓库根的上级>/bluebird-deploy）
-#   --no-pull               不拉代码，直接用当前工作区构建
-#   --no-build              跳过构建，装 --jar 指定的包（或上次构建产物）
-#   --jar /path/x.jar       直接安装已有 jar（隐含 --no-build）
-#   --branch dev            拉指定分支
-#   --no-systemd            强制 pidfile 方式
-#   --keep 5                历史包保留个数
-#   --dry-run               只打印将执行的动作
-#
-# 服务器依赖：git、JDK 21、Maven、Node 20+、pnpm（corepack enable）。
-# 运行目录不会被覆盖：application.yml 与 data/ 始终保留；旧版 <仓库根>/runtime 会自动迁移。
+# 用法：./deploy/deploy.sh
+# 依赖：git、JDK 21、Maven、Node 20+、pnpm
+# 不负责重启服务，拷完包后自行重启（如 sudo systemctl restart bluebird）。
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 脚本可能放在仓库根，也可能放在 deploy/ 下：统一用 git 找仓库根
-if REPO_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
-  :
-else
-  REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-fi
+REPO_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "$SCRIPT_DIR")"
+APP_DIR="$(dirname "$REPO_DIR")/bluebird-deploy"
 BRANCH="${BRANCH:-main}"
-# 运行目录默认放在仓库的同级目录（不写死任何用户名/绝对路径）：
-#   /path/to/<某个账号>/bluebird_task  ->  /path/to/<某个账号>/bluebird-deploy
-APP_DIR_NAME="bluebird-deploy"
-APP_DIR="${APP_DIR:-$(dirname "$REPO_DIR")/$APP_DIR_NAME}"
-LEGACY_APP_DIR="$REPO_DIR/runtime"
-JAR_NAME="bluebird-task.jar"
-PORT="${SERVER_PORT:-8080}"
-SERVICE="${BLUEBIRD_SERVICE:-bluebird}"
-KEEP="${KEEP_RELEASES:-5}"
-HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-120}"
-JAVA_OPTS="${JAVA_OPTS:--Xmx512m}"
 
-PULL=1
-BUILD=1
-USE_SYSTEMD=1
-DRY_RUN=0
-NEW_JAR=""
+JAR_SRC="$REPO_DIR/backend/target/bluebird-task.jar"
+JAR_DST="$APP_DIR/bluebird-task.jar"
 
-usage() {
-  sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-}
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --jar) NEW_JAR="${2:?--jar 需要路径}"; BUILD=0; shift 2 ;;
-    --branch) BRANCH="${2:?--branch 需要分支名}"; shift 2 ;;
-    --dir) APP_DIR="${2:?--dir 需要路径}"; shift 2 ;;
-    --port) PORT="${2:?--port 需要端口}"; shift 2 ;;
-    --service) SERVICE="${2:?--service 需要服务名}"; shift 2 ;;
-    --keep) KEEP="${2:?--keep 需要数字}"; shift 2 ;;
-    --no-pull) PULL=0; shift ;;
-    --no-build) BUILD=0; shift ;;
-    --no-systemd) USE_SYSTEMD=0; shift ;;
-    --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "未知参数：$1" >&2; usage >&2; exit 2 ;;
-  esac
-done
-
-die() { echo "!! $*" >&2; exit 1; }
 step() { printf '\n==> %s\n' "$*"; }
-run() { if [[ "$DRY_RUN" -eq 1 ]]; then echo "   [dry-run] $*"; else "$@"; fi; }
+die() { printf '!! %s\n' "$*" >&2; exit 1; }
 
-TARGET_JAR="$APP_DIR/$JAR_NAME"
-RELEASES="$APP_DIR/releases"
-LOG_DIR="$APP_DIR/logs"
-PID_FILE="$APP_DIR/run/bluebird.pid"
-HEALTH_URL="http://127.0.0.1:$PORT/actuator/health"
-STAMP="$(date +%Y%m%d-%H%M%S)"
-
-# ---------------------------------------------------------------- 环境检查
-
-step "环境检查"
-command -v java >/dev/null 2>&1 || die "缺少 java（需要 21+）"
-
-# 注意：`java -version` 的第一行可能是 JAVA_TOOL_OPTIONS 的提示（容器/云主机常见），
-# 不能直接取 head -1；优先读 java.specification.version，再退回解析 version "x.y"。
-java_props="$(java -XshowSettings:properties -version 2>&1 || true)"
-java_major="$(awk -F'= *' '/java\.specification\.version/ {print $2; exit}' <<<"$java_props")"
-if [[ -z "$java_major" ]]; then
-  java_major="$(sed -n 's/.*version "\([0-9][0-9]*\)[."].*/\1/p' <<<"$java_props" | head -1)"
+# ---------------------------------------------------------------- 1 目录检查
+step "检查目录"
+[[ -d "$REPO_DIR" ]] || die "代码目录不存在：$REPO_DIR"
+if [[ ! -d "$APP_DIR" ]]; then
+  mkdir -p "$APP_DIR" || die "无法创建部署目录：$APP_DIR"
+  echo "   已创建 $APP_DIR"
 fi
-java_version_line="$(grep -m1 -E 'version "' <<<"$java_props" || true)"
-java_version_line="${java_version_line:-$(head -1 <<<"$java_props")}"
-[[ -n "$java_major" && "$java_major" -ge 21 ]] \
-  || die "java 需要 >= 21，当前 ${java_version_line:-未知}（java=$(command -v java)）"
+[[ -w "$APP_DIR" ]] || die "没有写权限：$APP_DIR"
+echo "   代码目录：$REPO_DIR"
+echo "   部署目录：$APP_DIR"
 
-# mvn 启动脚本依赖 JAVA_HOME；很多云主机只配了 PATH + JAVA_TOOL_OPTIONS。
-# 没配或配错时按 java 可执行文件反推（解析 /usr/bin/java 这类软链）。
-resolve_java_home() {
-  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
-    local home_major
-    home_major="$("$JAVA_HOME/bin/java" -XshowSettings:properties -version 2>&1 \
-      | awk -F'= *' '/java\.specification\.version/ {print $2; exit}')"
-    [[ -n "$home_major" && "$home_major" -ge 21 ]] && return 0
-    echo "   JAVA_HOME=$JAVA_HOME 的 java 版本为 ${home_major:-未知}（<21），改用 PATH 中的 java"
-  fi
-  local bin
-  bin="$(command -v java 2>/dev/null)" || return 0
-  if command -v readlink >/dev/null 2>&1 && readlink -f "$bin" >/dev/null 2>&1; then
-    bin="$(readlink -f "$bin")"
-  else
-    while [[ -L "$bin" ]]; do
-      local dir target
-      dir="$(cd "$(dirname "$bin")" && pwd)"
-      target="$(readlink "$bin")"
-      [[ "$target" = /* ]] || target="$dir/$target"
-      bin="$target"
-    done
-  fi
-  local home
-  home="$(cd "$(dirname "$bin")/.." && pwd)"
-  if [[ -x "$home/bin/java" ]]; then
-    export JAVA_HOME="$home"
-    echo "   使用 JAVA_HOME=$JAVA_HOME（由 PATH 中的 java 推断）"
-  fi
-}
-resolve_java_home
-
-if [[ "$PULL" -eq 1 ]]; then
-  command -v git >/dev/null 2>&1 || die "缺少 git（或用 --no-pull）"
-  git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-    || die "$REPO_DIR 不是 git 仓库（或用 --no-pull）"
+# mvn 需要 JAVA_HOME，很多机器只有 PATH
+if [[ -z "${JAVA_HOME:-}" || ! -x "${JAVA_HOME}/bin/java" ]]; then
+  bin="$(command -v java || true)"
+  [[ -n "$bin" ]] || die "缺少 java（需要 21+）"
+  bin="$(readlink -f "$bin" 2>/dev/null || echo "$bin")"
+  export JAVA_HOME="$(cd "$(dirname "$bin")/.." && pwd)"
+  echo "   JAVA_HOME=$JAVA_HOME"
 fi
 
-if [[ "$BUILD" -eq 1 ]]; then
-  for c in node pnpm mvn; do
-    command -v "$c" >/dev/null 2>&1 || die "缺少 $c（构建需要；或用 --no-build 直接装包）"
-  done
-  node_major="$(node -p 'process.versions.node.split(".")[0]')"
-  [[ "$node_major" -ge 20 ]] || die "node 需要 >= 20，当前 $(node -v)"
-fi
-echo "   java=$java_major（$java_version_line）  JAVA_HOME=${JAVA_HOME:-<未设置>}  repo=$REPO_DIR  app=$APP_DIR  port=$PORT"
+# ---------------------------------------------------------------- 2 拉取代码
+step "拉取代码（origin/$BRANCH）"
+git -C "$REPO_DIR" fetch origin "$BRANCH"
+git -C "$REPO_DIR" pull --ff-only origin "$BRANCH"
 
-# ---------------------------------------------------------------- 拉取代码
+# ---------------------------------------------------------------- 3 构建
+step "构建前端"
+pnpm -C "$REPO_DIR/frontend" install --frozen-lockfile
+pnpm -C "$REPO_DIR/frontend" build
 
-if [[ "$PULL" -eq 1 ]]; then
-  step "拉取代码（origin/$BRANCH）"
-  dirty="$(git -C "$REPO_DIR" status --porcelain --untracked-files=no)"
-  [[ -z "$dirty" ]] || die "工作区有未提交改动，已中止（先提交/还原，或用 --no-pull）：
-$dirty"
+step "构建后端（单制品 jar，内嵌前端）"
+mvn -B -f "$REPO_DIR/backend/pom.xml" -DskipTests package
+[[ -f "$JAR_SRC" ]] || die "构建产物不存在：$JAR_SRC"
 
-  before="$(git -C "$REPO_DIR" rev-parse HEAD)"
-  run git -C "$REPO_DIR" fetch --prune origin "$BRANCH"
-  run git -C "$REPO_DIR" checkout "$BRANCH"
-  run git -C "$REPO_DIR" pull --ff-only origin "$BRANCH"
-  after="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "$before")"
-  if [[ "$DRY_RUN" -eq 0 ]]; then
-    echo "   $before -> $after"
-    # 脚本自身被这次 pull 更新过：重新加载后再继续，避免执行到半旧半新的逻辑
-    if [[ "${BB_DEPLOY_RELOADED:-0}" != "1" ]] \
-      && ! git -C "$REPO_DIR" diff --quiet "$before" "$after" -- deploy/deploy.sh; then
-      echo "   deploy.sh 有更新，重新加载脚本"
-      reload_args=(--no-pull)
-      if (( BUILD == 0 )); then reload_args+=(--no-build); fi
-      if (( USE_SYSTEMD == 0 )); then reload_args+=(--no-systemd); fi
-      if (( DRY_RUN == 1 )); then reload_args+=(--dry-run); fi
-      if [[ -n "$NEW_JAR" ]]; then reload_args+=(--jar "$NEW_JAR"); fi
-      BB_DEPLOY_RELOADED=1 \
-        APP_DIR="$APP_DIR" BRANCH="$BRANCH" SERVER_PORT="$PORT" \
-        BLUEBIRD_SERVICE="$SERVICE" KEEP_RELEASES="$KEEP" \
-        exec bash "$REPO_DIR/deploy/deploy.sh" "${reload_args[@]}"
-    fi
-  fi
-else
-  step "跳过拉取代码"
-fi
+# ---------------------------------------------------------------- 4 拷贝 jar
+step "拷贝 jar"
+cp -f "$JAR_SRC" "$JAR_DST.new"
+mv -f "$JAR_DST.new" "$JAR_DST"
 
-# ---------------------------------------------------------------- 构建
-
-if [[ "$BUILD" -eq 1 ]]; then
-  step "构建前端（含 Vditor 资源 vendor）"
-  run pnpm -C "$REPO_DIR/frontend" install --frozen-lockfile
-  run pnpm -C "$REPO_DIR/frontend" build
-  if [[ "$DRY_RUN" -eq 0 && ! -f "$REPO_DIR/frontend/public/vditor/dist/js/lute/lute.min.js" ]]; then
-    die "Vditor 资源缺失：frontend/public/vditor/dist（tools/vendor-vditor.mjs 未执行？）"
-  fi
-
-  step "构建后端单制品 jar（内嵌前端）"
-  [[ -n "${JAVA_HOME:-}" ]] \
-    || die "mvn 需要 JAVA_HOME；请先 export JAVA_HOME=<JDK21 目录> 再重试（当前 java=$(command -v java)）"
-  run mvn -B -f "$REPO_DIR/backend/pom.xml" -DskipTests package
-  NEW_JAR="$REPO_DIR/backend/target/bluebird-task.jar"
-else
-  step "跳过构建"
-  [[ -n "$NEW_JAR" ]] || NEW_JAR="$REPO_DIR/backend/target/bluebird-task.jar"
-fi
-
-[[ -f "$NEW_JAR" ]] || die "找不到待部署的 jar：$NEW_JAR"
-
-# 校验是不是 Spring Boot 可执行 jar。
-# 注意不能写成 `unzip -l | grep -q`：pipefail 下 grep 提前退出会让 unzip 收到 SIGPIPE，
-# 管道整体被判失败。这里先把清单读进变量再判断。
-jar_entries=""
-if command -v unzip >/dev/null 2>&1; then
-  jar_entries="$(unzip -l "$NEW_JAR" 2>/dev/null || true)"
-elif command -v jar >/dev/null 2>&1; then
-  jar_entries="$(jar tf "$NEW_JAR" 2>/dev/null || true)"
-fi
-if [[ -n "$jar_entries" ]]; then
-  if ! grep -q 'BOOT-INF/classes/' <<<"$jar_entries"; then
-    echo "   包内前几个条目：" >&2
-    awk 'NR>3 && NF>=4 {print "     " $4}' <<<"$jar_entries" | head -5 >&2
-    die "$NEW_JAR 不是 Spring Boot 可执行 jar（检查 spring-boot-maven-plugin 的 repackage 是否执行）"
-  fi
-  if ! grep -q 'BOOT-INF/classes/static/index.html' <<<"$jar_entries"; then
-    echo "   警告：jar 内未找到 frontend 产物（static/index.html），前端可能没打进去" >&2
-  fi
-fi
-
-# ---------------------------------------------------------------- 安装
-
-systemd_active() {
-  [[ "$USE_SYSTEMD" -eq 1 ]] && command -v systemctl >/dev/null 2>&1 \
-    && systemctl cat "$SERVICE" >/dev/null 2>&1
-}
-
-stop_app() {
-  if systemd_active; then
-    run systemctl stop "$SERVICE"
-    return
-  fi
-  if [[ -f "$PID_FILE" ]]; then
-    local pid
-    pid="$(cat "$PID_FILE")"
-    if kill -0 "$pid" 2>/dev/null; then
-      run kill "$pid"
-      for _ in $(seq 1 30); do
-        kill -0 "$pid" 2>/dev/null || break
-        sleep 1
-      done
-      if kill -0 "$pid" 2>/dev/null; then run kill -9 "$pid"; fi
-    fi
-    run rm -f "$PID_FILE"
-  fi
-}
-
-start_app() {
-  if systemd_active; then
-    run systemctl start "$SERVICE"
-    return
-  fi
-  run mkdir -p "$LOG_DIR" "$(dirname "$PID_FILE")"
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "   [dry-run] (cd $APP_DIR && nohup java $JAVA_OPTS -jar $TARGET_JAR >> $LOG_DIR/app.log 2>&1 & echo \$! > $PID_FILE)"
-    return
-  fi
-  ( cd "$APP_DIR" && nohup java $JAVA_OPTS -jar "$TARGET_JAR" >>"$LOG_DIR/app.log" 2>&1 & echo $! >"$PID_FILE" )
-}
-
-wait_healthy() {
-  step "健康检查（最多 ${HEALTH_TIMEOUT}s）：$HEALTH_URL"
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "   [dry-run] 轮询 $HEALTH_URL"
-    return 0
-  fi
-  local waited=0
-  while (( waited < HEALTH_TIMEOUT )); do
-    if body="$(curl -fsS --max-time 3 "$HEALTH_URL" 2>/dev/null)" && grep -q '"status":"UP"' <<<"$body"; then
-      echo "   服务已就绪（${waited}s）"
-      return 0
-    fi
-    sleep 3
-    waited=$((waited + 3))
-  done
-  return 1
-}
-
-step "部署 $NEW_JAR -> $TARGET_JAR"
-run mkdir -p "$APP_DIR" "$RELEASES"
-
-# 旧版把运行目录放在 <仓库根>/runtime；新目录还没有配置和数据时一次性迁过来
-if [[ "$APP_DIR" != "$LEGACY_APP_DIR" && -d "$LEGACY_APP_DIR" \
-      && ! -e "$APP_DIR/application.yml" && ! -d "$APP_DIR/data" ]]; then
-  echo "   发现旧运行目录 $LEGACY_APP_DIR，迁移配置与数据"
-  if [[ -f "$LEGACY_APP_DIR/application.yml" ]]; then
-    run cp -f "$LEGACY_APP_DIR/application.yml" "$APP_DIR/application.yml"
-  fi
-  if [[ -d "$LEGACY_APP_DIR/data" ]]; then
-    run cp -a "$LEGACY_APP_DIR/data" "$APP_DIR/"
-  fi
-  echo "   迁移完成；确认无误后可手动删除 $LEGACY_APP_DIR"
-fi
-
-if [[ -f "$TARGET_JAR" ]]; then
-  step "备份当前包 -> $RELEASES/bluebird-task-$STAMP.jar"
-  run cp -f "$TARGET_JAR" "$RELEASES/bluebird-task-$STAMP.jar"
-fi
-DB="$APP_DIR/data/bluebird.db"
-if [[ -f "$DB" ]] && command -v sqlite3 >/dev/null 2>&1; then
-  step "备份 SQLite -> $RELEASES/bluebird-$STAMP.db"
-  run sqlite3 "$DB" ".backup '$RELEASES/bluebird-$STAMP.db'"
-fi
-
-step "停止服务"
-stop_app
-
-step "安装新包"
-run cp -f "$NEW_JAR" "$TARGET_JAR.new"
-run mv -f "$TARGET_JAR.new" "$TARGET_JAR"
-
-step "启动服务"
-start_app
-
-if ! wait_healthy; then
-  echo "!! 健康检查失败，开始回滚" >&2
-  if [[ "$DRY_RUN" -eq 0 ]]; then
-    echo "---- 最近日志 ----" >&2
-    tail -n 40 "$LOG_DIR/app.log" 2>/dev/null >&2 || true
-  fi
-  stop_app
-  previous="$(ls -1t "$RELEASES"/bluebird-task-*.jar 2>/dev/null | head -1 || true)"
-  if [[ -n "$previous" ]]; then
-    echo "   回滚到 $previous"
-    run cp -f "$previous" "$TARGET_JAR"
-    start_app
-    wait_healthy || die "回滚后仍不健康，请查看 $LOG_DIR/app.log 或 journalctl -u $SERVICE"
-    die "部署失败，已回滚到 $previous"
-  fi
-  die "部署失败且没有可回滚的历史包，请查看 $LOG_DIR/app.log 或 journalctl -u $SERVICE"
-fi
-
-step "清理历史包（保留最近 $KEEP 个）"
-if [[ "$DRY_RUN" -eq 0 ]]; then
-  ls -1t "$RELEASES"/bluebird-task-*.jar 2>/dev/null | tail -n +"$((KEEP + 1))" | while read -r old; do
-    echo "   删除 $old"
-    rm -f "$old"
-  done
-fi
-
-step "完成"
-echo "   运行目录：$APP_DIR"
-echo "   包：$TARGET_JAR"
-echo "   端口：$PORT"
-echo "   健康：$(curl -fsS --max-time 3 "$HEALTH_URL" 2>/dev/null || echo '<未响应>')"
+echo "   完成：$JAR_DST"
+ls -lh "$JAR_DST"
