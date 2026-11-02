@@ -23,13 +23,12 @@ export type NoteScope = 'mine' | 'subordinate' | 'visible' | 'all'
 /** 日历作用域（不含 visible）。 */
 export type NoteCalendarScope = Exclude<NoteScope, 'visible' | 'all'>
 
-/** 排序（蛇形，与后端 NoteQueryService.applySort 对齐；pinned 恒为第一排序键）。 */
+/** 排序（蛇形，与后端 NoteQueryService.applySort 对齐）。 */
 export type NoteSort = 'log_date_desc' | 'log_date_asc' | 'created_desc' | 'updated_desc'
 
 export interface NoteQuery {
   scope?: NoteScope
   keyword?: string
-  pinned?: boolean
   start?: string
   end?: string
   date?: string

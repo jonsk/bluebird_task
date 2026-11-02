@@ -30,8 +30,6 @@ const emit = defineEmits<{
   (e: 'retry'): void
   (e: 'open', id: number): void
   (e: 'edit', id: number): void
-  (e: 'pin', id: number): void
-  (e: 'unpin', id: number): void
   (e: 'archive', id: number): void
   (e: 'unarchive', id: number): void
   (e: 'remove', id: number): void
@@ -61,8 +59,6 @@ const emit = defineEmits<{
         :active="activeId != null && note.id === activeId"
         @open="emit('open', $event)"
         @edit="emit('edit', $event)"
-        @pin="emit('pin', $event)"
-        @unpin="emit('unpin', $event)"
         @archive="emit('archive', $event)"
         @unarchive="emit('unarchive', $event)"
         @remove="emit('remove', $event)"

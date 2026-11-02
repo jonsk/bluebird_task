@@ -1,5 +1,5 @@
 import { ElMessage } from 'element-plus'
-import { pinNote, unpinNote, deleteNote } from '@/api/note'
+import { deleteNote } from '@/api/note'
 import { useNoteStore } from '@/stores/note'
 import { HttpError, BizError } from '@/api/http'
 import type { NoteScope } from '@/types/note'
@@ -13,23 +13,12 @@ function hint(e: unknown): string {
   return (e as Error).message || '操作失败'
 }
 
-/** 日志动作单点（4 页共用）：pin/remove + 缓存失效 + toast。 */
+/** 日志动作单点（4 页共用）：remove + 缓存失效 + toast。置顶能力已下线。 */
 export function useNoteActions() {
   const store = useNoteStore()
 
   function onChanged(): void {
     store.invalidate(AFFECTED_SCOPES)
-  }
-
-  async function togglePin(note: { id: number; pinned?: boolean }): Promise<void> {
-    try {
-      if (note.pinned) await unpinNote(note.id)
-      else await pinNote(note.id)
-      ElMessage.success('操作成功')
-      onChanged()
-    } catch (e) {
-      ElMessage.error(hint(e))
-    }
   }
 
   async function remove(note: { id: number }): Promise<void> {
@@ -42,5 +31,5 @@ export function useNoteActions() {
     }
   }
 
-  return { onChanged, togglePin, remove }
+  return { onChanged, remove }
 }

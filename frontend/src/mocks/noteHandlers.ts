@@ -24,7 +24,6 @@ interface NoteRow {
   id: number
   content: string
   logDate: string
-  pinned: boolean
   ownerId: number
   ownerName: string
   deptId: number | null
@@ -74,7 +73,6 @@ const notes: NoteRow[] = [
     id: 1001,
     content: '今天把工作日志的前端骨架搭起来了：列表壳、筛选条、右栏当日日志。',
     logDate: '2026-09-28',
-    pinned: true,
     ownerId: ME,
     ownerName: ME_NAME,
     deptId: ME_DEPT,
@@ -85,7 +83,6 @@ const notes: NoteRow[] = [
     id: 1002,
     content: '私有草稿：明天再补日志的移动端适配方案。',
     logDate: '2026-09-27',
-    pinned: false,
     ownerId: ME,
     ownerName: ME_NAME,
     deptId: ME_DEPT,
@@ -96,7 +93,6 @@ const notes: NoteRow[] = [
     id: 1004,
     content: '李四的日志：完成日志列表的懒加载与缓存淘汰。',
     logDate: '2026-09-28',
-    pinned: false,
     ownerId: 12,
     ownerName: '李四',
     deptId: 10,
@@ -107,7 +103,6 @@ const notes: NoteRow[] = [
     id: 1005,
     content: '张三的日志：部门树递归查询的几个坑。',
     logDate: '2026-09-26',
-    pinned: false,
     ownerId: 11,
     ownerName: '张三',
     deptId: 10,
@@ -118,7 +113,6 @@ const notes: NoteRow[] = [
     id: 1006,
     content: '王五的日志：市场部 Q3 复盘方法论。',
     logDate: '2026-09-24',
-    pinned: false,
     ownerId: 8,
     ownerName: '王五',
     deptId: 20,
@@ -129,7 +123,6 @@ const notes: NoteRow[] = [
     id: 1007,
     content: '李四的日志：被授权给管理员查看的联调记录。',
     logDate: '2026-09-20',
-    pinned: false,
     ownerId: 12,
     ownerName: '李四',
     deptId: 10,
@@ -206,7 +199,6 @@ function brief(n: NoteRow) {
     id: n.id,
     contentSummary: summaryOf(n.content),
     logDate: n.logDate,
-    pinned: n.pinned,
     ownerId: n.ownerId,
     ownerName: n.ownerName,
     canEdit: p.canEdit,
@@ -253,7 +245,6 @@ function detailOf(n: NoteRow) {
 function sortNotes(list: NoteRow[], sort: string): NoteRow[] {
   const byDate = (a: NoteRow, b: NoteRow): number => (a.logDate < b.logDate ? 1 : a.logDate > b.logDate ? -1 : 0)
   const sorted = [...list].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
     if (sort === 'log_date_asc') return -byDate(a, b)
     if (sort === 'created_desc' || sort === 'updated_desc') return b.id - a.id
     return byDate(a, b)
@@ -383,7 +374,6 @@ export const noteHandlers = [
     let list = notes.filter((n) => alive(n) && inScope(n, scope))
     if (keyword) list = list.filter((n) => n.content.toLowerCase().includes(keyword))
     if (date) list = list.filter((n) => n.logDate === date)
-    if (q.get('pinned') === 'true') list = list.filter((n) => n.pinned)
 
     const sorted = sortNotes(list, q.get('sort') ?? 'log_date_desc')
     const start = (page - 1) * size
@@ -409,7 +399,6 @@ export const noteHandlers = [
       content: body.content,
       // 与后端一致：日志日期固定为创建当天（Asia/Shanghai）
       logDate: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }),
-      pinned: false,
       ownerId: ME,
       ownerName: ME_NAME,
       deptId: ME_DEPT,
@@ -451,18 +440,6 @@ export const noteHandlers = [
     return ok(null)
   }),
 
-  http.post(`${AUTH}/notes/:id/pin`, ({ params }) => {
-    const n = notes.find((x) => String(x.id) === params.id)
-    if (!n) return fail(10004, '资源不存在', 404)
-    n.pinned = true
-    return ok(null)
-  }),
-  http.delete(`${AUTH}/notes/:id/pin`, ({ params }) => {
-    const n = notes.find((x) => String(x.id) === params.id)
-    if (!n) return fail(10004, '资源不存在', 404)
-    n.pinned = false
-    return ok(null)
-  }),
   // ---- 附件 ----
   http.get(`${AUTH}/notes/:id/attachments`, ({ params }) => {
     return ok(attachments.filter((a) => String(a.noteId) === params.id))

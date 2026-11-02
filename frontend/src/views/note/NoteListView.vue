@@ -51,8 +51,6 @@ const emit = defineEmits<{
   (e: 'retry'): void
   (e: 'open', id: number): void
   (e: 'edit', id: number): void
-  (e: 'pin', id: number): void
-  (e: 'unpin', id: number): void
   (e: 'remove', id: number): void
 }>()
 
@@ -128,8 +126,6 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
               @retry="emit('retry')"
               @open="(id) => emit('open', id)"
               @edit="(id) => emit('edit', id)"
-              @pin="(id) => emit('pin', id)"
-              @unpin="(id) => emit('unpin', id)"
               @remove="(id) => emit('remove', id)"
             />
           </div>

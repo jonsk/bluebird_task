@@ -32,7 +32,6 @@ function readQueryFromRoute(route: ReturnType<typeof useRoute>): NoteQueryPatch 
   return {
     page: num(q.page) ?? 1,
     keyword: typeof q.keyword === 'string' ? q.keyword : undefined,
-    pinned: q.pinned === 'true' ? true : q.pinned === 'false' ? false : undefined,
     date: typeof q.date === 'string' ? q.date : undefined,
     start: typeof q.start === 'string' ? q.start : undefined,
     end: typeof q.end === 'string' ? q.end : undefined,
@@ -118,7 +117,6 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
     const p = query.value
     if (page.value !== 1) q.page = String(page.value)
     if (p.keyword) q.keyword = p.keyword
-    if (p.pinned != null) q.pinned = String(p.pinned)
     if (p.date) q.date = p.date
     if (p.start) q.start = p.start
     if (p.end) q.end = p.end

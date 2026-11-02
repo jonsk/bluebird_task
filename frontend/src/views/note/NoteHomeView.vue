@@ -46,8 +46,6 @@ const {
   list,
   onOpen,
   onEdit,
-  onPin,
-  onUnpin,
   onRemove,
 } = page
 
@@ -79,7 +77,7 @@ function onSelectDate(date: string | null): void {
 
 function onCreated(): void {
   // 创建后直接刷新列表，不再弹出附件上传临时卡片
-  list.setQuery({ keyword: undefined, pinned: undefined, date: undefined })
+  list.setQuery({ keyword: undefined, date: undefined })
   ElMessage.success('已保存并回到第一页')
   list.refresh()
 }
@@ -112,8 +110,6 @@ function openDetail(id: number): void {
     @retry="list.refresh"
     @open="onOpen"
     @edit="onEdit"
-    @pin="onPin"
-    @unpin="onUnpin"
     @remove="onRemove"
   >
     <template #composer>

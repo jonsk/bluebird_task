@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Edit, Plus, Star, StarFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, Edit, Plus } from '@element-plus/icons-vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
 import NoteAttachmentList from '@/components/note/NoteAttachmentList.vue'
 import NoteRelationPicker from '@/components/note/NoteRelationPicker.vue'
@@ -64,13 +64,6 @@ const existingRefs = computed<NoteTargetRef[]>(() =>
 
 function back(): void {
   void router.push({ name: 'NoteHome' })
-}
-
-async function togglePin(): Promise<void> {
-  const d = detail.value
-  if (!d) return
-  await actions.togglePin({ id: Number(d.id), pinned: d.pinned })
-  detailApi.reload()
 }
 
 async function removeNote(): Promise<void> {
@@ -159,12 +152,8 @@ function openBacklink(sourceNoteId?: number): void {
         <div class="note-detail__meta">
           <span class="note-detail__logdate">{{ detail.logDate }}</span>
           <span class="note-detail__owner">{{ detail.ownerName }}</span>
-          <el-tag v-if="detail.pinned" size="small" type="warning" effect="plain">置顶</el-tag>
         </div>
         <div class="note-detail__ops">
-          <el-button v-if="detail.canEdit" size="small" :icon="detail.pinned ? StarFilled : Star" @click="togglePin">
-            {{ detail.pinned ? '取消置顶' : '置顶' }}
-          </el-button>
           <el-button v-if="detail.canEdit" size="small" type="primary" :icon="Edit" data-test="note-detail-edit" @click="editing = true">
             编辑
           </el-button>

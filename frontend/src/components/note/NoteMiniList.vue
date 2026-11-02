@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, StarFilled } from '@element-plus/icons-vue'
+import { ArrowRight } from '@element-plus/icons-vue'
 import type { NoteBrief } from '@/types/note'
 
 /** NoteMiniList — 右栏小列表（无分页），底部「查看全部」跳转。 */
@@ -32,7 +32,6 @@ const emit = defineEmits<{
       >
         <span class="note-mini-list__date">{{ note.logDate }}</span>
         <span class="note-mini-list__summary">{{ note.contentSummary || '（无内容）' }}</span>
-        <el-icon v-if="note.pinned" class="note-mini-list__pin"><StarFilled /></el-icon>
       </li>
     </ul>
     <div class="note-mini-list__footer">
@@ -73,9 +72,6 @@ const emit = defineEmits<{
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--bb-text-secondary);
-}
-.note-mini-list__pin {
-  color: #b88230;
 }
 .note-mini-list__footer {
   display: flex;

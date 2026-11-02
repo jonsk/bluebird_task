@@ -67,19 +67,6 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
     openDetail(id)
   }
 
-  async function withNote(id: number, fn: (note: NoteRow) => Promise<void>): Promise<void> {
-    const note = noteOf(id)
-    if (!note) return
-    await fn(note)
-    list.refresh()
-  }
-
-  async function onPin(id: number): Promise<void> {
-    await withNote(id, actions.togglePin)
-  }
-  async function onUnpin(id: number): Promise<void> {
-    await withNote(id, actions.togglePin)
-  }
   async function onRemove(id: number): Promise<void> {
     const note = noteOf(id)
     if (!note) return
@@ -111,8 +98,6 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
     query: list.query,
     onOpen,
     onEdit,
-    onPin,
-    onUnpin,
     onRemove,
   }
 }

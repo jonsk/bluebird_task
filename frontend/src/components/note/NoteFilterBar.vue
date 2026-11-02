@@ -4,9 +4,11 @@ import { Search } from '@element-plus/icons-vue'
 import type { NoteQuery, NoteQueryPatch, NoteScope, NoteSort } from '@/types/note'
 
 /**
- * NoteFilterBar — 关键词 / 置顶 / 排序 / 日期。
+ * NoteFilterBar — 关键词（+ 排序 / 日期）。
  * 所有变更 emit('change', patch) 由外壳（useNoteList）统一写入；本组件不请求。
  * 标签能力已下线，不再有标签筛选。
+ * 「全部/置顶」开关随 pinned 能力整体下线已移除。
+ * 「我的日志」(scope=mine) 仅保留关键词搜索；其余页面（员工/全部）另含排序与日期。
  */
 const props = withDefaults(
   defineProps<{
@@ -41,10 +43,6 @@ watch(
     if (v !== keyword.value) keyword.value = v ?? ''
   },
 )
-
-function onPinned(v: boolean | string | number): void {
-  emit('change', { pinned: v ? true : undefined })
-}
 </script>
 
 <template>
@@ -60,16 +58,8 @@ function onPinned(v: boolean | string | number): void {
         @clear="onKeyword('')"
       />
 
-      <el-switch
-        :model-value="Boolean(query.pinned)"
-        inline-prompt
-        active-text="置顶"
-        inactive-text="全部"
-        class="note-filter-bar__pin"
-        @change="onPinned"
-      />
-
       <el-select
+        v-if="scope !== 'mine'"
         :model-value="query.sort ?? 'log_date_desc'"
         class="note-filter-bar__sel"
         @change="(v: NoteSort) => emit('change', { sort: v })"
@@ -78,6 +68,7 @@ function onPinned(v: boolean | string | number): void {
       </el-select>
 
       <el-date-picker
+        v-if="scope !== 'mine'"
         :model-value="query.date"
         type="date"
         value-format="YYYY-MM-DD"

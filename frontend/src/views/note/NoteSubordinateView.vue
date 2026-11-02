@@ -18,8 +18,6 @@ const {
   list,
   onOpen,
   onEdit,
-  onPin,
-  onUnpin,
   onRemove,
 } = useNoteScopePage({
   emptyText: '员工暂无工作日志',
@@ -43,8 +41,6 @@ const {
     @retry="list.refresh"
     @open="onOpen"
     @edit="onEdit"
-    @pin="onPin"
-    @unpin="onUnpin"
     @remove="onRemove"
   />
 </template>
