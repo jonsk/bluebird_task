@@ -39,4 +39,10 @@ public class Task extends BaseEntity {
 
     @TableLogic
     private Integer deleted;
+
+    /** 回收站：删除时间（历史已删行为 null，界面按「未知」展示）。 */
+    private Instant deletedAt;
+
+    /** 回收站：删除人（历史已删行为 null）。 */
+    private Long deletedBy;
 }

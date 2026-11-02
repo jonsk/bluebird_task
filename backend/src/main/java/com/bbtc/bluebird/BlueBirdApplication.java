@@ -2,6 +2,7 @@ package com.bbtc.bluebird;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.mybatis.spring.annotation.MapperScan;
+import org.mybatis.spring.annotation.MapperScans;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -19,7 +20,13 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * {@code BindingException: Invalid bound statement (not found)}（附件上传 10000 的根因）。
  */
 @SpringBootApplication
-@MapperScan(basePackages = "com.bbtc.bluebird.modules", markerInterface = BaseMapper.class)
+@MapperScans({
+        // 主实体 mapper：只注册继承 BaseMapper 的接口（见类注释的坑）
+        @MapperScan(basePackages = "com.bbtc.bluebird.modules", markerInterface = BaseMapper.class),
+        // 回收站：跨 task/note 的纯查询 mapper，不继承 BaseMapper，需要按 @Mapper 注解单独注册
+        @MapperScan(basePackages = "com.bbtc.bluebird.modules.recycle.infrastructure",
+                annotationClass = org.apache.ibatis.annotations.Mapper.class)
+})
 @EnableAsync
 @EnableScheduling
 public class BlueBirdApplication {

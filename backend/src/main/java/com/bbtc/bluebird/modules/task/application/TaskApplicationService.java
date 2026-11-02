@@ -103,16 +103,36 @@ public class TaskApplicationService {
 
     @Transactional
     public void delete(Long id) {
-        Task t = authService.require(id);
+        authService.require(id);
         authService.assertWritable(id, UserContext.currentUserId());
-        // 级联软删子任务
-        List<Task> children = taskMapper.selectList(Wrappers.<Task>lambdaQuery().eq(Task::getParentId, id));
-        for (Task c : children) {
-            cascadeCleanup(c.getId());
-            taskMapper.deleteById(c.getId());
+        softDeleteSubtree(id);
+    }
+
+    /**
+     * 删除 = 只打逻辑删标记（进入回收站，可恢复），子树一并标记。
+     *
+     * <p>**不再清理**参与人 / 标签 / 收藏 / 自定义栏 / 附件：这些清理全部延后到
+     * {@link #purge(Long)}，否则恢复出来的任务只剩标题正文（2026-10-30 回收站改造）。
+     */
+    private void softDeleteSubtree(Long rootId) {
+        Long me = UserContext.currentUserId();
+        Instant now = Instant.now();
+        for (Long tid : taskMapper.selectSubtreeIds(rootId)) {
+            taskMapper.markDeleted(tid, now, me);
         }
-        cascadeCleanup(id);
-        taskMapper.deleteById(id);
+    }
+
+    /**
+     * 彻底删除（回收站专用，权限由调用方保证）：子树内每个节点先级联清理再物理删行。
+     *
+     * <p>级联清理沿用改造前的语义：参与人/标签/收藏/自定义栏硬删，附件按引用情况解绑或删盘。
+     */
+    @Transactional
+    public void purge(Long id) {
+        for (Long tid : taskMapper.selectSubtreeIds(id)) {
+            cascadeCleanup(tid);
+            taskMapper.hardDelete(tid);
+        }
     }
 
     private void cascadeCleanup(Long taskId) {

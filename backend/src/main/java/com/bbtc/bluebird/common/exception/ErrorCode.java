@@ -49,7 +49,12 @@ public enum ErrorCode {
     TASK_ATTACHMENT_NOT_LINKED(50020, "附件不属于该任务"),
     TASK_ATTACHMENT_FORBIDDEN(50021, "通用文件上传不允许携带 taskId；请走任务附件专用端点"),
 
-    SYNC_IN_PROGRESS(60001, "同步进行中");
+    SYNC_IN_PROGRESS(60001, "同步进行中"),
+
+    // 回收站（跨 task/note，2026-10-30）
+    RECYCLE_NOT_FOUND(70001, "回收站中不存在该记录"),
+    RECYCLE_PARENT_DELETED(70002, "上级任务已被彻底删除，无法恢复"),
+    RECYCLE_FORBIDDEN(70003, "无权操作该回收站记录");
 
     private final int code;
     private final String msg;

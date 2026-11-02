@@ -29,6 +29,8 @@ public final class SpaRoutes {
             "/allTask",
             "/calendar",
             "/calendar/*",
+            // 回收站（任务/日志统一入口，2026-10-30）
+            "/recycle",
             // 工作日志（note）：列表/详情/日历/授权（探索、本部门、归档已下线）
             "/notes",
             "/notes/**",
@@ -41,6 +43,7 @@ public final class SpaRoutes {
     public static final List<String> SAMPLE_PAGES = List.of(
             "/login", "/index", "/myJoin", "/myDo", "/myCollect",
             "/allTask", "/calendar/2026-10-01",
+            "/recycle",
             "/notes", "/notes/123", "/notes/calendar", "/notes/subordinate",
             "/admin", "/admin/users", "/admin/casdoor", "/admin/notes", "/admin/logs", "/admin/settings",
             "/403");
