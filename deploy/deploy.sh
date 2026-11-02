@@ -6,12 +6,12 @@
 # 默认值：
 #   代码目录   = 本脚本所在仓库根（自动识别）
 #   分支       = main
-#   运行目录   = <仓库根>/runtime（application.yml、data/、logs/、releases/ 都在这里）
+#   运行目录   = 仓库根的同级目录 bluebird-deploy（jar、application.yml、data/、logs/、releases/）
 #   端口       = 8080（SERVER_PORT 可覆盖）
 #   服务名     = bluebird（有该 systemd unit 就用它，否则 pidfile + nohup）
 #
 # 常用覆盖：
-#   --dir /opt/bluebird     换运行目录
+#   --dir /opt/bluebird     换运行目录（默认 <仓库根的上级>/bluebird-deploy）
 #   --no-pull               不拉代码，直接用当前工作区构建
 #   --no-build              跳过构建，装 --jar 指定的包（或上次构建产物）
 #   --jar /path/x.jar       直接安装已有 jar（隐含 --no-build）
@@ -21,7 +21,7 @@
 #   --dry-run               只打印将执行的动作
 #
 # 服务器依赖：git、JDK 21、Maven、Node 20+、pnpm（corepack enable）。
-# 运行目录不会被覆盖：application.yml 与 data/ 始终保留。
+# 运行目录不会被覆盖：application.yml 与 data/ 始终保留；旧版 <仓库根>/runtime 会自动迁移。
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +32,11 @@ else
   REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
 BRANCH="${BRANCH:-main}"
-APP_DIR="${APP_DIR:-$REPO_DIR/runtime}"
+# 运行目录默认放在仓库的同级目录（不写死任何用户名/绝对路径）：
+#   /path/to/<某个账号>/bluebird_task  ->  /path/to/<某个账号>/bluebird-deploy
+APP_DIR_NAME="bluebird-deploy"
+APP_DIR="${APP_DIR:-$(dirname "$REPO_DIR")/$APP_DIR_NAME}"
+LEGACY_APP_DIR="$REPO_DIR/runtime"
 JAR_NAME="bluebird-task.jar"
 PORT="${SERVER_PORT:-8080}"
 SERVICE="${BLUEBIRD_SERVICE:-bluebird}"
@@ -262,6 +266,19 @@ wait_healthy() {
 step "部署 $NEW_JAR -> $TARGET_JAR"
 run mkdir -p "$APP_DIR" "$RELEASES"
 
+# 旧版把运行目录放在 <仓库根>/runtime；新目录还没有配置和数据时一次性迁过来
+if [[ "$APP_DIR" != "$LEGACY_APP_DIR" && -d "$LEGACY_APP_DIR" \
+      && ! -e "$APP_DIR/application.yml" && ! -d "$APP_DIR/data" ]]; then
+  echo "   发现旧运行目录 $LEGACY_APP_DIR，迁移配置与数据"
+  if [[ -f "$LEGACY_APP_DIR/application.yml" ]]; then
+    run cp -f "$LEGACY_APP_DIR/application.yml" "$APP_DIR/application.yml"
+  fi
+  if [[ -d "$LEGACY_APP_DIR/data" ]]; then
+    run cp -a "$LEGACY_APP_DIR/data" "$APP_DIR/"
+  fi
+  echo "   迁移完成；确认无误后可手动删除 $LEGACY_APP_DIR"
+fi
+
 if [[ -f "$TARGET_JAR" ]]; then
   step "备份当前包 -> $RELEASES/bluebird-task-$STAMP.jar"
   run cp -f "$TARGET_JAR" "$RELEASES/bluebird-task-$STAMP.jar"
@@ -309,6 +326,7 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
 fi
 
 step "完成"
+echo "   运行目录：$APP_DIR"
 echo "   包：$TARGET_JAR"
 echo "   端口：$PORT"
 echo "   健康：$(curl -fsS --max-time 3 "$HEALTH_URL" 2>/dev/null || echo '<未响应>')"
