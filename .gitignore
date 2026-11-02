@@ -80,3 +80,4 @@ data/
 deploy/out/
 # ---- 部署运行目录（deploy/deploy.sh 默认 APP_DIR）----
 /runtime/
+Task/

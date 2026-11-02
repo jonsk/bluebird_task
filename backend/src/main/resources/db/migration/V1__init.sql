@@ -1,5 +1,5 @@
 -- BlueBird Task · SQLite 初始化 schema（V1__init.sql）
--- 唯一权威源：Task/02后端模块详细设计.md 各模块「数据表」小节（ADR-004）
+-- 唯一权威源：后端模块详细设计文档各模块「数据表」小节（ADR-004；设计文档在仓库外维护）
 -- 类型映射（ADR-016）：BIGINT→INTEGER、VARCHAR(n)→TEXT、SMALLINT/BOOLEAN→INTEGER、
 --   TIMESTAMPTZ→TEXT(ISO-8601)、JSONB→TEXT(JSON)；时间列默认 strftime。
 -- 逻辑删除：仅主实体表（sys_user / task / category / sys_department）含 deleted 列。

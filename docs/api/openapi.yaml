@@ -7,7 +7,7 @@ info:
     统一前缀 `/api/v1`；统一响应 `ApiResult{code,message,data,traceId}`。成功/业务失败 **HTTP 200**（业务码表达结果，见 `02 §1.3`）；
     鉴权与资源定位失败改用真实 HTTP 状态：`401`（未认证）、`403`（无权限，body 仍为 `ApiResult` 且 `code` 为 5xxxx/对应业务码）、`404`（资源不存在或不可见）、`400`（参数/请求体校验失败）、`409`（冲突，如附件仍被引用）。
     错误码区间（枚举权威源 `02 §1.4` + `docs/Note模块后端开发方案.md`）：`1xxxx=common`、`2xxxx=identity`、`3xxxx=task`、`4xxxx=file`、`5xxxx=note`、`6xxxx=org/同步`。
-    时间统一 ISO8601 + `+08:00`。详见 `Task/02后端模块详细设计.md`。
+    时间统一 ISO8601 + `+08:00`。详见后端模块详细设计文档（仓库外维护）。
     约定：用户/个人数据响应统一 `Cache-Control: no-store`；秘密一律不入 URL（token 走 `Authorization` 头，密码/密钥走请求体；query 仅非敏感参数）。
 servers:
   - url: /api/v1
