@@ -201,8 +201,25 @@ else
 fi
 
 [[ -f "$NEW_JAR" ]] || die "找不到待部署的 jar：$NEW_JAR"
+
+# 校验是不是 Spring Boot 可执行 jar。
+# 注意不能写成 `unzip -l | grep -q`：pipefail 下 grep 提前退出会让 unzip 收到 SIGPIPE，
+# 管道整体被判失败。这里先把清单读进变量再判断。
+jar_entries=""
 if command -v unzip >/dev/null 2>&1; then
-  unzip -l "$NEW_JAR" | grep -q 'BOOT-INF/classes/' || die "$NEW_JAR 不是 Spring Boot 可执行 jar"
+  jar_entries="$(unzip -l "$NEW_JAR" 2>/dev/null || true)"
+elif command -v jar >/dev/null 2>&1; then
+  jar_entries="$(jar tf "$NEW_JAR" 2>/dev/null || true)"
+fi
+if [[ -n "$jar_entries" ]]; then
+  if ! grep -q 'BOOT-INF/classes/' <<<"$jar_entries"; then
+    echo "   包内前几个条目：" >&2
+    awk 'NR>3 && NF>=4 {print "     " $4}' <<<"$jar_entries" | head -5 >&2
+    die "$NEW_JAR 不是 Spring Boot 可执行 jar（检查 spring-boot-maven-plugin 的 repackage 是否执行）"
+  fi
+  if ! grep -q 'BOOT-INF/classes/static/index.html' <<<"$jar_entries"; then
+    echo "   警告：jar 内未找到 frontend 产物（static/index.html），前端可能没打进去" >&2
+  fi
 fi
 
 # ---------------------------------------------------------------- 安装
