@@ -110,7 +110,7 @@ function openDetail(id: number): void {
     :active-id="activeId"
     :error-mode="errorMode"
     :empty-text="emptyText"
-    show-composer
+    :show-composer="editId == null"
     @change="list.setQuery"
     @page-change="list.setPage"
     @retry="list.refresh"
