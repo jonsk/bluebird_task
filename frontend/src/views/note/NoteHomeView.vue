@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import NoteListView from './NoteListView.vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
 import NoteMiniList from '@/components/note/NoteMiniList.vue'
@@ -75,16 +74,23 @@ function onSelectDate(date: string | null): void {
   side.setQuery({ date: date ?? undefined })
 }
 
-function onCreated(): void {
-  // 创建后直接刷新列表，不再弹出附件上传临时卡片
+/**
+ * 新建框自动保存：首次落库（created）时清掉筛选并刷新，让新日志立刻出现在列表里；
+ * 后续的自动更新不打扰列表（避免每敲一会儿列表就跳一次）。
+ */
+function onComposerSaved(_detail: unknown, meta: { created: boolean }): void {
+  if (!meta.created) return
   list.setQuery({ keyword: undefined, date: undefined })
-  ElMessage.success('已保存并回到第一页')
   list.refresh()
 }
 
-function onEditorSaved(): void {
+/** 行内编辑自动保存：只刷新卡片摘要，面板保持打开（Esc 收起）。 */
+function onInlineSaved(): void {
+  list.refresh()
+}
+
+function closeInlineEditor(): void {
   editId.value = null
-  ElMessage.success('已保存')
   list.refresh()
 }
 
@@ -113,7 +119,7 @@ function openDetail(id: number): void {
     @remove="onRemove"
   >
     <template #composer>
-      <NoteEditor @saved="onCreated" />
+      <NoteEditor @saved="onComposerSaved" />
     </template>
 
     <template #editor>
@@ -121,8 +127,9 @@ function openDetail(id: number): void {
         <NoteEditor
           :key="`edit:${editId}`"
           :note-id="editId"
-          @saved="onEditorSaved"
-          @cancel="editId = null"
+          closable
+          @saved="onInlineSaved"
+          @cancel="closeInlineEditor"
         />
       </div>
     </template>

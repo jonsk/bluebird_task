@@ -112,8 +112,9 @@ async function mountEdit(payload: Record<string, unknown>): Promise<VueWrapper> 
   return w
 }
 
+/** 立即保存：Ctrl+Enter（自动保存的防抖版本另外用假定时器测）。 */
 async function submit(w: VueWrapper): Promise<void> {
-  await w.findAllComponents(ElButton)[0].trigger('click')
+  await w.find('[data-test="note-editor"]').trigger('keydown', { key: 'Enter', ctrlKey: true })
   await flushPromises()
 }
 
@@ -183,6 +184,51 @@ describe('NoteEditor × fieldPermissions', () => {
     await type('今天的工作')
     await submit(w)
     expect(createNote).toHaveBeenCalledWith({ content: '今天的工作' })
+  })
+
+  it('没有保存/取消按钮，只保留自动保存状态行', async () => {
+    const w = mount(NoteEditor, { global: { components } })
+    await settle()
+    expect(w.find('[data-test="note-editor-save"]').exists()).toBe(false)
+    expect(w.find('[data-test="note-editor-status"]').exists()).toBe(true)
+    expect(w.find('[data-test="note-editor-status"]').text()).toContain('自动保存')
+  })
+
+  it('自动保存：停止输入 1.2s 后创建；只有日期标题时不落库', async () => {
+    vi.useFakeTimers()
+    try {
+      mount(NoteEditor, { global: { components } })
+      await settle()
+
+      // 只有预置标题 → 不该凭空建一条日志
+      editorOf().opts.input(editorOf().opts.value)
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(createNote).not.toHaveBeenCalled()
+
+      createNote.mockResolvedValue(detail())
+      editorOf().opts.input('# 2026年11月3日\n\n今日进展')
+      await vi.advanceTimersByTimeAsync(1200)
+      await flushPromises()
+      expect(createNote).toHaveBeenCalledWith({ content: '# 2026年11月3日\n\n今日进展' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('新建落库后继续输入：走 update，不会重复创建', async () => {
+    const w = mount(NoteEditor, { global: { components } })
+    await settle()
+    createNote.mockResolvedValue(detail())
+    updateNote.mockResolvedValue(detail({ content: '第一段\n第二段', version: 2 }))
+
+    await type('第一段')
+    await submit(w)
+    expect(createNote).toHaveBeenCalledTimes(1)
+
+    await type('第一段\n第二段')
+    await submit(w)
+    expect(createNote).toHaveBeenCalledTimes(1)
+    expect(updateNote).toHaveBeenCalledWith(1001, { content: '第一段\n第二段', version: 1 })
   })
 
   it('编辑态详情请求失败不长时间渲染 loading 骨架', async () => {

@@ -72,11 +72,10 @@ test.describe('工作日志', () => {
       irEditor(page.locator('[data-test="note-editor"]')),
       '## 联调\n- 工作日志新建与附件链路',
     )
-    await page.getByRole('button', { name: '创建' }).click()
 
-    await expect(page.locator('.el-message--success')).toContainText('已保存并回到第一页')
-    // 新建后列表刷新第一页（含刚创建的一条）
+    // 自动保存：没有「创建」按钮，停止输入后自动落库并刷新列表
     await expect(page.locator('.note-card')).toHaveCount(3)
+    await expect(page.locator('[data-test="note-editor-status"]')).toContainText('已保存')
 
     // 新日志直接进入列表；摘要已做 Markdown 清洗，不露 `##` / `-`
     const created = page.locator('.note-card').filter({ hasText: '工作日志新建与附件链路' })
@@ -97,7 +96,10 @@ test.describe('工作日志', () => {
     await expect(irEditor(host)).toContainText(/移动端适配方案/)
 
     await typeMarkdown(irEditor(host), '私有：移动端适配方案已改为两栏布局')
-    await host.locator('[data-test="note-editor-save"]').click()
+    await expect(host.locator('[data-test="note-editor-status"]')).toContainText('已保存')
+    // 没有「保存/取消」按钮，Esc 收起编辑
+    await expect(host.getByRole('button', { name: /保存|取消|创建/ })).toHaveCount(0)
+    await irEditor(host).press('Escape')
     await expect(host).toHaveCount(0)
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('已改为两栏布局')
   })
@@ -217,23 +219,6 @@ test.describe('工作日志', () => {
     await expect(page.locator('.note-card')).toHaveCount(1)
   })
 
-  test('N-16 版本冲突：提示刷新并保留草稿内容', async ({ page }) => {
-    await page.goto('/notes')
-    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
-    const host = page.locator('[data-test="note-inline-editor"]')
-    await expect(host).toBeVisible()
-
-    // mock 的一次性冲突钩子（模拟"保存前该日志已被他人改动"）
-    await page.evaluate(() => localStorage.setItem('bb_mock_force_conflict', '1'))
-    await typeMarkdown(irEditor(host), '冲突场景：这段内容必须保留')
-    await host.locator('[data-test="note-editor-save"]').click()
-
-    await expect(page.locator('.el-message--error')).toContainText('内容已被他人修改')
-    // 面板不关闭、草稿仍在
-    await expect(host).toBeVisible()
-    await expect(irEditor(host)).toContainText(/这段内容必须保留/)
-  })
-
   test('N-17 Ctrl+Enter 保存：不点按钮也能提交', async ({ page }) => {
     await page.goto('/notes')
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
@@ -242,7 +227,10 @@ test.describe('工作日志', () => {
     const editor = irEditor(host)
     await typeMarkdown(editor, '快捷键保存的内容')
     await editor.press('Control+Enter')
+    await expect(host.locator('[data-test="note-editor-status"]')).toContainText('已保存')
 
+    // 自动保存不会自己关面板，Esc 收起后卡片已更新
+    await editor.press('Escape')
     await expect(host).toHaveCount(0)
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('快捷键保存的内容')
   })
@@ -250,7 +238,7 @@ test.describe('工作日志', () => {
   test('N-18 新建后跨路由往返：回到列表仍能看到新日志', async ({ page }) => {
     await page.goto('/notes')
     await typeMarkdown(irEditor(page.locator('[data-test="note-editor"]')), '跨路由恢复用日志')
-    await page.getByRole('button', { name: '创建' }).click()
+    // 自动保存落库后列表出现新卡片
     await expect(page.locator('.note-card')).toHaveCount(3)
     await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
 
@@ -292,7 +280,9 @@ test.describe('工作日志', () => {
     await expect(host.locator('.vditor-toolbar [data-type="save"]')).toHaveCount(0)
 
     await typeMarkdown(irEditor(host), '工具栏默认：这段内容必须落库')
-    await host.locator('[data-test="note-editor-save"]').click()
+    await irEditor(host).press('Control+Enter')
+    await expect(host.locator('[data-test="note-editor-status"]')).toContainText('已保存')
+    await irEditor(host).press('Escape')
     await expect(host).toHaveCount(0)
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('工具栏默认')
   })

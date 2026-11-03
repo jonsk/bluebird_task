@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { ArrowLeft, Delete, Edit } from '@element-plus/icons-vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
 import NoteAttachmentList from '@/components/note/NoteAttachmentList.vue'
@@ -131,12 +131,15 @@ async function removeNote(): Promise<void> {
   void router.push({ name: 'NoteHome' })
 }
 
+/** 自动保存成功：保持编辑态继续写；列表缓存先失效，回到列表时取新数据。 */
 function onSaved(): void {
-  editing.value = false
-  ElMessage.success('已保存')
-  detailApi.reload()
-  // 列表缓存与详情已不一致，回到列表时必须是新数据
   store.invalidate(['mine', 'subordinate', 'visible', 'all'])
+}
+
+/** Esc 收起编辑：回到只读视图并重新拉一次详情。 */
+function onCancelEdit(): void {
+  editing.value = false
+  detailApi.reload()
 }
 </script>
 
@@ -183,8 +186,9 @@ function onSaved(): void {
       <section v-if="editing" class="note-detail__editor">
         <NoteEditor
           :note-id="Number(detail.id)"
+          closable
           @saved="onSaved"
-          @cancel="editing = false"
+          @cancel="onCancelEdit"
           @attachments-changed="detailApi.reload()"
         />
       </section>

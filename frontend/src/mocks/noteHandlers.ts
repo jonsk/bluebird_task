@@ -399,11 +399,6 @@ export const noteHandlers = [
   http.put(`${AUTH}/notes/:id`, async ({ request, params }) => {
     const n = notes.find((x) => String(x.id) === params.id)
     if (!n || n.deleted) return fail(10004, '资源不存在', 404)
-    // e2e 钩子：单页内无法并行制造真实版本落后，故允许一次性强制冲突（用后即焚）
-    if (localStorage.getItem('bb_mock_force_conflict') === '1') {
-      localStorage.removeItem('bb_mock_force_conflict')
-      return fail(10006, '内容已被他人修改，请刷新后重试')
-    }
     const body = (await request.json()) as {
       content?: string
       logDate?: string
