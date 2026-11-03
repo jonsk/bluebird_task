@@ -27,6 +27,15 @@ const today = todayInShanghai()
 const selectedDate = ref<string | null>(today)
 const editId = ref<number | null>(null)
 
+/**
+ * 新建框（composer）状态：
+ * - `composerOpen`：新建框是否展开。「完成编辑」后收起，底部显示「新建日志」按钮重新展开。
+ * - `composerId`：本次草稿首次落库后的日志 id。保存后台自动把这条生成了，但按需求
+ *   它不应立刻出现在列表里——只有用户点「完成编辑」退出这条草稿时才显示。
+ */
+const composerOpen = ref(true)
+const composerId = ref<number | null>(null)
+
 /** 行内编辑器的保存状态（compact 模式下状态行被隐藏，改到标题栏展示）。 */
 type InlineEditorExpose = {
   status: 'idle' | 'saving' | 'saved' | 'error'
@@ -35,10 +44,15 @@ type InlineEditorExpose = {
   saveNow: () => Promise<void>
 }
 const inlineEditorRef = ref<InlineEditorExpose | null>(null)
+/** 新建框编辑器引用（完成编辑时先强制保存草稿）。 */
+const composerEditorRef = ref<InlineEditorExpose | null>(null)
 
 const page = useNoteScopePage({
   emptyText: '还没有工作日志，写下今天的第一条吧',
   onOpenEditor: (id) => {
+    // 切去编辑既有日志时，新建框会被隐藏（卸载）；若草稿已由自动保存落库，
+    // 重置隐藏 id 让其放行显示，避免残留导致该草稿一直从列表里消失。
+    composerId.value = null
     editId.value = id
   },
 })
@@ -69,12 +83,15 @@ const activeId = computed(() =>
 )
 
 /**
- * 主列表展示数据：行内编辑某条日志时，把正在编辑的那条从列表中隐藏
- * （只显示"未在编辑"的日志），避免编辑内容与列表卡片并存造成困惑。
+ * 主列表展示数据：把「正在被编辑/正在新建且未完成」的日志从列表中隐藏，
+ * 避免编辑/撰写内容与列表卡片并存造成困惑。这两类只有退出（关掉宿主）后才出现在列表里。
  */
-const displayNotes = computed(() =>
-  editId.value == null ? notes.value : notes.value.filter((n) => n.id !== editId.value),
-)
+const displayNotes = computed(() => {
+  const hide = new Set<number>()
+  if (editId.value != null) hide.add(editId.value)
+  if (composerOpen.value && composerId.value != null) hide.add(composerId.value)
+  return hide.size ? notes.value.filter((n) => !hide.has(n.id)) : notes.value
+})
 
 /** 正在编辑的日志（用于标题栏提示），列表里被隐藏但仍可在此取日期做标识。 */
 const editingNote = computed(() =>
@@ -97,12 +114,35 @@ function onSelectDate(date: string | null): void {
 }
 
 /**
- * 新建框自动保存：首次落库（created）时清掉筛选并刷新，让新日志立刻出现在列表里；
- * 后续的自动更新不打扰列表（避免每敲一会儿列表就跳一次）。
+ * 新建框自动保存：首次落库（created）时记下草稿 id（列表先把它隐藏），
+ * 并清掉筛选/刷新让后台数据就绪——但列表里的显示由 displayNotes 管控，退出编辑才真正出现。
  */
-function onComposerSaved(_detail: unknown, meta: { created: boolean }): void {
-  if (!meta.created) return
-  list.setQuery({ keyword: undefined, date: undefined })
+function onComposerSaved(detail: { id: number }, meta: { created: boolean }): void {
+  if (meta.created) {
+    composerId.value = Number(detail.id)
+    list.setQuery({ keyword: undefined, date: undefined })
+    list.refresh()
+  }
+}
+
+/**
+ * 「完成编辑」：先把未落库的改动强制保存掉，再收起新建框并解除对草稿的隐藏，
+ * 让这条新日志在列表中显示。下次要新建再点「新建日志」重新展开。
+ */
+async function finishComposer(): Promise<void> {
+  try {
+    await composerEditorRef.value?.saveNow()
+  } finally {
+    composerId.value = null
+    composerOpen.value = false
+    list.refresh()
+  }
+}
+
+/** 展开一个全新的新建框（重置已隐藏的草稿 id）。 */
+function openComposer(): void {
+  composerId.value = null
+  composerOpen.value = true
   list.refresh()
 }
 
@@ -146,7 +186,33 @@ function openDetail(id: number): void {
     @remove="onRemove"
   >
     <template #composer>
-      <NoteEditor @saved="onComposerSaved" />
+      <div v-if="composerOpen" class="note-inline-editor note-composer" data-test="note-composer">
+        <div class="note-inline-editor__bar">
+          <span class="note-inline-editor__label">新建日志 · {{ today }}</span>
+          <el-button
+            size="small"
+            type="primary"
+            plain
+            data-test="note-composer-done"
+            @click="finishComposer"
+          >
+            完成编辑
+          </el-button>
+        </div>
+        <NoteEditor
+          ref="composerEditorRef"
+          compact
+          @saved="onComposerSaved"
+        />
+      </div>
+      <el-button
+        v-else
+        class="note-composer__new"
+        data-test="note-composer-reopen"
+        @click="openComposer"
+      >
+        新建日志
+      </el-button>
     </template>
 
     <template #editor>
@@ -259,6 +325,10 @@ function openDetail(id: number): void {
   cursor: pointer;
   color: var(--bb-danger, #f56c6c);
   text-decoration: underline;
+}
+/* 新建框收起后的「新建日志」入口 */
+.note-composer__new {
+  width: 100%;
 }
 .note-side {
   flex: 0 0 var(--bb-calendar-width);

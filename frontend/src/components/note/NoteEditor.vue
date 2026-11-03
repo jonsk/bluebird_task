@@ -206,6 +206,7 @@ async function createVditor(): Promise<void> {
     })
     if (readOnly) vditor.disabled()
     await nextTick()
+    attachToolbarTips()
     hydrator = watchMarkdownImages(() => hostRef.value)
   })()
   await creating
@@ -217,6 +218,53 @@ function destroyVditor(): void {
   hydrator = null
   vditor?.destroy()
   vditor = null
+}
+
+/**
+ * 给工具栏图标补悬停提示。
+ *
+ * 不依赖 Vditor 内部 tooltip 机制（其是否展示受版本/i18n/主题影响，不一定可靠），
+ * 直接给每个工具栏按钮补上原生 `title`，浏览器鼠标悬停即有提示。
+ * 只在实例创建/重建后调用一次（重建会重新生成工具栏 DOM）。
+ */
+const TOOLBAR_TIPS: Record<string, string> = {
+  headings: '标题',
+  bold: '粗体',
+  italic: '斜体',
+  strike: '删除线',
+  link: '链接',
+  list: '无序列表',
+  'ordered-list': '有序列表',
+  check: '任务列表',
+  outdent: '列表反向缩进',
+  indent: '列表缩进',
+  quote: '引用',
+  line: '分隔线',
+  code: '代码块',
+  'inline-code': '行内代码',
+  'insert-before': '在上方插入行',
+  'insert-after': '在下方插入行',
+  upload: '上传图片或文件',
+  table: '表格',
+  undo: '撤销',
+  redo: '重做',
+  fullscreen: '全屏切换',
+  'edit-mode': '切换编辑模式',
+  both: '编辑 & 预览',
+  outline: '大纲',
+  info: '关于',
+  more: '更多',
+  emoji: '表情',
+  export: '导出',
+}
+function attachToolbarTips(): void {
+  const host = hostRef.value
+  if (!host) return
+  host.querySelectorAll('.vditor-toolbar__item, .vditor-menu [data-type]').forEach((el) => {
+    const btn = el as HTMLElement
+    const tip = TOOLBAR_TIPS[btn.dataset.type ?? '']
+    if (tip && !btn.title) btn.title = tip
+  })
 }
 
 /** 详情加载完成后（v-if 放行）再挂载；切换日志时重建，避免把上一条的内容留在编辑器里。 */
