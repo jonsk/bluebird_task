@@ -59,6 +59,19 @@ const activeId = computed(() =>
   noteStore.activeScopeId === 'mine' ? noteStore.activeNoteId : null,
 )
 
+/**
+ * 主列表展示数据：行内编辑某条日志时，把正在编辑的那条从列表中隐藏
+ * （只显示"未在编辑"的日志），避免编辑内容与列表卡片并存造成困惑。
+ */
+const displayNotes = computed(() =>
+  editId.value == null ? notes.value : notes.value.filter((n) => n.id !== editId.value),
+)
+
+/** 正在编辑的日志（用于标题栏提示），列表里被隐藏但仍可在此取日期做标识。 */
+const editingNote = computed(() =>
+  editId.value == null ? undefined : notes.value.find((n) => n.id === editId.value),
+)
+
 onMounted(() => {
   side.setQuery({ date: selectedDate.value ?? today })
 })
@@ -101,7 +114,7 @@ function openDetail(id: number): void {
 
 <template>
   <NoteListView
-    :notes="notes"
+    :notes="displayNotes"
     :query="query"
     :page="pageNo"
     :total="total"
@@ -124,6 +137,20 @@ function openDetail(id: number): void {
 
     <template #editor>
       <div v-if="editId != null" class="note-inline-editor" data-test="note-inline-editor">
+        <div class="note-inline-editor__bar">
+          <span class="note-inline-editor__label">
+            正在编辑<template v-if="editingNote?.logDate"> · {{ editingNote.logDate }}</template>
+          </span>
+          <el-button
+            size="small"
+            type="primary"
+            plain
+            data-test="note-inline-done"
+            @click="closeInlineEditor"
+          >
+            完成编辑
+          </el-button>
+        </div>
         <NoteEditor
           :key="`edit:${editId}`"
           :note-id="editId"
@@ -131,6 +158,7 @@ function openDetail(id: number): void {
           @saved="onInlineSaved"
           @cancel="closeInlineEditor"
         />
+        <p class="note-inline-editor__hint">内容自动保存；完成编辑后收起，上方可新建新日志</p>
       </div>
     </template>
 
@@ -168,6 +196,23 @@ function openDetail(id: number): void {
   border: 1px solid var(--bg-accent);
   border-radius: var(--bb-radius-sm);
   background: var(--bg-primary);
+}
+.note-inline-editor__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.note-inline-editor__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bb-text-secondary);
+}
+.note-inline-editor__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--bb-text-secondary);
 }
 .note-side {
   flex: 0 0 var(--bb-calendar-width);
