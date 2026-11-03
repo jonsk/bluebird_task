@@ -204,8 +204,8 @@ function onSaved(): void {
 </template>
 
 <style scoped>
+/* 不再限制 900px：正文/编辑器铺满列表区域（侧栏之外）的可用宽度 */
 .note-detail {
-  max-width: 900px;
   padding: 20px var(--bb-page-padding) 48px;
   box-sizing: border-box;
 }

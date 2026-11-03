@@ -364,8 +364,12 @@ async function onUploadImg(files: File[]): Promise<string> {
   margin-top: 12px;
 }
 
-/* Vditor 内容区最小高度：空文档时也有可点击的书写区域 */
+/* 内容区：空文档时也有可点击的书写区域（min-height）；
+   横向留白收窄到 4px（Vditor 默认 .vditor-reset 左右各 10px，叠在页面栅格上缩进过多），
+   只留一点避免正文贴到 1px 边框上，纵向 padding 维持 Vditor 默认的 10px。 */
 .note-editor__content :deep(.vditor-reset) {
   min-height: 240px;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 </style>
