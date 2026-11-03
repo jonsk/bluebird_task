@@ -47,8 +47,13 @@ const props = withDefaults(
     fieldPermissions?: { content?: boolean }
     /** 宿主是否监听 `cancel`（行内编辑 / 详情编辑为 true）；true 时状态行提示「按 Esc 收起」 */
     closable?: boolean
+    /**
+     * 紧凑模式：隐藏编辑器内部的状态行与「日志日期」提示，由宿主自行在标题栏展示保存状态。
+     * 用于列表行内编辑（NoteHomeView）这类有独立「正在编辑」标题栏的场景。
+     */
+    compact?: boolean
   }>(),
-  { noteId: null, initial: null, fieldPermissions: () => ({}), closable: false },
+  { noteId: null, initial: null, fieldPermissions: () => ({}), closable: false, compact: false },
 )
 
 /**
@@ -415,6 +420,19 @@ async function onUploadImg(files: File[]): Promise<string> {
   if (failed && !urls.length) return '图片上传失败'
   return ''
 }
+
+/* ==================== 暴露给宿主 ==================== */
+
+/**
+ * 紧凑模式（compact）下隐藏了编辑器内部的状态行，宿主需要自行渲染保存状态。
+ * 这里把保存状态 ref 与重试函数暴露出去，宿主可直接读取 / 调用。
+ */
+defineExpose({
+  status,
+  savedAt,
+  errorMessage,
+  saveNow,
+})
 </script>
 
 <template>
@@ -424,7 +442,7 @@ async function onUploadImg(files: File[]): Promise<string> {
     <template v-else>
       <div ref="hostRef" class="note-editor__content" data-test="note-editor-content" />
 
-      <p v-if="isEdit && logDate" class="note-editor__meta" data-test="note-editor-logdate">
+      <p v-if="isEdit && logDate && !compact" class="note-editor__meta" data-test="note-editor-logdate">
         日志日期：{{ logDate }}（创建后不可修改）
       </p>
       <p v-if="!canEditContent" class="note-editor__hint" data-test="note-editor-readonly-hint">
@@ -433,7 +451,7 @@ async function onUploadImg(files: File[]): Promise<string> {
 
       <!-- 自动保存：无常驻按钮，只显示状态；按 Esc 收起编辑 -->
       <div
-        v-if="canEditContent"
+        v-if="canEditContent && !compact"
         class="note-editor__status"
         :class="`is-${status}`"
         data-test="note-editor-status"

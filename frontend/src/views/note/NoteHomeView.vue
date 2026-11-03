@@ -27,6 +27,15 @@ const today = todayInShanghai()
 const selectedDate = ref<string | null>(today)
 const editId = ref<number | null>(null)
 
+/** 行内编辑器的保存状态（compact 模式下状态行被隐藏，改到标题栏展示）。 */
+type InlineEditorExpose = {
+  status: 'idle' | 'saving' | 'saved' | 'error'
+  savedAt: string
+  errorMessage: string
+  saveNow: () => Promise<void>
+}
+const inlineEditorRef = ref<InlineEditorExpose | null>(null)
+
 const page = useNoteScopePage({
   emptyText: '还没有工作日志，写下今天的第一条吧',
   onOpenEditor: (id) => {
@@ -107,6 +116,11 @@ function closeInlineEditor(): void {
   list.refresh()
 }
 
+/** 标题栏上的「保存失败，点击重试」：把重试动作转发给行内编辑器。 */
+function retryInlineSave(): void {
+  void inlineEditorRef.value?.saveNow()
+}
+
 function openDetail(id: number): void {
   void router.push({ name: 'NoteDetail', params: { id: String(id) } })
 }
@@ -140,6 +154,21 @@ function openDetail(id: number): void {
         <div class="note-inline-editor__bar">
           <span class="note-inline-editor__label">
             正在编辑<template v-if="editingNote?.logDate"> · {{ editingNote.logDate }}</template>
+            <template v-if="inlineEditorRef?.status === 'saving'">
+              <span class="note-inline-editor__save is-saving">保存中…</span>
+            </template>
+            <template v-else-if="inlineEditorRef?.status === 'saved'">
+              <span class="note-inline-editor__save is-saved">已保存 {{ inlineEditorRef.savedAt }}</span>
+            </template>
+            <template v-else-if="inlineEditorRef?.status === 'error'">
+              <button
+                class="note-inline-editor__save note-inline-editor__retry"
+                type="button"
+                @click="retryInlineSave"
+              >
+                {{ inlineEditorRef.errorMessage }}，点击重试
+              </button>
+            </template>
           </span>
           <el-button
             size="small"
@@ -152,13 +181,14 @@ function openDetail(id: number): void {
           </el-button>
         </div>
         <NoteEditor
+          ref="inlineEditorRef"
           :key="`edit:${editId}`"
           :note-id="editId"
+          compact
           closable
           @saved="onInlineSaved"
           @cancel="closeInlineEditor"
         />
-        <p class="note-inline-editor__hint">内容自动保存；完成编辑后收起，上方可新建新日志</p>
       </div>
     </template>
 
@@ -208,11 +238,27 @@ function openDetail(id: number): void {
   font-size: 13px;
   font-weight: 500;
   color: var(--bb-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.note-inline-editor__hint {
-  margin: 8px 0 0;
+.note-inline-editor__save {
   font-size: 12px;
+  font-weight: 400;
+}
+.note-inline-editor__save.is-saving {
   color: var(--bb-text-secondary);
+}
+.note-inline-editor__save.is-saved {
+  color: var(--bb-success, #67c23a);
+}
+.note-inline-editor__save.note-inline-editor__retry {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--bb-danger, #f56c6c);
+  text-decoration: underline;
 }
 .note-side {
   flex: 0 0 var(--bb-calendar-width);
