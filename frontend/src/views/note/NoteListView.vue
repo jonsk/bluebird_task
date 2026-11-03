@@ -10,6 +10,7 @@ import {
 } from '@element-plus/icons-vue'
 import NoteList from '@/components/note/NoteList.vue'
 import NoteFilterBar from '@/components/note/NoteFilterBar.vue'
+import NoteSearchInput from '@/components/note/NoteSearchInput.vue'
 import type { NoteBrief, NoteQuery, NoteQueryPatch, NoteScope } from '@/types/note'
 import { formatHeaderDate } from '@/utils/date'
 
@@ -86,14 +87,23 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
                 <div class="r-b-t-l-l-t-bottom">{{ headerDate }}</div>
               </div>
             </div>
+
+            <!-- 搜索框与「我的一天」同位置：标题栏右侧，不随列表滚动 -->
+            <div class="r-b-t-l-right">
+              <NoteSearchInput
+                :query="query"
+                :loading="loading"
+                @change="(patch) => emit('change', patch)"
+              />
+            </div>
           </div>
         </section>
 
         <section class="right-box-bottom">
           <div class="note-page">
             <NoteFilterBar
+              v-if="scope !== 'mine'"
               :query="query"
-              :scope="scope"
               :loading="loading"
               @change="(patch) => emit('change', patch)"
             />
@@ -161,7 +171,14 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-left: 20px;
+  /* 左右各让出与列表一致的页面栅格，搜索框右边缘和卡片右边缘对齐 */
+  padding: 0 var(--bb-page-padding);
+  box-sizing: border-box;
+}
+.r-b-t-l-right {
+  flex: 0 1 360px;
+  min-width: 140px;
+  margin-left: 24px;
 }
 .r-b-t-l-left {
   display: flex;

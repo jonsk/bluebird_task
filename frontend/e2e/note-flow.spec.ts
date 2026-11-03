@@ -177,7 +177,7 @@ test.describe('工作日志', () => {
     await page.goto('/notes')
     await expect(page.locator('.note-card')).toHaveCount(2)
 
-    const kw = page.locator('[data-test="note-filter-bar"] input').first()
+    const kw = page.locator('[data-test="note-search"] input')
     await kw.fill('移动端')
     await expect(page).toHaveURL(/keyword=%E7%A7%BB%E5%8A%A8%E7%AB%AF|keyword=移动端/)
     await expect(page.locator('.note-card')).toHaveCount(1)
@@ -189,7 +189,7 @@ test.describe('工作日志', () => {
 
   test('N-12 筛选无结果：渲染空态且不出现分页', async ({ page }) => {
     await page.goto('/notes')
-    await page.locator('[data-test="note-filter-bar"] input').first().fill('绝不可能匹配的关键词zzz')
+    await page.locator('[data-test="note-search"] input').fill('绝不可能匹配的关键词zzz')
     await expect(page.locator('[data-test="note-list-empty"]')).toBeVisible()
     await expect(page.locator('.note-card')).toHaveCount(0)
     await expect(page.locator('.note-list__pager')).toHaveCount(0)
