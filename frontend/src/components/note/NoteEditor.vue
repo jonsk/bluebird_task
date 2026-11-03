@@ -33,7 +33,6 @@ import type Vditor from 'vditor'
  * 因此构建时把 `node_modules/vditor/dist` 的子集拷到 `public/vditor/dist`，`cdn: '/vditor'` 走同源。
  */
 const CONTENT_LIMIT = 20000
-const EDITOR_HEIGHT = 420
 /** 停止输入多久后自动保存（毫秒） */
 const AUTO_SAVE_DELAY = 1200
 
@@ -175,7 +174,7 @@ async function createVditor(): Promise<void> {
       lang: 'zh_CN',
       mode: 'ir',
       value: content.value,
-      height: EDITOR_HEIGHT,
+      // 不设固定 height：编辑器高度随内容自动增长（长日志不会在内部上下翻页，而是整页滚动）
       cache: { enable: false },
       theme: vditorTheme(isDark.value),
       icon: 'ant',
@@ -503,7 +502,8 @@ async function onUploadImg(files: File[]): Promise<string> {
   text-decoration: underline;
 }
 
-/* 内容区：空文档时也有可点击的书写区域（min-height）；
+/* 内容区：编辑器高度随内容自适应（未设固定 height），min-height 只保证空文档
+   时也有可点击的书写区域；内容变长后整块随内容增高，长日志整页滚动而非内部翻页。
    横向留白收窄到 4px（Vditor 默认 .vditor-reset 左右各 10px，叠在页面栅格上缩进过多），
    只留一点避免正文贴到 1px 边框上，纵向 padding 维持 Vditor 默认的 10px。 */
 .note-editor__content :deep(.vditor-reset) {
