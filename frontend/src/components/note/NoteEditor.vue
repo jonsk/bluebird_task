@@ -467,7 +467,6 @@ defineExpose({
           {{ errorMessage }}，点击重试
         </button>
         <template v-else-if="status === 'saved'">已保存 {{ savedAt }}</template>
-        <template v-else>自动保存已开启{{ closable ? '，按 Esc 收起' : '' }}</template>
       </div>
     </template>
   </div>
