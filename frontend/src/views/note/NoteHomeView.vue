@@ -90,7 +90,8 @@ const displayNotes = computed(() => {
   const hide = new Set<number>()
   if (editId.value != null) hide.add(editId.value)
   if (composerOpen.value && composerId.value != null) hide.add(composerId.value)
-  return hide.size ? notes.value.filter((n) => !hide.has(n.id)) : notes.value
+  if (!hide.size) return notes.value
+  return notes.value.filter((n) => n.id != null && hide.has(n.id))
 })
 
 /** 正在编辑的日志（用于标题栏提示），列表里被隐藏但仍可在此取日期做标识。 */
@@ -117,8 +118,8 @@ function onSelectDate(date: string | null): void {
  * 新建框自动保存：首次落库（created）时记下草稿 id（列表先把它隐藏），
  * 并清掉筛选/刷新让后台数据就绪——但列表里的显示由 displayNotes 管控，退出编辑才真正出现。
  */
-function onComposerSaved(detail: { id: number }, meta: { created: boolean }): void {
-  if (meta.created) {
+function onComposerSaved(detail: { id?: number | null }, meta: { created: boolean }): void {
+  if (meta.created && detail.id != null) {
     composerId.value = Number(detail.id)
     list.setQuery({ keyword: undefined, date: undefined })
     list.refresh()
