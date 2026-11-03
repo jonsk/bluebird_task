@@ -95,8 +95,18 @@ async function loadDetail(): Promise<void> {
   }
 }
 
+/**
+ * 新建日志的默认首行：`# 2026年11月3日`（月/日不补零，符合「202X年X月X日」的写法）。
+ * 用本地时区取日期，与后端「日志日期 = 当天」的口径一致。
+ */
+function todayHeading(): string {
+  const d = new Date()
+  return `# ${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+}
+
 function applyNewDefaults(): void {
-  content.value = props.initial?.content ?? ''
+  // 新建才插入日期标题；编辑态由详情接口回显，宿主若传了 initial 则以传入内容为准
+  content.value = props.initial?.content ?? `${todayHeading()}\n\n`
   version.value = undefined
 }
 
@@ -140,6 +150,8 @@ async function createVditor(): Promise<void> {
       icon: 'ant',
       placeholder: '记录今日工作…（Ctrl+Enter 保存）',
       counter: { enable: true, type: 'markdown', max: CONTENT_LIMIT },
+      // 大纲默认展开在左侧，长日志可直接跳转标题
+      outline: { enable: true, position: 'left' },
       toolbarConfig: { hide: readOnly, pin: true },
       preview: {
         theme: { current: vditorContentTheme(isDark.value) },

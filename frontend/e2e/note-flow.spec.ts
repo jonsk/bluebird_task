@@ -63,6 +63,11 @@ test.describe('工作日志', () => {
     await page.goto('/notes')
     await expect(page.locator('.note-card')).toHaveCount(2)
 
+    // 新建态默认：首行是当天日期标题（冻结时间 2026-09-28），左侧大纲默认展开
+    const composer = page.locator('[data-test="note-editor"]')
+    await expect(irEditor(composer)).toContainText('2026年9月28日')
+    await expect(composer.locator('.vditor-outline')).toBeVisible()
+
     await typeMarkdown(
       irEditor(page.locator('[data-test="note-editor"]')),
       '## 联调\n- 工作日志新建与附件链路',

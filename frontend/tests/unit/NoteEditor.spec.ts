@@ -154,6 +154,20 @@ describe('NoteEditor × fieldPermissions', () => {
     expect(isReadonly()).toBe(false)
   })
 
+  it('新建态：首行预置当天日期标题，且默认展开左侧大纲', async () => {
+    mount(NoteEditor, { global: { components } })
+    await settle()
+    const d = new Date()
+    const heading = `# ${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+    expect(editorOf().opts.value).toBe(`${heading}\n\n`)
+    expect(editorOf().opts.outline).toEqual({ enable: true, position: 'left' })
+  })
+
+  it('编辑态：不覆盖正文，也不插入日期标题', async () => {
+    await mountEdit(detail({ content: '# 已有内容\n正文' }))
+    expect(editorOf().opts.value).toBe('# 已有内容\n正文')
+  })
+
   it('编辑保存不带 logDate / tagIds', async () => {
     const w = await mountEdit(detail())
     updateNote.mockResolvedValue(detail())
