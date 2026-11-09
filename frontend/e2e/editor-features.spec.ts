@@ -209,4 +209,28 @@ test.describe('工作日志编辑器能力', () => {
     await editor.press('Escape')
     await expect(host).toHaveCount(0)
   })
+
+  test('E-06 编辑页 Ctrl/Cmd+单击打开链接', async ({ page }) => {
+    const { editor } = await openEditor(page)
+    await resetEditor(editor)
+    await page.keyboard.type('官网')
+    await editor.press('ControlOrMeta+a')
+
+    const dialogPromise = page.waitForEvent('dialog')
+    const clickPromise = page.locator('.note-toolbar [title^="链接"]').click()
+    const dialog = await dialogPromise
+    expect(dialog.type()).toBe('prompt')
+    await dialog.accept('https://example.com')
+    await clickPromise
+
+    const link = editor.locator('a')
+    await expect(link).toHaveAttribute('href', 'https://example.com')
+
+    const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
+    const popupPromise = page.waitForEvent('popup')
+    await link.click({ modifiers: [modifier] })
+    const popup = await popupPromise
+    await expect(popup).toHaveURL('https://example.com/')
+    await popup.close()
+  })
 })

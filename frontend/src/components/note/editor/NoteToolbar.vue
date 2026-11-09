@@ -385,7 +385,7 @@ function toggleEmoji(): void {
       type="button"
       class="tb-btn"
       :class="{ 'is-active': editor.isActive('link') }"
-      title="链接"
+      title="链接（Ctrl/Cmd+单击打开）"
       @click="setLink"
     >
       <NoteIcon name="link" />

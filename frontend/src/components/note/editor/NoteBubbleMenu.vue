@@ -81,7 +81,7 @@ function setLink(): void {
 
     <span class="bubble-sep" />
 
-    <button type="button" class="bubble-btn" title="链接" @click="setLink">
+    <button type="button" class="bubble-btn" title="链接（Ctrl/Cmd+单击打开）" @click="setLink">
       <NoteIcon name="link" :size="16" />
     </button>
     <button

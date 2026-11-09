@@ -15,6 +15,7 @@ import { NoteAttachment } from '@/utils/noteAttachment'
 import { NoteEmoji } from '@/utils/noteEmoji'
 import { NoteIndent } from '@/utils/noteIndent'
 import { LegacyCode, LegacyCodeBlock } from '@/utils/noteLegacyCode'
+import { NoteLinkClick } from '@/utils/noteLinkClick'
 import { NoteMention } from '@/utils/noteMention'
 import { NoteTypography } from '@/utils/noteTypography'
 
@@ -105,6 +106,7 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
   if (mode === 'editor') {
     return [
       ...extensions,
+      NoteLinkClick,
       SlashCommand,
       Placeholder.configure({
         placeholder: options.placeholder ?? '记录今日工作…（Ctrl+Enter 保存）',
