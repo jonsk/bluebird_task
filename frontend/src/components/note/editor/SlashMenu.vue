@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
+import NoteIcon from './NoteIcon.vue'
+import type { NoteIconName } from '@/utils/noteIcons'
 
 interface SlashItem {
   title: string
   description: string
-  icon: string
+  icon: NoteIconName
   group: string
   tone?: string
   keywords?: string[]
@@ -55,6 +57,8 @@ function move(step: number): void {
 }
 
 function onKeyDown({ event }: { event: KeyboardEvent }): boolean {
+  // 中文输入法确认候选词的 Enter 不能当成“选中菜单项”。
+  if (event.isComposing) return false
   if (event.key === 'ArrowUp') {
     move(-1)
     return true
@@ -85,7 +89,9 @@ defineExpose({ onKeyDown })
           @mousedown.prevent="select(item)"
           @mouseenter="selected = index"
         >
-          <span class="slash-icon" :class="`is-${item.tone || 'default'}`">{{ item.icon }}</span>
+          <span class="slash-icon" :class="`is-${item.tone || 'default'}`">
+            <NoteIcon :name="item.icon" :size="18" />
+          </span>
           <span class="slash-text">
             <span class="slash-title">{{ item.title }}</span>
             <span class="slash-desc">{{ item.description }}</span>

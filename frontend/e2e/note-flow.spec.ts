@@ -26,6 +26,13 @@ async function typeMarkdown(editor: Locator, text: string): Promise<void> {
   await expect(editor).not.toHaveText('')
 }
 
+/** 清空编辑器，保证每个斜杠命令都从空段落开始验证。 */
+async function resetEditor(editor: Locator): Promise<void> {
+  await editor.click()
+  await editor.press('ControlOrMeta+a')
+  await editor.press('Delete')
+}
+
 /**
  * 工作日志 E2E（真实交互 + MSW 契约 mock）。
  *
@@ -353,6 +360,84 @@ test.describe('工作日志', () => {
     await expect(details).toHaveClass(/is-open/)
 
     // 收起编辑，草稿自动保存
+    await editor.press('Escape')
+    await expect(host).toHaveCount(0)
+  })
+
+  test('N-26 斜杠菜单：11 项命令都能生成对应文档结构', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    const editor = irEditor(host)
+    await expect(editor).toBeVisible()
+
+    const cases: Array<{ title: string; assert: () => Promise<void> }> = [
+      {
+        title: '正文',
+        assert: async () => {
+          await expect(editor.locator('h1,h2,h3,blockquote,pre,ul,ol,hr')).toHaveCount(0)
+          await expect(editor.locator('p').first()).toBeVisible()
+        },
+      },
+      { title: '标题 1', assert: async () => { await expect(editor.locator('h1')).toHaveCount(1) } },
+      { title: '标题 2', assert: async () => { await expect(editor.locator('h2')).toHaveCount(1) } },
+      { title: '标题 3', assert: async () => { await expect(editor.locator('h3')).toHaveCount(1) } },
+      { title: '引用', assert: async () => { await expect(editor.locator('blockquote')).toHaveCount(1) } },
+      { title: '代码块', assert: async () => { await expect(editor.locator('pre')).toHaveCount(1) } },
+      {
+        title: '无序列表',
+        assert: async () => {
+          await expect(editor.locator('ul:not([data-type="taskList"])')).toHaveCount(1)
+        },
+      },
+      { title: '有序列表', assert: async () => { await expect(editor.locator('ol')).toHaveCount(1) } },
+      {
+        title: '待办清单',
+        assert: async () => {
+          await expect(editor.locator('ul[data-type="taskList"]')).toHaveCount(1)
+        },
+      },
+      { title: '分割线', assert: async () => { await expect(editor.locator('hr')).toHaveCount(1) } },
+      {
+        title: '折叠块',
+        assert: async () => {
+          await expect(editor.locator('[data-type="details"]')).toHaveCount(1)
+          await expect(editor).toContainText('折叠块标题')
+        },
+      },
+    ]
+
+    for (const c of cases) {
+      await test.step(c.title, async () => {
+        await resetEditor(editor)
+        await editor.pressSequentially(`/${c.title}`)
+        const item = page.locator('.slash-item').filter({ hasText: c.title })
+        await expect(item).toHaveCount(1)
+        await item.click()
+        await expect(page.locator('.slash-menu')).toHaveCount(0)
+        await c.assert()
+      })
+    }
+
+    await editor.press('Escape')
+    await expect(host).toHaveCount(0)
+  })
+
+  test('N-27 斜杠菜单支持方向键与 Enter 选择', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    const editor = irEditor(host)
+    await expect(editor).toBeVisible()
+
+    await resetEditor(editor)
+    await editor.pressSequentially('/标题')
+    await expect(page.locator('.slash-menu')).toBeVisible()
+    // 初始选中「标题 1」，下移一项后 Enter 应得到「标题 2」。
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Enter')
+    await expect(editor.locator('h2')).toHaveCount(1)
+
     await editor.press('Escape')
     await expect(host).toHaveCount(0)
   })

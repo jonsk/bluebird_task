@@ -9,7 +9,6 @@ import { uploadFile } from '@/api/file'
 import { BizError, HttpError } from '@/api/http'
 import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
 import { buildNoteExtensions } from '@/utils/noteEditorExtensions'
-import { registerSlashCommand } from '@/utils/slashCommand'
 import { isBlankHtml, plainTextFromHtml, toEditorHtml, visibleLength } from '@/utils/richText'
 import NoteToolbar from './editor/NoteToolbar.vue'
 import NoteBubbleMenu from './editor/NoteBubbleMenu.vue'
@@ -121,22 +120,25 @@ const editor = useEditor({
       spellcheck: 'false',
     },
     handlePaste: (_view, event) => {
-      const files = imageFilesFromEvent(event.clipboardData)
-      if (!files.length) return false
+      const images = imageFilesFromEvent(event.clipboardData)
+      const attachments = attachmentFilesFromEvent(event.clipboardData)
+      if (!images.length && !attachments.length) return false
       event.preventDefault()
-      void uploadImages(files)
+      if (images.length) void uploadImages(images)
+      if (attachments.length) void uploadAttachments(attachments)
       return true
     },
     handleDrop: (_view, event) => {
-      const files = imageFilesFromEvent(event.dataTransfer)
-      if (!files.length) return false
+      const images = imageFilesFromEvent(event.dataTransfer)
+      const attachments = attachmentFilesFromEvent(event.dataTransfer)
+      if (!images.length && !attachments.length) return false
       event.preventDefault()
-      void uploadImages(files)
+      if (images.length) void uploadImages(images)
+      if (attachments.length) void uploadAttachments(attachments)
       return true
     },
   },
-  onCreate: ({ editor: ed }) => {
-    registerSlashCommand(ed)
+  onCreate: () => {
     applyContent(toEditorHtml(content.value))
   },
   onUpdate: ({ editor: ed }) => {
@@ -388,6 +390,12 @@ function imageFilesFromEvent(data: DataTransfer | null): File[] {
   return Array.from(data.files).filter((file) => IMAGE_ACCEPT.test(file.type))
 }
 
+/** 拖拽 / 粘贴里除图片外的文件，统一走附件卡片。 */
+function attachmentFilesFromEvent(data: DataTransfer | null): File[] {
+  if (!data) return []
+  return Array.from(data.files).filter((file) => !IMAGE_ACCEPT.test(file.type))
+}
+
 /**
  * 工具栏 / 粘贴 / 拖拽图片：先 `POST /files` 落盘，再 `POST /notes/{id}/attachments` 关联，
  * 插入正文的是 note 专用预览地址（`/notes/{id}/attachments/{aid}/preview`）——
@@ -426,6 +434,53 @@ async function uploadImages(files: File[]): Promise<void> {
   }
   if (inserted) emit('attachments-changed')
   if (failed && !inserted) ElMessage.error('图片上传失败')
+}
+
+/* ==================== 附件上传 ==================== */
+
+/**
+ * 工具栏「附件」：任何非图片文件都插入一张附件卡片。
+ * 和图片一样，先上传并绑定到当前日志，再把 note 专用下载地址写进正文；
+ * 这样其他有日志查看权限的人下载时不会落到 `/files/{id}` 的创建者限制上。
+ */
+async function uploadAttachments(files: File[]): Promise<void> {
+  if (!canEditContent.value) return
+  const noteId = currentId.value
+  if (noteId == null) {
+    ElMessage.warning('请先保存日志，再插入附件')
+    return
+  }
+
+  let inserted = 0
+  let failed = 0
+  for (const file of files) {
+    try {
+      const vo = await uploadFile(file)
+      const att = await bindAttachment(noteId, { attachmentId: Number(vo.id) })
+      editor.value
+        ?.chain()
+        .focus()
+        .insertContent({
+          type: 'noteAttachment',
+          attrs: {
+            attachmentId: Number(att.attachmentId ?? vo.id),
+            fileId: Number(vo.id),
+            fileName: att.fileName || file.name,
+            size: att.size ?? file.size,
+            contentType: att.contentType || file.type,
+            downloadUrl: att.downloadUrl || '',
+            previewUrl: att.previewUrl || '',
+          },
+        })
+        .run()
+      inserted += 1
+    } catch (e) {
+      failed += 1
+      ElMessage.error(`${file.name}：${(e as Error)?.message || '上传失败'}`)
+    }
+  }
+  if (inserted) emit('attachments-changed')
+  if (failed && !inserted) ElMessage.error('附件上传失败')
 }
 
 /* ==================== 拖拽手柄 ==================== */
@@ -475,6 +530,7 @@ defineExpose({
           :editor="editor"
           :tick="stateTick"
           @upload-image="uploadImages"
+          @upload-attachment="uploadAttachments"
         />
 
         <div ref="hostRef" class="note-editor__body" data-test="note-editor-content">

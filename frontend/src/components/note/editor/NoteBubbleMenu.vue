@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
+import NoteIcon from './NoteIcon.vue'
 
 const props = defineProps<{
   editor: Editor
@@ -36,7 +37,7 @@ function setLink(): void {
       title="粗体"
       @click="editor.chain().focus().toggleBold().run()"
     >
-      B
+      <NoteIcon name="bold" :size="16" />
     </button>
     <button
       type="button"
@@ -45,7 +46,7 @@ function setLink(): void {
       title="斜体"
       @click="editor.chain().focus().toggleItalic().run()"
     >
-      I
+      <NoteIcon name="italic" :size="16" />
     </button>
     <button
       type="button"
@@ -54,7 +55,7 @@ function setLink(): void {
       title="下划线"
       @click="editor.chain().focus().toggleUnderline().run()"
     >
-      U
+      <NoteIcon name="underline" :size="16" />
     </button>
     <button
       type="button"
@@ -63,7 +64,7 @@ function setLink(): void {
       title="删除线"
       @click="editor.chain().focus().toggleStrike().run()"
     >
-      S
+      <NoteIcon name="strike" :size="16" />
     </button>
     <button
       type="button"
@@ -72,7 +73,7 @@ function setLink(): void {
       title="行内代码"
       @click="editor.chain().focus().toggleCode().run()"
     >
-      &lt;/&gt;
+      <NoteIcon name="code" :size="16" />
     </button>
 
     <span class="bubble-sep" />
@@ -90,16 +91,16 @@ function setLink(): void {
 
     <span class="bubble-sep" />
 
-    <button type="button" class="bubble-btn bubble-btn--wide" title="链接" @click="setLink">
-      链接
+    <button type="button" class="bubble-btn" title="链接" @click="setLink">
+      <NoteIcon name="link" :size="16" />
     </button>
     <button
       type="button"
-      class="bubble-btn bubble-btn--wide"
+      class="bubble-btn"
       title="清除格式"
       @click="editor.chain().focus().unsetAllMarks().clearNodes().run()"
     >
-      清除
+      <NoteIcon name="clear" :size="16" />
     </button>
   </div>
 </template>

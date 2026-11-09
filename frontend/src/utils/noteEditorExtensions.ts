@@ -7,6 +7,16 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Details, { DetailsContent, DetailsSummary } from '@tiptap/extension-details'
 import Image from '@tiptap/extension-image'
+import { TableKit } from '@tiptap/extension-table'
+import TextAlign from '@tiptap/extension-text-align'
+import { TableOfContents } from '@tiptap/extension-table-of-contents'
+import { FindAndReplace } from '@tiptap/extension-find-and-replace'
+import { SlashCommand } from '@/utils/slashCommand'
+import { NoteAttachment } from '@/utils/noteAttachment'
+import { NoteEmoji } from '@/utils/noteEmoji'
+import { NoteIndent } from '@/utils/noteIndent'
+import { NoteMention } from '@/utils/noteMention'
+import { NoteTypography } from '@/utils/noteTypography'
 
 export interface NoteExtensionOptions {
   /** editor = 可编辑（带占位符）；render = 只读详情渲染。 */
@@ -20,8 +30,7 @@ export interface NoteExtensionOptions {
  * 两边必须使用同一套 schema：否则详情页会把编辑器里合法的节点（折叠块、待办、颜色）
  * 当成未知标签丢掉，同一篇日志在编辑态与详情态排版不一致。
  *
- * Slash 菜单是运行期通过 `registerSlashCommand` 注册的插件，不在这里；
- * 这样可避免直接依赖 `@tiptap/core` 的 `Extension.create`。
+ * Slash 菜单只在编辑态启用；它必须在扩展创建期注册，不能等编辑器创建后再挂插件。
  */
 export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
   const mode = options.mode ?? 'editor'
@@ -55,11 +64,37 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
       allowBase64: false,
       HTMLAttributes: { class: 'note-image' },
     }),
+    TableKit.configure({
+      table: {
+        resizable: true,
+        renderWrapper: true,
+        HTMLAttributes: { class: 'note-table' },
+      },
+    }),
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    NoteTypography,
+    NoteIndent,
+    NoteAttachment,
+    NoteMention,
+    NoteEmoji,
+    TableOfContents.configure({
+      anchorTypes: ['heading'],
+      getId: (text) => {
+        const slug = text
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^\w\u4e00-\u9fa5-]/g, '')
+        return slug ? `toc-${slug}` : 'toc-heading'
+      },
+    }),
   ]
 
   if (mode === 'editor') {
     return [
       ...extensions,
+      SlashCommand,
+      FindAndReplace.configure({ searchDebounceMs: 0 }),
       Placeholder.configure({
         placeholder: options.placeholder ?? '记录今日工作…（Ctrl+Enter 保存）',
       }),

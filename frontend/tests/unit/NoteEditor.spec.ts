@@ -90,8 +90,6 @@ vi.mock('@tiptap/vue-3/menus', () => ({
 vi.mock('@tiptap/extension-drag-handle-vue-3', () => ({
   default: { name: 'DragHandle', template: '<div><slot /></div>' },
 }))
-vi.mock('@/utils/slashCommand', () => ({ registerSlashCommand: vi.fn() }))
-
 const getNote = vi.fn()
 const updateNote = vi.fn()
 const createNote = vi.fn()
