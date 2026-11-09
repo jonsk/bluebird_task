@@ -19,6 +19,7 @@ interface CalendarDayCount {
 
 /**
  * 我的日志（mine）：唯一新建入口 + 唯一行内编辑宿主。
+ * 卡片和右栏当日日志点击都直接进入行内编辑，不再跳详情页。
  * 右栏 = BbMiniCalendar(mine) + 当日日志（isolated 列表，点日历只影响右栏，不污染主列表页码/筛选）。
  */
 const router = useRouter()
@@ -66,7 +67,6 @@ const {
   errorMode,
   emptyText,
   list,
-  onOpen,
   onEdit,
   onRemove,
 } = page
@@ -166,9 +166,6 @@ function retryInlineSave(): void {
   void inlineEditorRef.value?.saveNow()
 }
 
-function openDetail(id: number): void {
-  void router.push({ name: 'NoteDetail', params: { id: String(id) } })
-}
 </script>
 
 <template>
@@ -186,7 +183,7 @@ function openDetail(id: number): void {
     @change="list.setQuery"
     @page-change="list.setPage"
     @retry="list.refresh"
-    @open="onOpen"
+    @open="onEdit"
     @edit="onEdit"
     @remove="onRemove"
   >
@@ -282,7 +279,7 @@ function openDetail(id: number): void {
             :notes="side.notes.value"
             :loading="side.loading.value"
             :active-id="activeId"
-            @open="openDetail"
+            @open="onEdit"
             @view-all="router.push({ name: 'NoteHome' })"
           />
         </div>

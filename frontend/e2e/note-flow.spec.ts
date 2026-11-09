@@ -88,9 +88,10 @@ test.describe('工作日志', () => {
     await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
   })
 
-  test('N-03 行内编辑：内联面板（非弹窗）保存后卡片更新', async ({ page }) => {
+  test('N-03 点击卡片直接行内编辑：内联面板（非弹窗）保存后卡片更新', async ({ page }) => {
     await page.goto('/notes')
-    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    await page.locator('[data-test="note-card-1002"]').click()
+    await expect(page).toHaveURL(/\/notes$/)
 
     const host = page.locator('[data-test="note-inline-editor"]')
     await expect(host).toBeVisible()
@@ -121,8 +122,7 @@ test.describe('工作日志', () => {
   })
 
   test('N-05 详情页：正文 / 附件 / 返回', async ({ page }) => {
-    await page.goto('/notes')
-    await page.locator('[data-test="note-card-1001"]').click()
+    await page.goto('/notes/1001')
     await expect(page).toHaveURL(/\/notes\/1001$/)
     await expect(page.locator('[data-test="note-detail-content"]')).toContainText('工作日志的前端骨架')
     await expect(page.locator('.note-detail')).toContainText('附件')
@@ -164,11 +164,15 @@ test.describe('工作日志', () => {
     await expect(page.locator('.error-page h1')).toHaveText('404')
   })
 
-  test('N-09 右栏当日日志：随选中日变化', async ({ page }) => {
+  test('N-09 右栏当日日志：随选中日变化，点击直接行内编辑', async ({ page }) => {
     await page.goto('/notes')
     const side = page.locator('.note-side__list')
     await expect(side).toContainText('今日日志')
     await expect(side).toContainText('工作日志的前端骨架')
+
+    await side.locator('.note-mini-list__item').first().click()
+    await expect(page).toHaveURL(/\/notes$/)
+    await expect(page.locator('[data-test="note-inline-editor"]')).toBeVisible()
   })
 
   test('N-10 任务模块不受影响：左栏任务分组仍可用', async ({ page }) => {
@@ -248,9 +252,9 @@ test.describe('工作日志', () => {
     await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
 
     // 离开 → 返回（HomeView 重新挂载后重新拉列表）
-    await page.locator('[data-test="note-card-1001"]').click()
-    await expect(page).toHaveURL(/\/notes\/1001$/)
-    await page.locator('[data-test="note-detail-back"]').click()
+    await page.locator('[data-test="nav-note-subordinate"]').click()
+    await expect(page).toHaveURL(/\/notes\/subordinate$/)
+    await page.locator('[data-test="nav-note-mine"]').click()
     await expect(page).toHaveURL(/\/notes$/)
 
     await expect(page.locator('.note-card')).toHaveCount(3)
@@ -451,5 +455,12 @@ test.describe('工作日志', () => {
     await expect(page.locator('[data-test="admin-nav-adminNotes"]')).toHaveClass(/is-active/)
     await expect(page.locator('.note-card')).toHaveCount(6)
     await expect(page.locator('.note-page')).toContainText('部门树递归查询')
+  })
+
+  test('N-28 员工日志卡片仍进入详情页', async ({ page }) => {
+    await page.goto('/notes/subordinate')
+    await page.locator('.note-card').first().click()
+    await expect(page).toHaveURL(/\/notes\/\d+$/)
+    await expect(page.locator('.note-detail')).toBeVisible()
   })
 })

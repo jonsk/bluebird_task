@@ -97,8 +97,6 @@ test.describe('工作日志编辑器能力', () => {
     await expect(reopened.locator('.note-attachment')).toContainText('季度报告.pdf')
     await reopened.press('Escape')
     await expect(page.locator('[data-test="note-inline-editor"]')).toHaveCount(0)
-    await page.locator('[data-test="note-card-1002"]').click()
-    await expect(page.locator('[data-test="note-detail-content"] .note-attachment')).toContainText('季度报告.pdf')
   })
 
   test('E-03 目录与字体设置', async ({ page }) => {
