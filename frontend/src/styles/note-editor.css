@@ -323,99 +323,6 @@
   width: 300px;
 }
 
-/* ==================== 查找替换 ==================== */
-
-.note-find {
-  display: flex;
-  flex: 1 0 100%;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.note-find__input {
-  width: 180px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--el-border-color);
-  border-radius: var(--bb-radius);
-  background: var(--bg-primary);
-  color: var(--bb-text);
-  font: inherit;
-  font-size: 12.5px;
-  outline: none;
-}
-
-.note-find__input:focus {
-  border-color: var(--bg-accent);
-}
-
-.note-find__input--replace {
-  width: 160px;
-}
-
-.note-find__count {
-  min-width: 52px;
-  color: var(--bb-text-muted);
-  font-size: 12px;
-}
-
-.note-find__btn {
-  height: 26px;
-  padding: 0 7px;
-  border: 0;
-  border-radius: var(--bb-radius);
-  background: transparent;
-  color: var(--bb-text-secondary);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.note-find__btn:hover {
-  background: var(--bg-hover);
-  color: var(--bb-text);
-}
-
-.note-find__check {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--bb-text-muted);
-  font-size: 11.5px;
-  cursor: pointer;
-}
-
-.note-find__close {
-  width: 26px;
-  height: 26px;
-  margin-left: auto;
-  border: 0;
-  border-radius: var(--bb-radius);
-  background: transparent;
-  color: var(--bb-text-muted);
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.note-find__close:hover {
-  background: var(--bg-hover);
-  color: var(--bb-text);
-}
-
-.find-and-replace-result {
-  border-radius: 2px;
-  background: var(--el-color-warning-light-7);
-}
-
-.find-and-replace-result-current {
-  background: var(--el-color-warning-light-3);
-  box-shadow: 0 0 0 1px var(--el-color-warning);
-}
-
 /* ==================== 目录 ==================== */
 
 .note-outline {
@@ -630,7 +537,7 @@
 
 .note-prose {
   font-size: 15px;
-  line-height: 1.8;
+  line-height: 1.4;
   color: var(--bb-text);
   caret-color: var(--bg-accent);
   word-break: break-word;

@@ -44,9 +44,14 @@ test.describe('工作日志编辑器能力', () => {
 
     await resetEditor(editor)
     await page.keyboard.type('居中段落')
+    const paragraph = editor.locator('p').first()
+    const defaultLineHeight = await paragraph.evaluate((el) => {
+      const style = window.getComputedStyle(el)
+      return Number.parseFloat(style.lineHeight) / Number.parseFloat(style.fontSize)
+    })
+    expect(defaultLineHeight).toBeCloseTo(1.4, 2)
     await page.locator('[data-test="note-align-menu"]').click()
     await page.locator('[data-test="note-align-center"]').click()
-    const paragraph = editor.locator('p').first()
     await expect(paragraph).toHaveAttribute('style', /text-align:\s*center/)
 
     await page.locator('[data-test="note-font-size"]').selectOption('20px')
@@ -102,6 +107,7 @@ test.describe('工作日志编辑器能力', () => {
     await expect(fontSelect.locator('option').first()).toHaveText('字体')
     await expect(fontSelect).not.toContainText('系统无衬线')
     await expect(page.locator('[data-test="note-font-size"] option').first()).toHaveText('字号')
+    await expect(page.locator('[data-test="note-line-height"] option').first()).toHaveText('默认 1.4')
     await resetEditor(editor)
 
     await page.locator('.note-toolbar select[title="段落格式"]').selectOption('h2')
@@ -139,9 +145,10 @@ test.describe('工作日志编辑器能力', () => {
     )
   })
 
-  test('E-04 @提及 / Emoji / 查找替换', async ({ page }) => {
+  test('E-04 @提及 / Emoji', async ({ page }) => {
     const { host, editor } = await openEditor(page)
     await resetEditor(editor)
+    await expect(page.locator('[data-test="note-find-toggle"]')).toHaveCount(0)
 
     await page.keyboard.type('@李')
     const mentionMenu = page.locator('[data-test="note-mention-menu"]')
@@ -163,15 +170,7 @@ test.describe('工作日志编辑器能力', () => {
     const reopened = page.locator('[data-test="note-inline-editor"]').locator('.ProseMirror')
     await expect(reopened.locator('.note-mention')).toContainText('@李四')
     await expect(reopened.locator('span[data-type="emoji"]')).toHaveCount(1)
-
-    await resetEditor(reopened)
-    await page.keyboard.type('foo bar foo')
-    await page.locator('[data-test="note-find-toggle"]').click()
-    await page.locator('[data-test="note-find-input"]').fill('foo')
-    await expect(page.locator('[data-test="note-find-count"]')).toContainText('/ 2')
-    await page.locator('[data-test="note-find-replace"]').fill('baz')
-    await page.locator('[data-test="note-find-replace-all"]').click()
-    await expect(editor).toContainText('baz bar baz')
+    await reopened.press('Escape')
   })
 
   test('E-05 折叠代码支持 Emoji，目录高度随正文增长', async ({ page }) => {

@@ -37,7 +37,6 @@ export type NoteIconName =
   | 'indent'
   | 'outdent'
   | 'toc'
-  | 'search'
   | 'emoji'
   | 'attachment'
   | 'mention'
@@ -100,10 +99,6 @@ export const noteIconPaths: Record<NoteIconName, string[]> = {
   indent: ['M3 6h18', 'M3 12h8', 'M3 18h18', 'm15 9 3 3-3 3'],
   outdent: ['M3 6h18', 'M3 12h8', 'M3 18h18', 'm18 9-3 3 3 3'],
   toc: ['M4 6h2', 'M8 6h12', 'M4 12h2', 'M8 12h9', 'M4 18h2', 'M8 18h12'],
-  search: [
-    'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z',
-    'm21 21-4.35-4.35',
-  ],
   emoji: [
     'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z',
     'M8.5 9h.01',

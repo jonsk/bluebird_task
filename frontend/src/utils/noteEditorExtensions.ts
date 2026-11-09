@@ -10,7 +10,6 @@ import Image from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
 import TextAlign from '@tiptap/extension-text-align'
 import { TableOfContents } from '@tiptap/extension-table-of-contents'
-import { FindAndReplace } from '@tiptap/extension-find-and-replace'
 import { SlashCommand } from '@/utils/slashCommand'
 import { NoteAttachment } from '@/utils/noteAttachment'
 import { NoteEmoji } from '@/utils/noteEmoji'
@@ -107,7 +106,6 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
     return [
       ...extensions,
       SlashCommand,
-      FindAndReplace.configure({ searchDebounceMs: 0 }),
       Placeholder.configure({
         placeholder: options.placeholder ?? '记录今日工作…（Ctrl+Enter 保存）',
       }),

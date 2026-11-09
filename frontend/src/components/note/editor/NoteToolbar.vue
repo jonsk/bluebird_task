@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import NoteIcon from './NoteIcon.vue'
-import NoteFindBar from './NoteFindBar.vue'
 import NoteOutline from './NoteOutline.vue'
 import NoteEmojiPicker from './NoteEmojiPicker.vue'
 
@@ -20,7 +19,6 @@ const emit = defineEmits<{
 const editor = props.editor
 const fileInput = ref<HTMLInputElement | null>(null)
 const attachmentInput = ref<HTMLInputElement | null>(null)
-const findOpen = ref(false)
 const outlineOpen = ref(false)
 const emojiOpen = ref(false)
 const alignOpen = ref(false)
@@ -62,8 +60,8 @@ const fontSizes = [
 ]
 
 const lineHeights = [
-  { label: '默认行距', value: '' },
-  { label: '紧凑 1.4', value: '1.4' },
+  { label: '默认 1.4', value: '' },
+  { label: '紧凑 1.3', value: '1.3' },
   { label: '舒适 1.6', value: '1.6' },
   { label: '标准 1.8', value: '1.8' },
   { label: '宽松 2.0', value: '2' },
@@ -185,11 +183,6 @@ function insertMention(): void {
 function insertEmoji(name: string): void {
   editor.chain().focus().setEmoji(name).run()
   emojiOpen.value = false
-}
-
-function toggleFind(): void {
-  findOpen.value = !findOpen.value
-  if (!findOpen.value) editor.chain().focus().clearSearch().run()
 }
 
 function toggleOutline(): void {
@@ -441,9 +434,6 @@ function toggleEmoji(): void {
     <button type="button" class="tb-btn" title="表情" data-test="note-emoji-toggle" @click="toggleEmoji">
       <NoteIcon name="emoji" />
     </button>
-    <button type="button" class="tb-btn" :class="{ 'is-active': findOpen }" title="查找替换" data-test="note-find-toggle" @click="toggleFind">
-      <NoteIcon name="search" />
-    </button>
     <button type="button" class="tb-btn tb-toc-btn" :class="{ 'is-active': outlineOpen }" title="目录" data-test="note-toc-toggle" @click="toggleOutline">
       <NoteIcon name="toc" />
     </button>
@@ -484,8 +474,6 @@ function toggleEmoji(): void {
         <button type="button" class="tb-text-btn is-danger" title="删除表格" @click="editor.chain().focus().deleteTable().run()">删表</button>
       </span>
     </template>
-
-    <NoteFindBar v-if="findOpen" :editor="editor" :tick="tick" @close="findOpen = false" />
 
     <div v-if="outlineOpen" class="tb-popover tb-popover--outline">
       <NoteOutline :editor="editor" :tick="tick" @close="outlineOpen = false" />
