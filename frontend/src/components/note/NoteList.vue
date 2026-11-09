@@ -38,7 +38,8 @@ const emit = defineEmits<{
 
 <template>
   <div class="note-list">
-    <div v-if="loading" class="note-list__loading">
+    <!-- 首屏才用骨架屏；已有数据时后台刷新保持列表原样，避免高度抖动/光标跳动 -->
+    <div v-if="loading && !notes.length" class="note-list__loading">
       <el-skeleton :rows="4" animated />
       <el-skeleton :rows="4" animated />
     </div>

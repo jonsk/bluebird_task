@@ -115,14 +115,14 @@ function onSelectDate(date: string | null): void {
 }
 
 /**
- * 新建框自动保存：首次落库（created）时记下草稿 id（列表先把它隐藏），
- * 并清掉筛选/刷新让后台数据就绪——但列表里的显示由 displayNotes 管控，退出编辑才真正出现。
+ * 新建框自动保存：首次落库（created）时记下草稿 id（列表先把它隐藏）。
+ *
+ * 这里同样不刷新列表，避免自动保存瞬间切换骨架屏导致高度/光标抖动；
+ * 列表里的显示由 displayNotes 管控，点「完成编辑」时由 finishComposer() 统一刷新。
  */
 function onComposerSaved(detail: { id?: number | null }, meta: { created: boolean }): void {
   if (meta.created && detail.id != null) {
     composerId.value = Number(detail.id)
-    list.setQuery({ keyword: undefined, date: undefined })
-    list.refresh()
   }
 }
 
@@ -136,6 +136,9 @@ async function finishComposer(): Promise<void> {
   } finally {
     composerId.value = null
     composerOpen.value = false
+    // 退出新建时才刷新：清掉筛选并回到第一页，确保刚创建的日志可见。
+    list.setQuery({ keyword: undefined, date: undefined })
+    // setQuery 可能命中旧缓存，强制再拉一次；此时编辑框已关闭，不会影响输入。
     list.refresh()
   }
 }
@@ -147,9 +150,15 @@ function openComposer(): void {
   list.refresh()
 }
 
-/** 行内编辑自动保存：只刷新卡片摘要，面板保持打开（Esc 收起）。 */
+/**
+ * 行内编辑自动保存：不刷新列表。
+ *
+ * 正在编辑的日志已从 `displayNotes` 隐藏，此时刷新列表只会让 `loading`
+ * 短暂切换成骨架屏、改变列表高度，导致编辑区滚动位置和光标跳动。
+ * 卡片摘要等退出编辑时由 `closeInlineEditor()` 统一刷新。
+ */
 function onInlineSaved(): void {
-  list.refresh()
+  // no-op：等 Esc / 完成编辑时再刷新列表。
 }
 
 function closeInlineEditor(): void {
@@ -188,8 +197,12 @@ function openDetail(id: number): void {
   >
     <template #composer>
       <div v-if="composerOpen" class="note-inline-editor note-composer" data-test="note-composer">
-        <div class="note-inline-editor__bar">
-          <span class="note-inline-editor__label">新建日志 · {{ today }}</span>
+        <NoteEditor
+          ref="composerEditorRef"
+          compact
+          @saved="onComposerSaved"
+        />
+        <div class="note-composer__actions">
           <el-button
             size="small"
             type="primary"
@@ -200,11 +213,6 @@ function openDetail(id: number): void {
             完成编辑
           </el-button>
         </div>
-        <NoteEditor
-          ref="composerEditorRef"
-          compact
-          @saved="onComposerSaved"
-        />
       </div>
       <el-button
         v-else
@@ -326,6 +334,20 @@ function openDetail(id: number): void {
   cursor: pointer;
   color: var(--bb-danger, #f56c6c);
   text-decoration: underline;
+}
+/* 新建框：去掉外层标题行和包裹留白，只保留编辑器自身的边框 */
+.note-composer {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.note-composer :deep(.note-editor) {
+  padding: 0;
+}
+.note-composer__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 /* 新建框收起后的「新建日志」入口 */
 .note-composer__new {
