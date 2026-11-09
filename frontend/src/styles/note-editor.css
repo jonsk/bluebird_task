@@ -1,0 +1,743 @@
+/**
+ * Tiptap 日志编辑器 / 只读渲染器的共享样式。
+ *
+ * 颜色一律走 BlueBird 设计令牌（tokens.css），深浅主题自动跟随；
+ * 组件内只保留布局尺寸，不复刻 demo 的硬编码浅色。
+ */
+
+/* ==================== 顶部工具栏 ==================== */
+
+.note-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--bg-secondary);
+  scrollbar-width: none;
+}
+
+.note-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.tb-select {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--bb-radius);
+  background: transparent;
+  color: var(--bb-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tb-select:hover {
+  background: var(--bg-hover);
+}
+
+.tb-sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--el-border-color-lighter);
+}
+
+.tb-btn {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--bb-radius);
+  background: transparent;
+  color: var(--bb-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.tb-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--bb-text);
+}
+
+.tb-btn.is-active {
+  background: var(--bg-active);
+  color: var(--bg-accent);
+}
+
+.tb-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tb-btn--bold {
+  font-weight: 700;
+}
+
+.tb-btn--italic {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+}
+
+.tb-btn--underline {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tb-btn--strike {
+  text-decoration: line-through;
+}
+
+.tb-btn--code {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+}
+
+.tb-btn--wide {
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+.tb-color {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border-radius: var(--bb-radius);
+  cursor: pointer;
+}
+
+.tb-color:hover {
+  background: var(--bg-hover);
+}
+
+.tb-color__letter {
+  padding-bottom: 1px;
+  border-bottom: 3px solid var(--bg-accent);
+  color: var(--bb-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.tb-color__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tb-dots {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  margin: 0 2px;
+}
+
+.tb-dot {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--el-border-color);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.tb-dot:hover {
+  transform: scale(1.12);
+}
+
+.tb-dot.is-active {
+  outline: 2px solid var(--bg-accent);
+  outline-offset: 1px;
+}
+
+.tb-dot--custom {
+  position: relative;
+  overflow: hidden;
+  background: conic-gradient(#fff3a3, #c9f7d4, #cfe4ff, #ffd6e7, #fff3a3);
+}
+
+.tb-dot--custom input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tb-file {
+  display: none;
+}
+
+/* ==================== 正文排版 ==================== */
+
+.note-prose {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--bb-text);
+  caret-color: var(--bg-accent);
+  word-break: break-word;
+}
+
+.note-editor__prose {
+  min-height: 440px;
+  outline: none;
+}
+
+.note-renderer__prose {
+  outline: none;
+}
+
+.note-prose ::selection {
+  background: var(--bg-active);
+}
+
+.note-prose > * {
+  margin: 0;
+}
+
+.note-prose > * + * {
+  margin-top: 0.7em;
+}
+
+.note-prose p {
+  margin: 0;
+}
+
+.note-prose p + p {
+  margin-top: 0.6em;
+}
+
+.note-prose h1,
+.note-prose h2,
+.note-prose h3 {
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  color: var(--bb-text);
+}
+
+.note-prose h1 {
+  margin: 0.2em 0 0.35em;
+  font-size: 27px;
+  font-weight: 700;
+}
+
+.note-prose h2 {
+  margin: 1.1em 0 0.35em;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.note-prose h3 {
+  margin: 0.9em 0 0.3em;
+  font-size: 16.5px;
+  font-weight: 650;
+}
+
+.note-prose ul,
+.note-prose ol {
+  margin: 0.45em 0;
+  padding-left: 1.45em;
+}
+
+.note-prose li {
+  margin: 0.2em 0;
+}
+
+.note-prose li p {
+  margin: 0;
+}
+
+.note-prose ul[data-type='taskList'] {
+  padding-left: 0;
+  list-style: none;
+}
+
+.note-prose ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0.3em 0;
+}
+
+.note-prose ul[data-type='taskList'] li > label {
+  flex: 0 0 auto;
+  margin-top: 5px;
+  line-height: 0;
+}
+
+.note-prose ul[data-type='taskList'] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.note-prose ul[data-type='taskList'] input[type='checkbox'] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1.5px solid var(--bb-text-muted);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  cursor: pointer;
+  position: relative;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.note-prose ul[data-type='taskList'] input[type='checkbox']:checked {
+  border-color: var(--bg-accent);
+  background: var(--bg-accent);
+}
+
+.note-prose ul[data-type='taskList'] input[type='checkbox']:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(42deg);
+}
+
+.note-prose ul[data-type='taskList'] li[data-checked='true'] > div p {
+  color: var(--bb-text-muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--el-border-color);
+}
+
+.note-prose blockquote {
+  margin: 1em 0;
+  padding: 4px 0 4px 16px;
+  border-left: 3px solid var(--el-border-color);
+  color: var(--bb-text-secondary);
+}
+
+.note-prose blockquote p {
+  margin: 0;
+}
+
+.note-prose code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.88em;
+}
+
+.note-prose pre {
+  margin: 1em 0;
+  padding: 14px 16px;
+  overflow: auto;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--bb-radius);
+  background: var(--bg-secondary);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.note-prose pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+.note-prose hr {
+  margin: 26px 0;
+  border: 0;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.note-prose a {
+  color: var(--bg-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.note-prose mark {
+  border-radius: 3px;
+  padding: 0 2px;
+  color: inherit;
+}
+
+.note-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--bb-radius);
+}
+
+.note-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--bb-text-muted);
+  pointer-events: none;
+}
+
+/* ==================== 折叠块 ==================== */
+
+.note-prose [data-type='details'] {
+  position: relative;
+  margin: 1em 0;
+  padding: 10px 14px 10px 34px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--bb-radius);
+  background: var(--bg-secondary);
+}
+
+.note-prose [data-type='details'] > .details-toggle {
+  position: absolute;
+  top: 11px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: transparent;
+  font-size: 0;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.note-prose [data-type='details'] > .details-toggle::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--bb-text-muted);
+  transform: rotate(0deg);
+  transition: transform 0.15s ease;
+}
+
+.note-prose [data-type='details'].is-open > .details-toggle::before {
+  transform: rotate(90deg);
+}
+
+.note-prose [data-type='details'] > .details-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.note-prose [data-type='details'] > .details-toggle:hover::before {
+  border-left-color: var(--bb-text);
+}
+
+.note-prose [data-type='details'] > div > summary {
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  outline: none;
+}
+
+.note-prose [data-type='details'] > div > summary::-webkit-details-marker {
+  display: none;
+}
+
+.note-prose [data-type='details'] > div > div[data-type='detailsContent'] {
+  display: none;
+  margin-top: 8px;
+}
+
+.note-prose [data-type='details'].is-open > div > div[data-type='detailsContent'] {
+  display: block;
+}
+
+/* ==================== 拖拽手柄 ==================== */
+
+.drag-handle {
+  z-index: 40;
+}
+
+.drag-handle__inner {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: var(--bb-radius);
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.drag-handle:hover .drag-handle__inner {
+  background: var(--bg-hover);
+}
+
+.dh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bb-text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dh-btn:hover {
+  background: var(--bg-active);
+  color: var(--bb-text-secondary);
+}
+
+.dh-grip {
+  cursor: grab;
+  letter-spacing: -1px;
+}
+
+/* ==================== 浮动工具栏 ==================== */
+
+.bubble {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--bb-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--bb-shadow-flat);
+}
+
+.bubble-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--bb-radius);
+  background: transparent;
+  color: var(--bb-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bubble-btn:hover {
+  background: var(--bg-hover);
+  color: var(--bb-text);
+}
+
+.bubble-btn.is-active {
+  background: var(--bg-active);
+  color: var(--bg-accent);
+}
+
+.bubble-btn--text {
+  font-weight: 700;
+}
+
+.bubble-btn--italic {
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.bubble-btn--underline {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bubble-btn--strike {
+  text-decoration: line-through;
+}
+
+.bubble-btn--code {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+}
+
+.bubble-btn--wide {
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.bubble-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: var(--el-border-color-lighter);
+}
+
+.bubble-dot {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--el-border-color);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.bubble-dot:hover {
+  transform: scale(1.12);
+}
+
+.bubble-dot.is-active {
+  outline: 2px solid var(--bg-accent);
+  outline-offset: 1px;
+}
+
+/* ==================== Slash 菜单 ==================== */
+
+.tippy-box[data-theme~='slash'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+.tippy-box[data-theme~='slash'] > .tippy-content {
+  padding: 0;
+}
+
+.tippy-box[data-theme~='slash'] > .tippy-arrow {
+  display: none;
+}
+
+.slash-menu {
+  width: 318px;
+  max-height: 344px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--bb-radius);
+  background: var(--bg-primary);
+  box-shadow: var(--bb-shadow-flat);
+}
+
+.slash-group {
+  padding: 8px 10px 4px;
+  color: var(--bb-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.slash-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--bb-radius);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.slash-item.is-selected {
+  background: var(--bg-hover);
+}
+
+.slash-icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--bb-radius);
+  background: var(--bg-secondary);
+  color: var(--bb-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.slash-icon.is-heading {
+  border-color: var(--el-color-primary-light-8);
+  background: var(--bg-active);
+  color: var(--bg-accent);
+}
+
+.slash-icon.is-task {
+  border-color: var(--el-color-success-light-7);
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.slash-icon.is-code {
+  border-color: var(--el-color-warning-light-7);
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+  font-size: 10px;
+}
+
+.slash-icon.is-quote {
+  border-color: var(--el-color-warning-light-7);
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+}
+
+.slash-icon.is-list {
+  border-color: var(--el-color-primary-light-8);
+  background: var(--bg-active);
+  color: var(--bg-accent);
+}
+
+.slash-icon.is-details {
+  border-color: var(--el-color-primary-light-8);
+  background: var(--bg-active);
+  color: var(--bg-accent);
+}
+
+.slash-text {
+  min-width: 0;
+}
+
+.slash-title {
+  display: block;
+  font-size: 13.5px;
+  color: var(--bb-text);
+}
+
+.slash-desc {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--bb-text-muted);
+}
+
+.slash-empty {
+  padding: 18px 12px;
+  color: var(--bb-text-muted);
+  font-size: 12.5px;
+  text-align: center;
+}

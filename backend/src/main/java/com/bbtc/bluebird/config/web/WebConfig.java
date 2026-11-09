@@ -43,11 +43,6 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/assets/**")
                 .addResourceLocations("classpath:/static/assets/")
                 .setCacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable());
-        // Markdown 编辑器（Vditor IR）运行期按 cdn 前缀动态加载 lute/图标/i18n/katex/mermaid；
-        // 关闭默认映射后必须显式注册，否则编辑器初始化失败、输入区空白。
-        registry.addResourceHandler("/vditor/**")
-                .addResourceLocations("classpath:/static/vditor/")
-                .setCacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable());
         registry.addResourceHandler("/favicon.ico")
                 .addResourceLocations("classpath:/static/favicon.ico");
         registry.addResourceHandler("/")

@@ -5,6 +5,7 @@ import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
+import com.bbtc.bluebird.common.util.MarkdownText;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
 import com.bbtc.bluebird.modules.note.dto.NoteCreateReq;
@@ -114,7 +115,10 @@ public class NoteCommandService {
         if (content == null) {
             throw HttpStatusException.badRequest("content 不能为空");
         }
-        if (content.codePointCount(0, content.length()) > CONTENT_LIMIT) {
+        // 富文本按用户可见文字计数，避免 HTML 标签把 20000 字额度提前吃掉；
+        // 历史 Markdown 仍按原文计数，保持既有行为。
+        String measured = MarkdownText.looksLikeHtml(content) ? MarkdownText.plain(content) : content;
+        if (measured.codePointCount(0, measured.length()) > CONTENT_LIMIT) {
             throw new BusinessException(ErrorCode.NOTE_CONTENT_TOO_LONG);
         }
     }

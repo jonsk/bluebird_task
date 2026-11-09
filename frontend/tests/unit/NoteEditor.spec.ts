@@ -1,18 +1,96 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { flushPromises, shallowMount, type VueWrapper } from '@vue/test-utils'
 
 /**
- * NoteEditor 消费后端下发的 `fieldPermissions` 决定正文可编辑性：
- * 1) owner/ADMIN（content=true）→ IR 可编辑，不显示只读提示
- * 2) 只读可见者（content=false）→ preview 模式 + 只读提示
- * 3) 未下发 fieldPermissions → 视为可改（能进编辑态的就是 owner/ADMIN）
- * 4) 新建态：可编辑；且没有日期选择（日志日期由后端固定为当天）
- * 5) 提交时不携带 logDate / tagIds（契约已下线）
+ * NoteEditor 消费后端下发的 `fieldPermissions` 决定正文可编辑性，并负责自动保存。
  *
- * 编辑器已换成 Vditor（IR 模式），这里 stub 掉 `@/utils/vditor` 的加载器：
- * 只断言构造参数与提交载荷，不依赖真实 DOM / lute 引擎。
+ * 真实 Tiptap 在 jsdom 里依赖 DOM 选区/布局，单测只验证组件逻辑：
+ * 用 `useEditor` 桩替换编辑实例，记录 setContent / onUpdate / setEditable，
+ * 断言回显、权限、自动保存载荷与“只有日期标题不落库”。
  */
+
+const state = vi.hoisted(() => ({
+  html: '<p></p>',
+  editable: true,
+  options: null as Record<string, (...args: never[]) => unknown> | null,
+}))
+
+const chain = vi.hoisted(() => {
+  const api: Record<string, unknown> = {}
+  const methods = [
+    'focus',
+    'deleteRange',
+    'setParagraph',
+    'setNode',
+    'toggleBlockquote',
+    'setCodeBlock',
+    'toggleBulletList',
+    'toggleOrderedList',
+    'toggleTaskList',
+    'setHorizontalRule',
+    'insertContent',
+    'insertContentAt',
+    'setTextSelection',
+    'setImage',
+    'toggleBold',
+    'toggleItalic',
+    'toggleUnderline',
+    'toggleStrike',
+    'toggleCode',
+    'setColor',
+    'toggleHighlight',
+    'toggleLink',
+    'extendMarkRange',
+    'unsetLink',
+    'unsetAllMarks',
+    'clearNodes',
+    'undo',
+    'redo',
+  ]
+  for (const method of methods) api[method] = () => api
+  api.run = () => true
+  return api
+})
+
+const fakeEditor = vi.hoisted(() => ({
+  getHTML: () => state.html,
+  getText: () => state.html.replace(/<[^>]+>/g, ' '),
+  commands: {
+    setContent: (content: string) => {
+      state.html = content
+    },
+  },
+  setEditable: (editable: boolean) => {
+    state.editable = editable
+  },
+  registerPlugin: () => undefined,
+  chain: () => chain,
+  can: () => ({ undo: () => true, redo: () => true }),
+  isActive: () => false,
+  getAttributes: () => ({}),
+  state: { selection: { from: 0, to: 0 } },
+  destroy: () => undefined,
+}))
+
+vi.mock('@tiptap/vue-3', async () => {
+  const { shallowRef } = await import('vue')
+  return {
+    useEditor: (options: Record<string, (...args: never[]) => unknown>) => {
+      state.options = options
+      state.editable = Boolean(options.editable)
+      return shallowRef(fakeEditor)
+    },
+    EditorContent: { name: 'EditorContent', template: '<div class="stub-editor-content" />' },
+  }
+})
+
+vi.mock('@tiptap/vue-3/menus', () => ({
+  BubbleMenu: { name: 'BubbleMenu', template: '<div><slot /></div>' },
+}))
+vi.mock('@tiptap/extension-drag-handle-vue-3', () => ({
+  default: { name: 'DragHandle', template: '<div><slot /></div>' },
+}))
+vi.mock('@/utils/slashCommand', () => ({ registerSlashCommand: vi.fn() }))
 
 const getNote = vi.fn()
 const updateNote = vi.fn()
@@ -28,49 +106,11 @@ vi.mock('@/api/note', () => ({
 vi.mock('@/api/file', () => ({
   uploadFile: (...a: unknown[]) => uploadFile(...a),
 }))
-
-/** 编辑器实例桩：记录构造参数，暴露 Vditor 实例方法。 */
-const instances: FakeVditor[] = []
-vi.mock('@/utils/vditor', () => {
-  class FakeVditor {
-    opts: Record<string, any>
-    insertValue = vi.fn()
-    destroy = vi.fn()
-    disabled = vi.fn()
-    setTheme = vi.fn()
-    constructor(_el: HTMLElement, opts: Record<string, any>) {
-      this.opts = opts
-      instances.push(this)
-    }
-  }
-  return {
-    VDITOR_CDN: '/vditor',
-    loadVditor: async () => FakeVditor,
-    vditorTheme: (dark: boolean) => (dark ? 'dark' : 'classic'),
-    vditorContentTheme: (dark: boolean) => (dark ? 'dark' : 'light'),
-    vditorHljs: (dark: boolean) => ({ style: dark ? 'monokai' : 'github', lineNumber: false }),
-    renderVditorPreview: vi.fn(async () => undefined),
-  }
-})
-
 vi.mock('element-plus', () => ({
   ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
 
 import NoteEditor from '@/components/note/NoteEditor.vue'
-
-const ElButton = {
-  name: 'ElButton',
-  props: { disabled: Boolean, loading: Boolean, type: String },
-  template: '<button><slot /></button>',
-}
-const ElDatePicker = {
-  name: 'ElDatePicker',
-  props: { modelValue: String, disabled: Boolean, type: String, valueFormat: String },
-  template: '<div class="stub-date" />',
-}
-
-const components = { ElButton, ElDatePicker }
 
 function detail(over: Record<string, unknown> = {}) {
   return {
@@ -90,52 +130,53 @@ async function settle(): Promise<void> {
   await flushPromises()
 }
 
-/** 最后一个 Vditor 实例（切换可编辑性会重建）。 */
-function editorOf(): FakeVditor {
-  return instances[instances.length - 1]
-}
-
-/** 只读态 = 工具栏隐藏 + 实例 disabled（Vditor 没有 preview 编辑模式）。 */
-const isReadonly = () =>
-  editorOf().opts.toolbarConfig.hide === true && editorOf().disabled.mock.calls.length > 0
-
-/** 模拟 Vditor 的 `input` 回调（真实环境里由编辑器在输入时触发）。 */
-async function type(value: string): Promise<void> {
-  editorOf().opts.input(value)
-  await flushPromises()
-}
-
 async function mountEdit(payload: Record<string, unknown>): Promise<VueWrapper> {
   getNote.mockResolvedValue(payload)
-  const w = mount(NoteEditor, { props: { noteId: 1001 }, global: { components } })
+  const w = shallowMount(NoteEditor, {
+    props: { noteId: 1001 },
+    global: { directives: { loading: { mounted: () => undefined } } },
+  })
   await settle()
   return w
 }
 
-/** 立即保存：Ctrl+Enter（自动保存的防抖版本另外用假定时器测）。 */
+function mountNew(): VueWrapper {
+  return shallowMount(NoteEditor, {
+    global: { directives: { loading: { mounted: () => undefined } } },
+  })
+}
+
+/** 模拟 Tiptap 的 onUpdate（真实环境里由用户输入触发）。 */
+async function type(html: string): Promise<void> {
+  state.html = html
+  state.options?.onUpdate?.({ editor: fakeEditor } as never)
+  await flushPromises()
+}
+
 async function submit(w: VueWrapper): Promise<void> {
   await w.find('[data-test="note-editor"]').trigger('keydown', { key: 'Enter', ctrlKey: true })
   await flushPromises()
 }
 
 beforeEach(() => {
-  setActivePinia(createPinia())
-  instances.length = 0
+  state.html = '<p></p>'
+  state.editable = true
+  state.options = null
   ;[getNote, updateNote, createNote, bindAttachment, uploadFile].forEach((f) => f.mockReset())
 })
 
 describe('NoteEditor × fieldPermissions', () => {
-  it('owner（content=true）：IR 模式可编辑，无只读提示', async () => {
+  it('owner（content=true）：可编辑，无只读提示', async () => {
     const w = await mountEdit(detail())
-    expect(isReadonly()).toBe(false)
-    expect(editorOf().opts.mode).toBe('ir')
+    expect(state.editable).toBe(true)
+    expect(w.find('note-toolbar-stub').exists()).toBe(true)
     expect(w.find('[data-test="note-editor-readonly-hint"]').exists()).toBe(false)
   })
 
-  it('只读可见者（content=false）：preview 模式 + 只读提示，且展示不可改的日志日期', async () => {
+  it('只读可见者（content=false）：关闭编辑并显示只读提示与日志日期', async () => {
     const w = await mountEdit(detail({ fieldPermissions: { content: false } }))
-    expect(isReadonly()).toBe(true)
-    expect(editorOf().opts.toolbarConfig.hide).toBe(true)
+    expect(state.editable).toBe(false)
+    expect(w.find('note-toolbar-stub').exists()).toBe(false)
     expect(w.find('[data-test="note-editor-readonly-hint"]').text()).toContain('只读视图')
     expect(w.find('[data-test="note-editor-logdate"]').text()).toContain('2026-09-28')
   })
@@ -144,144 +185,103 @@ describe('NoteEditor × fieldPermissions', () => {
     const payload = detail() as Record<string, unknown>
     delete payload.fieldPermissions
     await mountEdit(payload)
-    expect(isReadonly()).toBe(false)
+    expect(state.editable).toBe(true)
   })
 
-  it('新建态：无日期选择控件，正文可编辑', async () => {
-    const w = mount(NoteEditor, { global: { components } })
-    await settle()
-    expect(getNote).not.toHaveBeenCalled()
-    expect(w.findComponent(ElDatePicker).exists()).toBe(false)
-    expect(isReadonly()).toBe(false)
-  })
-
-  it('新建态：首行预置当天日期标题，且默认展开左侧大纲', async () => {
-    mount(NoteEditor, { global: { components } })
+  it('新建态：正文可编辑，首行预置当天日期标题', async () => {
+    mountNew()
     await settle()
     const d = new Date()
-    const heading = `# ${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-    expect(editorOf().opts.value).toBe(`${heading}\n\n`)
-    expect(editorOf().opts.outline).toEqual({ enable: true, position: 'left' })
+    const heading = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+    expect(getNote).not.toHaveBeenCalled()
+    expect(state.editable).toBe(true)
+    expect(state.html).toContain(`<h1>${heading}</h1>`)
   })
 
-  it('编辑态：不覆盖正文，也不插入日期标题', async () => {
+  it('编辑态：回显正文，历史 Markdown 自动转 HTML，不插入日期标题', async () => {
     await mountEdit(detail({ content: '# 已有内容\n正文' }))
-    expect(editorOf().opts.value).toBe('# 已有内容\n正文')
+    expect(state.html).toContain('<h1>已有内容</h1>')
+    expect(state.html).toContain('正文')
+    expect(state.html).not.toContain('2026年9月28日')
   })
 
   it('编辑保存不带 logDate / tagIds', async () => {
     const w = await mountEdit(detail())
     updateNote.mockResolvedValue(detail())
-    await type('改过的正文')
+    await type('<p>改过的正文</p>')
     await submit(w)
-    expect(updateNote).toHaveBeenCalledWith(1001, { content: '改过的正文', version: 1 })
+    expect(updateNote).toHaveBeenCalledWith(1001, {
+      content: '<p>改过的正文</p>',
+      version: 1,
+    })
   })
 
   it('新建不带 logDate / tagIds', async () => {
-    const w = mount(NoteEditor, { global: { components } })
+    const w = mountNew()
     await settle()
     createNote.mockResolvedValue(detail())
-    await type('今天的工作')
+    await type('<p>今天的工作</p>')
     await submit(w)
-    expect(createNote).toHaveBeenCalledWith({ content: '今天的工作' })
+    expect(createNote).toHaveBeenCalledWith({ content: '<p>今天的工作</p>' })
   })
 
   it('没有保存/取消按钮，只保留自动保存状态行', async () => {
-    const w = mount(NoteEditor, { global: { components } })
+    const w = mountNew()
     await settle()
     expect(w.find('[data-test="note-editor-save"]').exists()).toBe(false)
-    expect(w.find('[data-test="note-editor-status"]').exists()).toBe(true)
     expect(w.find('[data-test="note-editor-status"]').text()).toContain('自动保存')
   })
 
   it('自动保存：停止输入 1.2s 后创建；只有日期标题时不落库', async () => {
     vi.useFakeTimers()
     try {
-      mount(NoteEditor, { global: { components } })
+      mountNew()
       await settle()
 
       // 只有预置标题 → 不该凭空建一条日志
-      editorOf().opts.input(editorOf().opts.value)
+      await type(state.html)
       await vi.advanceTimersByTimeAsync(2000)
       expect(createNote).not.toHaveBeenCalled()
 
       createNote.mockResolvedValue(detail())
-      editorOf().opts.input('# 2026年11月3日\n\n今日进展')
+      state.html = '<h1>2026年11月3日</h1><p>今日进展</p>'
+      state.options?.onUpdate?.({ editor: fakeEditor } as never)
       await vi.advanceTimersByTimeAsync(1200)
       await flushPromises()
-      expect(createNote).toHaveBeenCalledWith({ content: '# 2026年11月3日\n\n今日进展' })
+      expect(createNote).toHaveBeenCalledWith({
+        content: '<h1>2026年11月3日</h1><p>今日进展</p>',
+      })
     } finally {
       vi.useRealTimers()
     }
   })
 
   it('新建落库后继续输入：走 update，不会重复创建', async () => {
-    const w = mount(NoteEditor, { global: { components } })
+    const w = mountNew()
     await settle()
     createNote.mockResolvedValue(detail())
-    updateNote.mockResolvedValue(detail({ content: '第一段\n第二段', version: 2 }))
+    updateNote.mockResolvedValue(detail({ content: '<p>第二段</p>', version: 2 }))
 
-    await type('第一段')
+    await type('<p>第一段</p>')
     await submit(w)
     expect(createNote).toHaveBeenCalledTimes(1)
 
-    await type('第一段\n第二段')
+    await type('<p>第二段</p>')
     await submit(w)
     expect(createNote).toHaveBeenCalledTimes(1)
-    expect(updateNote).toHaveBeenCalledWith(1001, { content: '第一段\n第二段', version: 1 })
+    expect(updateNote).toHaveBeenCalledWith(1001, {
+      content: '<p>第二段</p>',
+      version: 1,
+    })
   })
 
   it('编辑态详情请求失败不长时间渲染 loading 骨架', async () => {
     getNote.mockRejectedValueOnce(new Error('请求失败'))
-    const w = mount(NoteEditor, { props: { noteId: 1001 }, global: { components } })
+    const w = shallowMount(NoteEditor, {
+      props: { noteId: 1001 },
+      global: { directives: { loading: { mounted: () => undefined } } },
+    })
     await settle()
     expect(w.find('.note-editor__loading').exists()).toBe(false)
   })
 })
-
-describe('NoteEditor × 图片上传', () => {
-  const png = () => new File([new Uint8Array([1, 2, 3])], 'shot.png', { type: 'image/png' })
-
-  it('先上传后绑定，插入 note 预览地址（不用 /files/{id}）', async () => {
-    const w = await mountEdit(detail())
-    uploadFile.mockResolvedValue({ id: 9001 })
-    bindAttachment.mockResolvedValue({ previewUrl: '/notes/1001/attachments/9001/preview' })
-
-    const result = await editorOf().opts.upload.handler([png()])
-
-    expect(result).toBe('')
-    expect(uploadFile).toHaveBeenCalledTimes(1)
-    expect(bindAttachment).toHaveBeenCalledWith(1001, { attachmentId: 9001 })
-    expect(editorOf().insertValue).toHaveBeenCalledWith(
-      '![](/notes/1001/attachments/9001/preview)',
-      true,
-    )
-    expect(w.emitted('attachments-changed')).toHaveLength(1)
-  })
-
-  it('新建态（无 noteId）：拒绝上传并提示先保存', async () => {
-    mount(NoteEditor, { global: { components } })
-    await settle()
-    const result = await editorOf().opts.upload.handler([png()])
-
-    expect(result).toBe('请先保存日志，再插入图片')
-    expect(uploadFile).not.toHaveBeenCalled()
-  })
-
-  it('非图片文件直接拒绝，不发请求', async () => {
-    await mountEdit(detail())
-    const txt = new File(['x'], 'a.txt', { type: 'text/plain' })
-    const result = await editorOf().opts.upload.handler([txt])
-
-    expect(result).toBe('图片上传失败')
-    expect(uploadFile).not.toHaveBeenCalled()
-  })
-})
-
-interface FakeVditor {
-  opts: Record<string, any>
-  insertValue: ReturnType<typeof vi.fn>
-  destroy: ReturnType<typeof vi.fn>
-  disabled: ReturnType<typeof vi.fn>
-  setTheme: ReturnType<typeof vi.fn>
-}

@@ -290,9 +290,9 @@ public class NoteQueryService {
     /* ==================== 工具 ==================== */
 
     /**
-     * 摘要：先剥离 Markdown 标记，再取前 200 码位（不补省略号）。
+     * 摘要：先剥离 HTML / Markdown 标记，再取前 200 码位（不补省略号）。
      *
-     * <p>正文自 Markdown 化后，直接截断原文会把 {@code ##}/{@code **}/{@code ```} 露到卡片上，
+     * <p>直接截断原文会把 HTML 标签或 {@code ##}/{@code **}/{@code ```} 露到卡片上，
      * 甚至把代码围栏切成两半；因此截断前先走 {@link MarkdownText#plain}。
      */
     public static String summary(String content) {

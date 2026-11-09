@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # 本地构建单制品 jar（内嵌前端，ADR-009）。
 #
-# 顺序不能省：前端 build 会把 Vditor 运行期资源（lute/图标/i18n/katex/mermaid）生成到
-# frontend/public/vditor（由 prebuild 钩子的 tools/vendor-vditor.mjs 完成），
-# 后端 package 再把整个 frontend/dist 拷进 jar。跳过任一步都会得到一个「编辑器打不开」的包。
+# 顺序不能省：前端 build 产出 frontend/dist，后端 package 再把整个 dist 拷进 jar。
+# Tiptap 相关依赖全部由 Vite 打进 bundle，不再需要额外的运行期静态资源目录。
 #
 # 用法：
 #   deploy/package.sh                 # 跳过测试，产物 deploy/out/bluebird-task.jar
@@ -48,11 +47,8 @@ java_major="$(sed -n 's/.*version "\([0-9]*\).*/\1/p' <<<"$java_version" | head 
 step "前端依赖"
 pnpm -C "$FRONTEND" install --frozen-lockfile
 
-step "前端构建（含 Vditor 资源 vendor）"
+step "前端构建"
 pnpm -C "$FRONTEND" build
-
-[[ -f "$FRONTEND/public/vditor/dist/js/lute/lute.min.js" ]] \
-  || die "Vditor 资源缺失：frontend/public/vditor/dist（检查 tools/vendor-vditor.mjs）"
 
 if [[ "$WITH_TESTS" -eq 1 ]]; then
   step "后端测试 + 打包"
@@ -68,10 +64,7 @@ JAR="$BACKEND/target/bluebird-task.jar"
 step "校验 jar 内嵌产物"
 if command -v unzip >/dev/null 2>&1; then
   listing="$(unzip -l "$JAR")"
-  for need in \
-    "BOOT-INF/classes/static/index.html" \
-    "BOOT-INF/classes/static/vditor/dist/js/lute/lute.min.js" \
-    "BOOT-INF/classes/static/vditor/dist/js/i18n/zh_CN.js"; do
+  for need in "BOOT-INF/classes/static/index.html"; do
     grep -q "$need" <<<"$listing" || die "jar 缺少 $need（前端产物未内嵌？）"
   done
 else

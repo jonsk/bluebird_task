@@ -7,7 +7,7 @@ import java.time.Instant;
 /**
  * 工作日志基础视图（列表 / 详情共用，**不含 ownerTags**）。
  *
- * <p>{@code contentSummary}：先剥离 Markdown 标记、压缩空白，再取前 200 码位（不补省略号），
+ * <p>{@code contentSummary}：先剥离 HTML / Markdown 标记、压缩空白，再取前 200 码位（不补省略号），
  * 前端不再二次截断。
  */
 @Data

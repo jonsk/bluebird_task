@@ -45,8 +45,7 @@ public class SecurityConfig {
             "/login/**",
             "/actuator/health",
             // 单制品静态资源（ADR-009，不含 /api/v1/**）
-            // /vditor/** = Markdown 编辑器（Vditor IR）运行期按需加载的 lute/图标/i18n，由前端构建产出
-            "/", "/index.html", "/favicon.ico", "/assets/**", "/vditor/**", "/error"
+            "/", "/index.html", "/favicon.ico", "/assets/**", "/error"
     };
 
     @Bean

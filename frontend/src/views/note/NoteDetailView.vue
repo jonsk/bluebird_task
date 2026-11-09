@@ -1,24 +1,23 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { ArrowLeft, Delete, Edit } from '@element-plus/icons-vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
+import NoteContent from '@/components/note/NoteContent.vue'
 import NoteAttachmentList from '@/components/note/NoteAttachmentList.vue'
 import NoteNotFound from '@/components/note/NoteNotFound.vue'
 import { useNoteDetail } from '@/composables/useNoteDetail'
 import { useNoteActions } from '@/composables/useNoteActions'
 import { useNoteStore } from '@/stores/note'
-import { useAppStore } from '@/stores/app'
 import { formatHeaderDate } from '@/utils/date'
 import { stripMarkdown } from '@/utils/markdown'
-import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
-import { renderVditorPreview } from '@/utils/vditor'
 
 /**
  * 日志详情：查看 + 行内编辑 + 附件。
- * - 正文渲染器与编辑器统一为 Vditor（`Vditor.preview`），保证同一篇日志在两处的排版、代码高亮、
- *   公式/图表表现完全一致；深链直达时按需异步加载。
+ * - 正文渲染器与编辑器统一为 Tiptap（同一套 schema + `.note-prose` 样式），
+ *   保证同一篇日志在两处的排版、颜色、折叠块表现一致。
+ * - 历史 Markdown 由 NoteContent 在渲染前自动转成 HTML。
  * - 一切改动经 `useNoteDetail.reload()` 整体收敛（子组件不局部 append/merge）。
  * - 404/50001 → NoteNotFound（不显示重试、不改标题）。
  * - 按钮显隐一律用后端下发的 canEdit / canManage。
@@ -26,7 +25,6 @@ import { renderVditorPreview } from '@/utils/vditor'
 const route = useRoute()
 const router = useRouter()
 const store = useNoteStore()
-const app = useAppStore()
 const detailApi = useNoteDetail()
 const actions = useNoteActions()
 const id = computed(() => Number(route.params.id))
@@ -54,62 +52,6 @@ watch(detail, (d) => {
 })
 onUnmounted(() => {
   document.title = BASE_TITLE || '蓝鸟任务管理系统'
-})
-
-/**
- * 正文图片鉴权：`![](…/preview)` 渲染后由这里换成本地 blob（`<img>` 带不了 Bearer）。
- * 容器随 `detail` 重建时会重新挂 observer，故在每次内容变化后重启一次。
- */
-const preRootRef = ref<HTMLDivElement | null>(null)
-let hydrator: ImageHydrator | null = null
-function rehydrate(): void {
-  hydrator?.stop()
-  hydrator = null
-  void nextTick(() => {
-    hydrator = watchMarkdownImages(() => preRootRef.value)
-  })
-}
-
-/**
- * 正文渲染：`Vditor.preview` 是命令式的，内容 / 主题变化都要重画一次。
- * 用 token 丢弃过期渲染（快速切换日志时后发的请求可能先回来）。
- */
-let renderToken = 0
-async function renderPreview(): Promise<void> {
-  const d = detail.value
-  const el = preRootRef.value
-  if (!d || !el) return
-  const token = ++renderToken
-  try {
-    await renderVditorPreview(el, d.content ?? '', {
-      dark: app.theme === 'dark',
-      after: () => {
-        if (token === renderToken) rehydrate()
-      },
-    })
-  } catch {
-    // 渲染器加载失败时降级为纯文本：宁可看到源码，也不能整篇空白
-    if (token === renderToken) el.textContent = d.content ?? ''
-  }
-}
-
-watch(
-  [detail, editing, () => app.theme],
-  async () => {
-    if (editing.value) {
-      hydrator?.stop()
-      hydrator = null
-      return
-    }
-    await nextTick()
-    await renderPreview()
-  },
-  { immediate: true },
-)
-onUnmounted(() => {
-  renderToken += 1
-  hydrator?.stop()
-  hydrator = null
 })
 
 function back(): void {
@@ -192,7 +134,9 @@ function onCancelEdit(): void {
           @attachments-changed="detailApi.reload()"
         />
       </section>
-      <div v-else ref="preRootRef" class="note-detail__content" data-test="note-detail-content" />
+      <div v-else class="note-detail__content" data-test="note-detail-content">
+        <NoteContent :content="detail.content" />
+      </div>
 
       <section class="note-detail__block">
         <h3 class="note-detail__block-title">附件</h3>
@@ -260,14 +204,6 @@ function onCancelEdit(): void {
   line-height: 1.8;
   color: var(--bb-text-secondary);
   word-break: break-word;
-}
-/* Vditor 预览的排版对齐详情页正文（同一篇日志在两处字号/行高一致） */
-.note-detail__content :deep(.vditor-reset) {
-  padding: 0;
-  font-size: 15px;
-  line-height: 1.8;
-  color: inherit;
-  background: transparent;
 }
 .note-detail__editor {
   padding: 12px 0;

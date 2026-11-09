@@ -2,32 +2,27 @@ import { expect, test, type Locator } from '@playwright/test'
 import { freezeTime, login, settle } from './helpers'
 
 /**
- * Vditor IR（即时渲染）的可编辑区：`.vditor-ir > pre.vditor-reset[contenteditable]`。
- * 没有左右分栏，也没有 CodeMirror。
+ * Tiptap 可编辑区：`.note-editor__prose[contenteditable]`（单栏，无左右预览）。
  */
 function irEditor(scope: Locator): Locator {
-  return scope.locator('.vditor-ir pre.vditor-reset')
+  return scope.locator('.note-editor__prose')
 }
 
 /**
- * 输入 Markdown。
+ * 用真实键盘输入内容。
  *
- * IR 的语法转换是**按输入批次**触发的：一次性 `fill` 不触发语法解析，逐字符敲又会被
- * 编辑器每次重绘后的光标位置打乱（围栏代码块尤其明显）。走真实的 paste 事件最稳：
- * Vditor 会把纯文本按 Markdown 解析并渲染。
+ * Tiptap 的 Markdown 快捷输入（`# `、`- `、`> `）依赖 input rule，必须逐字符键入；
+ * 换行用 Enter 产生新段落。多行文本按行拆分，避免 `keyboard.type` 把 `\n` 当成字符。
  */
 async function typeMarkdown(editor: Locator, text: string): Promise<void> {
   await editor.click()
   await editor.press('ControlOrMeta+a')
   await editor.press('Delete')
-  await editor.evaluate((el, value) => {
-    const data = new DataTransfer()
-    data.setData('text/plain', value)
-    el.dispatchEvent(
-      new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
-    )
-  }, text)
-  // 等编辑器把粘贴内容解析进 DOM，后续断言/保存才拿到最新值
+  const lines = text.split('\n')
+  for (let i = 0; i < lines.length; i += 1) {
+    if (i > 0) await editor.press('Enter')
+    if (lines[i]) await editor.pressSequentially(lines[i])
+  }
   await expect(editor).not.toHaveText('')
 }
 
@@ -63,24 +58,25 @@ test.describe('工作日志', () => {
     await page.goto('/notes')
     await expect(page.locator('.note-card')).toHaveCount(2)
 
-    // 新建态默认：首行是当天日期标题（冻结时间 2026-09-28），左侧大纲默认展开
+    // 新建态默认：首行是当天日期标题（冻结时间 2026-09-28）
     const composer = page.locator('[data-test="note-editor"]')
     await expect(irEditor(composer)).toContainText('2026年9月28日')
-    await expect(composer.locator('.vditor-outline')).toBeVisible()
 
     await typeMarkdown(
       irEditor(page.locator('[data-test="note-editor"]')),
       '## 联调\n- 工作日志新建与附件链路',
     )
 
-    // 自动保存：没有「创建」按钮，停止输入后自动落库并刷新列表
+    // 自动保存：没有「创建」按钮；草稿期间卡片被隐藏，结束后回到列表
+    await page.locator('[data-test="note-composer-done"]').click()
+    await expect(page.locator('[data-test="note-composer"]')).toHaveCount(0)
     await expect(page.locator('.note-card')).toHaveCount(3)
-    await expect(page.locator('[data-test="note-editor-status"]')).toContainText('已保存')
 
-    // 新日志直接进入列表；摘要已做 Markdown 清洗，不露 `##` / `-`
+    // 新日志直接进入列表；摘要已做富文本清洗，不露 HTML / Markdown 标记
     const created = page.locator('.note-card').filter({ hasText: '工作日志新建与附件链路' })
     await expect(created).toBeVisible()
     await expect(created.locator('.note-card__summary')).not.toContainText('##')
+    await expect(created.locator('.note-card__summary')).not.toContainText('<')
     // 临时卡片（note-draft-card）已下线，不再出现
     await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
   })
@@ -96,7 +92,7 @@ test.describe('工作日志', () => {
     await expect(irEditor(host)).toContainText(/移动端适配方案/)
 
     await typeMarkdown(irEditor(host), '私有：移动端适配方案已改为两栏布局')
-    await expect(host.locator('[data-test="note-editor-status"]')).toContainText('已保存')
+    await expect(host.locator('.note-inline-editor__save.is-saved')).toBeVisible()
     // 没有「保存/取消」按钮，Esc 收起编辑
     await expect(host.getByRole('button', { name: /保存|取消|创建/ })).toHaveCount(0)
     await irEditor(host).press('Escape')
@@ -227,7 +223,7 @@ test.describe('工作日志', () => {
     const editor = irEditor(host)
     await typeMarkdown(editor, '快捷键保存的内容')
     await editor.press('Control+Enter')
-    await expect(host.locator('[data-test="note-editor-status"]')).toContainText('已保存')
+    await expect(host.locator('.note-inline-editor__save.is-saved')).toBeVisible()
 
     // 自动保存不会自己关面板，Esc 收起后卡片已更新
     await editor.press('Escape')
@@ -238,7 +234,9 @@ test.describe('工作日志', () => {
   test('N-18 新建后跨路由往返：回到列表仍能看到新日志', async ({ page }) => {
     await page.goto('/notes')
     await typeMarkdown(irEditor(page.locator('[data-test="note-editor"]')), '跨路由恢复用日志')
-    // 自动保存落库后列表出现新卡片
+    // 草稿期间卡片隐藏；结束后自动保存落库，列表出现新卡片
+    await page.locator('[data-test="note-composer-done"]').click()
+    await expect(page.locator('[data-test="note-composer"]')).toHaveCount(0)
     await expect(page.locator('.note-card')).toHaveCount(3)
     await expect(page.locator('[data-test="note-draft-card"]')).toHaveCount(0)
 
@@ -265,51 +263,49 @@ test.describe('工作日志', () => {
     expect(overflow).toBeLessThanOrEqual(1)
   })
 
-  test('N-21 工具栏保持库默认项：图片/预览/加粗都在，且没有自定义按钮', async ({ page }) => {
+  test('N-21 自定义工具栏：加粗 / 高亮 / 图片 / 撤销重做都在，且没有保存按钮', async ({ page }) => {
     await page.goto('/notes')
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
     const host = page.locator('[data-test="note-inline-editor"]')
     await expect(host).toBeVisible()
 
-    // 未改 Vditor 默认工具栏：上传图片、预览、加粗都是库自带项
-    const upload = host.locator('.vditor-toolbar [data-type="upload"]')
-    await expect(upload).toHaveCount(1)
-    await expect(host.locator('.vditor-toolbar [data-type="preview"]')).toHaveCount(1)
-    await expect(host.locator('.vditor-toolbar [data-type="bold"]')).toHaveCount(1)
-    // 没有自己加的业务按钮（保存走底部按钮 / Ctrl+Enter）
-    await expect(host.locator('.vditor-toolbar [data-type="save"]')).toHaveCount(0)
+    const toolbar = host.locator('.note-toolbar')
+    await expect(toolbar).toHaveCount(1)
+    await expect(toolbar.locator('[title="插入图片"]')).toHaveCount(1)
+    await expect(toolbar.locator('[title^="粗体"]')).toHaveCount(1)
+    await expect(toolbar.locator('[title^="重做"]')).toHaveCount(1)
+    // 保存走自动保存 / Ctrl+Enter，工具栏不放业务按钮
+    await expect(toolbar.locator('[title="保存"]')).toHaveCount(0)
 
     await typeMarkdown(irEditor(host), '工具栏默认：这段内容必须落库')
     await irEditor(host).press('Control+Enter')
-    await expect(host.locator('[data-test="note-editor-status"]')).toContainText('已保存')
+    await expect(host.locator('.note-inline-editor__save.is-saved')).toBeVisible()
     await irEditor(host).press('Escape')
     await expect(host).toHaveCount(0)
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('工具栏默认')
   })
 
-  test('N-22 单栏即时渲染：输入区直接出效果，公式与 mermaid 走本地资源', async ({ page }) => {
+  test('N-22 单栏即时渲染：输入区直接出标题 / 列表，零外网资源', async ({ page }) => {
     await page.goto('/notes')
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
     const host = page.locator('[data-test="note-inline-editor"]')
     await expect(host).toBeVisible()
 
-    // 单栏 IR：只有可编辑区，没有独立的预览栏（旧的左右分栏已下线）
+    // 单栏：只有可编辑区，没有独立的预览栏
     const editor = irEditor(host)
     await expect(editor).toBeVisible()
     await expect(host.locator('.md-editor-preview')).toHaveCount(0)
 
-    await typeMarkdown(editor, '# 标题\n\n公式 $E=mc^2$\n\n```mermaid\ngraph TD\nA-->B\n```')
+    await typeMarkdown(editor, '# 标题\n- 第一条\n- 第二条')
 
-    // 输入区本身就出标题、公式、图，不需要点任何预览按钮
+    // 输入区本身就出标题、列表，不需要点任何预览按钮
     await expect(editor.locator('h1').filter({ hasText: '标题' })).toBeVisible()
-    // katex / mermaid 由 `/vditor` 同源资源异步加载，给足时间
-    await expect(editor.locator('.katex').first()).toBeVisible({ timeout: 20000 })
-    await expect(editor.locator('svg').first()).toBeVisible({ timeout: 20000 })
+    await expect(editor.locator('li')).toHaveCount(2)
 
-    // 零外网：编辑器相关请求都落在同源 /vditor 下
+    // 零外网：编辑器相关请求都落在同源；Tiptap bundle 不拉 CDN
     const external = await page.evaluate(() => {
       const urls = performance.getEntriesByType('resource').map((e) => e.name)
-      return urls.filter((u) => !u.startsWith(location.origin) && /vditor|unpkg|jsdelivr/.test(u))
+      return urls.filter((u) => !u.startsWith(location.origin) && /unpkg|jsdelivr|cdnjs/.test(u))
     })
     expect(external).toEqual([])
   })
@@ -323,12 +319,42 @@ test.describe('工作日志', () => {
     await expect(img).toHaveAttribute('src', /^blob:/)
   })
 
-  test('N-24 详情页含公式：Vditor.preview 走本地 katex 渲染（正文不空白）', async ({ page }) => {
+  test('N-24 详情页历史 Markdown：自动转 HTML 且正文不空白', async ({ page }) => {
     await page.goto('/notes/1001')
-    await expect(page.locator('[data-test="note-detail-content"]')).toContainText('工作日志的前端骨架')
-    await expect(page.locator('[data-test="note-detail-content"] .katex').first()).toBeVisible({
-      timeout: 15000,
-    })
+    const content = page.locator('[data-test="note-detail-content"]')
+    await expect(content).toContainText('工作日志的前端骨架')
+    // 旧日志里的公式源码保留了可读文本（不再依赖外部编辑器运行期资源）
+    await expect(content).toContainText('E=mc^2')
+  })
+
+  test('N-25 斜杠菜单插入折叠块，折叠块可展开 / 收起', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    const editor = irEditor(host)
+    await expect(editor).toBeVisible()
+
+    // 行首输入 `/` 唤起块命令，输入关键词过滤后点选插入
+    await editor.click()
+    await editor.press('Control+End')
+    await editor.press('Enter')
+    await page.keyboard.type('/折叠')
+    const menu = page.locator('.slash-menu')
+    await expect(menu).toBeVisible()
+    await expect(menu.locator('.slash-item')).toHaveCount(1)
+    await menu.locator('.slash-item').first().click()
+
+    const details = editor.locator('[data-type="details"]').first()
+    await expect(details).toHaveCount(1)
+    await expect(details).toHaveClass(/is-open/)
+    await details.locator('.details-toggle').first().click()
+    await expect(details).not.toHaveClass(/is-open/)
+    await details.locator('.details-toggle').first().click()
+    await expect(details).toHaveClass(/is-open/)
+
+    // 收起编辑，草稿自动保存
+    await editor.press('Escape')
+    await expect(host).toHaveCount(0)
   })
 
   test('N-20 全部日志在后台：仅 ADMIN 可见，列出全员日志', async ({ page }) => {

@@ -91,7 +91,7 @@ const displayNotes = computed(() => {
   if (editId.value != null) hide.add(editId.value)
   if (composerOpen.value && composerId.value != null) hide.add(composerId.value)
   if (!hide.size) return notes.value
-  return notes.value.filter((n) => n.id != null && hide.has(n.id))
+  return notes.value.filter((n) => n.id == null || !hide.has(n.id))
 })
 
 /** 正在编辑的日志（用于标题栏提示），列表里被隐藏但仍可在此取日期做标识。 */

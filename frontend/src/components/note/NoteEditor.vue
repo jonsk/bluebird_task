@@ -1,36 +1,34 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { EditorContent, useEditor } from '@tiptap/vue-3'
+import { BubbleMenu } from '@tiptap/vue-3/menus'
+import DragHandle from '@tiptap/extension-drag-handle-vue-3'
 import { getNote, createNote, updateNote, bindAttachment } from '@/api/note'
 import { uploadFile } from '@/api/file'
 import { BizError, HttpError } from '@/api/http'
-import { useAppStore } from '@/stores/app'
 import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
-import {
-  VDITOR_CDN,
-  loadVditor,
-  vditorContentTheme,
-  vditorHljs,
-  vditorTheme,
-} from '@/utils/vditor'
+import { buildNoteExtensions } from '@/utils/noteEditorExtensions'
+import { registerSlashCommand } from '@/utils/slashCommand'
+import { isBlankHtml, plainTextFromHtml, toEditorHtml, visibleLength } from '@/utils/richText'
+import NoteToolbar from './editor/NoteToolbar.vue'
+import NoteBubbleMenu from './editor/NoteBubbleMenu.vue'
 import type { NoteDetailVO } from '@/types/note'
-import type Vditor from 'vditor'
+import '@/styles/note-editor.css'
 
 /**
- * NoteEditor — 新建 / 编辑日志（Markdown 编辑器，**自动保存**）。
+ * NoteEditor — 新建 / 编辑日志（Tiptap 富文本编辑器，**自动保存**）。
+ *
+ * 与列表/详情共用 `buildNoteExtensions` 的 schema；正文以 HTML 落库。
+ * 历史 Markdown 日志在进入编辑器时用 `toEditorHtml` 转换，用户继续编辑并保存后
+ * 自动升级为 HTML，不需要一次性迁移脚本。
+ *
  * - 没有「保存 / 取消」按钮：停止输入 AUTO_SAVE_DELAY 后自动落库（Ctrl+S / Ctrl+Enter 立即保存，
  *   组件销毁前兜底保存一次）；状态行显示 保存中 / 已保存 HH:mm / 保存失败·点击重试。
  * - 新建：首行预置当天日期标题；正文非空才真正创建（只有标题不会凭空多一条日志）。
- *   创建成功后继续编辑就是 update 同一条，无需再操作。
  * - 编辑：GET 详情回显，更新带 version；失败保留草稿在编辑器里。
  * - 宿主若监听 `cancel`，传 `closable`，用户可按 Esc 收起（行内编辑 / 详情编辑）。
  * 日志日期创建后不可修改（后端对携带 logDate 的更新返回 400）。
- *
- * 编辑器用 Vditor 的 **IR（即时渲染）模式**：单栏，敲 `# ` 当场变标题、`**粗**` 当场变粗体，
- * 没有「左边源码 / 右边预览」的双栏。只读态仍是同一渲染器，只是隐藏工具栏并锁输入。
- *
- * Vditor 的 lute 引擎、工具栏图标、i18n 是按 `cdn` 前缀动态插 <script> 加载的，bundler 管不到；
- * 因此构建时把 `node_modules/vditor/dist` 的子集拷到 `public/vditor/dist`，`cdn: '/vditor'` 走同源。
  */
 const CONTENT_LIMIT = 20000
 /** 停止输入多久后自动保存（毫秒） */
@@ -80,9 +78,6 @@ const emit = defineEmits<{
   (e: 'attachments-changed'): void
 }>()
 
-const app = useAppStore()
-const isDark = computed(() => app.theme === 'dark')
-
 const isEdit = computed(() => props.noteId != null)
 
 const content = ref('')
@@ -103,46 +98,140 @@ const errorMessage = ref('')
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let saving: Promise<void> | null = null
+let loadToken = 0
 
 /** 编辑态用 props.noteId；新建态首次保存后改用 createdId。 */
 const currentId = computed(() => props.noteId ?? createdId.value)
 
+/* ==================== Tiptap 实例 ==================== */
+
+const hostRef = ref<HTMLElement | null>(null)
+const stateTick = ref(0)
+let hydrator: ImageHydrator | null = null
+/** setContent 期间忽略 onUpdate，避免“回显”被误判成用户输入。 */
+let hydrating = false
+
+const editor = useEditor({
+  content: '<p></p>',
+  editable: canEditContent.value,
+  extensions: buildNoteExtensions({ mode: 'editor' }),
+  editorProps: {
+    attributes: {
+      class: 'note-prose note-editor__prose',
+      spellcheck: 'false',
+    },
+    handlePaste: (_view, event) => {
+      const files = imageFilesFromEvent(event.clipboardData)
+      if (!files.length) return false
+      event.preventDefault()
+      void uploadImages(files)
+      return true
+    },
+    handleDrop: (_view, event) => {
+      const files = imageFilesFromEvent(event.dataTransfer)
+      if (!files.length) return false
+      event.preventDefault()
+      void uploadImages(files)
+      return true
+    },
+  },
+  onCreate: ({ editor: ed }) => {
+    registerSlashCommand(ed)
+    applyContent(toEditorHtml(content.value))
+  },
+  onUpdate: ({ editor: ed }) => {
+    content.value = ed.getHTML()
+    if (hydrating) return
+    if (content.value === lastSaved.value) {
+      if (status.value !== 'error') status.value = 'idle'
+      return
+    }
+    if (status.value !== 'error') status.value = 'idle'
+    scheduleSave()
+  },
+  onTransaction: () => {
+    stateTick.value += 1
+  },
+})
+
+watch(canEditContent, (editable) => {
+  editor.value?.setEditable(editable)
+})
+
+onMounted(() => {
+  init()
+  hydrator = watchMarkdownImages(() => hostRef.value)
+})
+
+onUnmounted(() => {
+  hydrator?.stop()
+  hydrator = null
+})
+
+/** 用 HTML 覆盖编辑器内容，并同步 content / lastSaved 基线。 */
+function applyContent(html: string): void {
+  const ed = editor.value
+  if (!ed) {
+    content.value = html
+    return
+  }
+  hydrating = true
+  try {
+    ed.commands.setContent(html || '<p></p>', { emitUpdate: false })
+    content.value = ed.getHTML()
+  } finally {
+    hydrating = false
+  }
+}
+
+function syncBaseline(): void {
+  applyContent(toEditorHtml(content.value))
+  lastSaved.value = content.value
+}
+
 async function loadDetail(): Promise<void> {
   if (!isEdit.value || props.noteId == null) return
+  const token = ++loadToken
   loading.value = true
   try {
     const d = await getNote(props.noteId)
+    if (token !== loadToken) return
     content.value = d.content ?? ''
     logDate.value = d.logDate ?? ''
     currentVersion.value = d.version
-    lastSaved.value = content.value
     loadedPerms.value = (d as { fieldPermissions?: typeof loadedPerms.value }).fieldPermissions ?? null
+    await nextTick()
+    if (token !== loadToken) return
+    syncBaseline()
   } catch (e) {
     const msg = e instanceof BizError || e instanceof HttpError ? e.message : (e as Error).message
     ElMessage.error(msg || '加载详情失败')
   } finally {
-    loading.value = false
+    if (token === loadToken) loading.value = false
   }
 }
 
 /**
- * 新建日志的默认首行：`# 2026年11月3日`（月/日不补零，符合「202X年X月X日」的写法）。
+ * 新建日志的默认首行：`2026年11月3日`（月/日不补零，符合「202X年X月X日」的写法）。
  * 用本地时区取日期，与后端「日志日期 = 当天」的口径一致。
  */
 function todayHeading(): string {
   const d = new Date()
-  return `# ${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
 }
 
 function applyNewDefaults(): void {
   // 新建才插入日期标题；编辑态由详情接口回显，宿主若传了 initial 则以传入内容为准
-  content.value = props.initial?.content ?? `${todayHeading()}\n\n`
+  const initial = props.initial?.content
+  content.value = initial ?? `<h1>${todayHeading()}</h1><p></p>`
   createdId.value = null
   currentVersion.value = undefined
-  // 预置标题不算"已保存内容"：正文写出来才会真正建这条日志
-  lastSaved.value = ''
+  loadedPerms.value = null
   status.value = 'idle'
   errorMessage.value = ''
+  applyContent(toEditorHtml(content.value))
+  // 预置标题不算"已保存内容"：正文写出来才会真正建这条日志
+  lastSaved.value = initial ? content.value : ''
 }
 
 function init(): void {
@@ -150,165 +239,27 @@ function init(): void {
   else applyNewDefaults()
 }
 
-onMounted(init)
 watch(
   () => props.noteId,
-  () => init(),
-)
-
-/* ==================== Vditor ==================== */
-
-const hostRef = ref<HTMLElement | null>(null)
-let vditor: Vditor | null = null
-let hydrator: ImageHydrator | null = null
-let creating: Promise<void> | null = null
-
-/**
- * 创建编辑器实例。只读态仍是 IR 渲染器（Vditor 没有 preview 编辑模式），
- * 隐藏工具栏并 `disabled()` 锁输入，保证与可编辑态同一套排版。
- */
-async function createVditor(): Promise<void> {
-  const host = hostRef.value
-  if (!host || vditor || creating) return
-  creating = (async () => {
-    const VditorCtor = await loadVditor()
-    if (!hostRef.value) return
-    const readOnly = !canEditContent.value
-    vditor = new VditorCtor(hostRef.value, {
-      cdn: VDITOR_CDN,
-      lang: 'zh_CN',
-      mode: 'ir',
-      value: content.value,
-      // 不设固定 height：编辑器高度随内容自动增长（长日志不会在内部上下翻页，而是整页滚动）
-      cache: { enable: false },
-      theme: vditorTheme(isDark.value),
-      icon: 'ant',
-      placeholder: '记录今日工作…（Ctrl+Enter 保存）',
-      counter: { enable: true, type: 'markdown', max: CONTENT_LIMIT },
-      // 大纲默认展开在左侧，长日志可直接跳转标题
-      outline: { enable: true, position: 'left' },
-      toolbarConfig: { hide: readOnly, pin: true },
-      preview: {
-        theme: { current: vditorContentTheme(isDark.value) },
-        hljs: vditorHljs(isDark.value),
-        math: { engine: 'KaTeX' },
-      },
-      input: (value: string) => {
-        content.value = value
-        if (value === lastSaved.value) return
-        if (status.value !== 'error') status.value = 'idle'
-        scheduleSave()
-      },
-      upload: {
-        accept: 'image/png,image/jpeg,image/gif,image/webp,image/bmp',
-        handler: (files: File[]) => onUploadImg(files),
-      },
-    })
-    if (readOnly) vditor.disabled()
-    await nextTick()
-    attachToolbarTips()
-    hydrator = watchMarkdownImages(() => hostRef.value)
-  })()
-  await creating
-  creating = null
-}
-
-function destroyVditor(): void {
-  hydrator?.stop()
-  hydrator = null
-  vditor?.destroy()
-  vditor = null
-}
-
-/**
- * 给工具栏图标补悬停提示。
- *
- * 不依赖 Vditor 内部 tooltip 机制（其是否展示受版本/i18n/主题影响，不一定可靠），
- * 直接给每个工具栏按钮补上原生 `title`，浏览器鼠标悬停即有提示。
- * 只在实例创建/重建后调用一次（重建会重新生成工具栏 DOM）。
- */
-const TOOLBAR_TIPS: Record<string, string> = {
-  headings: '标题',
-  bold: '粗体',
-  italic: '斜体',
-  strike: '删除线',
-  link: '链接',
-  list: '无序列表',
-  'ordered-list': '有序列表',
-  check: '任务列表',
-  outdent: '列表反向缩进',
-  indent: '列表缩进',
-  quote: '引用',
-  line: '分隔线',
-  code: '代码块',
-  'inline-code': '行内代码',
-  'insert-before': '在上方插入行',
-  'insert-after': '在下方插入行',
-  upload: '上传图片或文件',
-  table: '表格',
-  undo: '撤销',
-  redo: '重做',
-  fullscreen: '全屏切换',
-  'edit-mode': '切换编辑模式',
-  both: '编辑 & 预览',
-  outline: '大纲',
-  info: '关于',
-  more: '更多',
-  emoji: '表情',
-  export: '导出',
-}
-function attachToolbarTips(): void {
-  const host = hostRef.value
-  if (!host) return
-  host.querySelectorAll('.vditor-toolbar__item, .vditor-menu [data-type]').forEach((el) => {
-    const btn = el as HTMLElement
-    const tip = TOOLBAR_TIPS[btn.dataset.type ?? '']
-    if (tip && !btn.title) btn.title = tip
-  })
-}
-
-/** 详情加载完成后（v-if 放行）再挂载；切换日志时重建，避免把上一条的内容留在编辑器里。 */
-watch(
-  loading,
-  async (busy) => {
-    if (busy) {
-      destroyVditor()
-      return
-    }
-    await nextTick()
-    await createVditor()
+  () => {
+    if (isEdit.value) void loadDetail()
+    else applyNewDefaults()
   },
-  { immediate: true },
 )
-
-/** 主题切换：Vditor 需要同时切编辑器与预览两套主题。 */
-watch(isDark, (dark) => {
-  vditor?.setTheme(dark ? 'dark' : 'classic', dark ? 'dark' : 'light', dark ? 'monokai' : 'github')
-})
-
-/** 可编辑性变化（如权限回填）：Vditor 不支持原地切工具栏显隐，直接重建实例。 */
-watch(canEditContent, async () => {
-  destroyVditor()
-  await nextTick()
-  await createVditor()
-})
-
-onUnmounted(destroyVditor)
 
 /* ==================== 自动保存 ==================== */
 
 /**
- * 读编辑器实时值：`input` 回调有渲染延迟（粘贴、输入法上屏），直接读可避免存下旧内容。
+ * 读编辑器实时值。
  *
- * 卸载过程中 Vditor 的内部实例可能已先被释放（`getValue` 会抛 `VditorIRDOM2Md`），
- * 一旦这里抛异常，Vue 的卸载链会中断——表现为「路由变了但视图没换」。因此：
- * 卸载中直接退回 `content`，平时也兜一层 try/catch。
+ * 卸载过程中 Tiptap 实例可能已先释放，一旦这里抛异常，Vue 的卸载链会中断——
+ * 表现为「路由变了但视图没换」。因此卸载中直接退回 content，平时也兜一层 try/catch。
  */
 let tearingDown = false
 function readValue(): string {
   if (tearingDown) return content.value
   try {
-    return vditor?.getValue ? vditor.getValue() : content.value
+    return editor.value?.getHTML() ?? content.value
   } catch {
     return content.value
   }
@@ -316,10 +267,15 @@ function readValue(): string {
 
 /**
  * 正文是否非空。
- * 新建时首行是预置的 `# 2026年11月3日`，只有标题不建日志——否则用户一进页面就会凭空多一条日志。
+ * 新建时首行是预置的日期标题，只有标题不建日志——否则用户一进页面就会凭空多一条日志。
  */
 function hasBody(value: string): boolean {
-  return value.replace(/^[ \t]*#+[^\n]*\n?/, '').trim().length > 0
+  const lines = plainTextFromHtml(value)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (!lines.length) return false
+  return !/^\d{4}年\d{1,2}月\d{1,2}日$/.test(lines[0]) || lines.length > 1
 }
 
 function scheduleSave(): void {
@@ -345,8 +301,8 @@ async function saveNow(): Promise<void> {
 
   const value = readValue()
   if (value === lastSaved.value) return
-  if (!value.trim()) return
-  if ([...value].length > CONTENT_LIMIT) {
+  if (isBlankHtml(value)) return
+  if (visibleLength(value) > CONTENT_LIMIT) {
     status.value = 'error'
     errorMessage.value = `内容不能超过 ${CONTENT_LIMIT} 字`
     return
@@ -394,11 +350,13 @@ async function saveNow(): Promise<void> {
   if (readValue() !== lastSaved.value) scheduleSave()
 }
 
-/** Vditor 只有默认快捷键；这里补 Ctrl+S / Ctrl+Enter（立即保存）与 Esc（收起编辑）。 */
+/** Tiptap 默认快捷键之外补 Ctrl+S / Ctrl+Enter（立即保存）与 Esc（收起编辑）。 */
 function onKeydown(e?: Event): void {
   const event = e as KeyboardEvent | undefined
   if (!event || event.isComposing) return
   if (event.key === 'Escape') {
+    // 斜杠菜单打开时 Esc 只关菜单（由 Suggestion 插件处理），不收起整个编辑器
+    if (typeof document !== 'undefined' && document.querySelector('.slash-menu')) return
     emit('cancel')
     return
   }
@@ -425,22 +383,27 @@ onBeforeUnmount(() => {
 
 const IMAGE_ACCEPT = /^image\/(png|jpe?g|gif|webp|bmp)$/i
 
+function imageFilesFromEvent(data: DataTransfer | null): File[] {
+  if (!data) return []
+  return Array.from(data.files).filter((file) => IMAGE_ACCEPT.test(file.type))
+}
+
 /**
- * 工具栏「上传图片」：先 `POST /files` 落盘，再 `POST /notes/{id}/attachments` 关联，
+ * 工具栏 / 粘贴 / 拖拽图片：先 `POST /files` 落盘，再 `POST /notes/{id}/attachments` 关联，
  * 插入正文的是 note 专用预览地址（`/notes/{id}/attachments/{aid}/preview`）——
  * 通用 `/files/{id}/preview` 只有上传者/ADMIN 能看，别人看到的日志会是一堆破图。
  *
- * <p>新建态还没有 noteId，无法关联，直接提示先保存（否则图片会挂在一个不存在的日志上）。
- *
- * @returns 空串 = 成功（Vditor 约定：返回非空字符串即错误提示）
+ * 新建态还没有 noteId（首次自动保存前）无法关联，直接提示先保存。
  */
-async function onUploadImg(files: File[]): Promise<string> {
-  if (!canEditContent.value) return '当前为只读视图'
-  if (props.noteId == null) {
+async function uploadImages(files: File[]): Promise<void> {
+  if (!canEditContent.value) return
+  const noteId = currentId.value
+  if (noteId == null) {
     ElMessage.warning('请先保存日志，再插入图片')
-    return '请先保存日志，再插入图片'
+    return
   }
-  const urls: string[] = []
+
+  let inserted = 0
   let failed = 0
   for (const file of files) {
     if (!IMAGE_ACCEPT.test(file.type)) {
@@ -450,23 +413,41 @@ async function onUploadImg(files: File[]): Promise<string> {
     }
     try {
       const vo = await uploadFile(file)
-      const att = await bindAttachment(props.noteId, { attachmentId: Number(vo.id) })
+      const att = await bindAttachment(noteId, { attachmentId: Number(vo.id) })
       const url = att.previewUrl || att.downloadUrl
-      if (url) urls.push(url)
+      if (url) {
+        editor.value?.chain().focus().setImage({ src: url, alt: file.name }).run()
+        inserted += 1
+      }
     } catch (e) {
       failed += 1
       ElMessage.error(`${file.name}：${(e as Error)?.message || '上传失败'}`)
     }
   }
-  if (urls.length) {
-    vditor?.insertValue(
-      urls.map((url) => `![](${url})`).join('\n'),
-      true,
-    )
-    emit('attachments-changed')
-  }
-  if (failed && !urls.length) return '图片上传失败'
-  return ''
+  if (inserted) emit('attachments-changed')
+  if (failed && !inserted) ElMessage.error('图片上传失败')
+}
+
+/* ==================== 拖拽手柄 ==================== */
+
+const hoveredBlock = ref<{ pos: number; size: number } | null>(null)
+
+function onNodeChange({ node, pos }: { node: { nodeSize: number } | null; pos: number }): void {
+  hoveredBlock.value = node ? { pos, size: node.nodeSize } : null
+}
+
+function insertBelow(): void {
+  const ed = editor.value
+  if (!ed) return
+  const insertPos = hoveredBlock.value
+    ? hoveredBlock.value.pos + hoveredBlock.value.size
+    : ed.state.selection.to
+
+  ed.chain()
+    .focus()
+    .insertContentAt(insertPos, { type: 'paragraph' })
+    .setTextSelection(insertPos + 1)
+    .run()
 }
 
 /* ==================== 暴露给宿主 ==================== */
@@ -488,7 +469,46 @@ defineExpose({
     <div v-if="isEdit && loading" v-loading="loading" class="note-editor__loading">加载中…</div>
 
     <template v-else>
-      <div ref="hostRef" class="note-editor__content" data-test="note-editor-content" />
+      <div class="note-editor__content" :class="{ 'is-readonly': !canEditContent }">
+        <NoteToolbar
+          v-if="editor && canEditContent"
+          :editor="editor"
+          :tick="stateTick"
+          @upload-image="uploadImages"
+        />
+
+        <div ref="hostRef" class="note-editor__body" data-test="note-editor-content">
+          <DragHandle
+            v-if="editor && canEditContent"
+            :editor="editor"
+            class="drag-handle"
+            :compute-position-config="{ placement: 'left-start' }"
+            :on-node-change="onNodeChange"
+          >
+            <div class="drag-handle__inner">
+              <button
+                class="dh-btn"
+                type="button"
+                title="在下方插入段落"
+                draggable="false"
+                @mousedown.stop
+                @click.stop="insertBelow"
+              >
+                +
+              </button>
+              <button class="dh-btn dh-grip" type="button" title="拖拽排序" draggable="false">
+                ⠿
+              </button>
+            </div>
+          </DragHandle>
+
+          <EditorContent :editor="editor" class="note-editor__editor" />
+
+          <BubbleMenu v-if="editor && canEditContent" :editor="editor" :options="{ placement: 'top' }">
+            <NoteBubbleMenu :editor="editor" :tick="stateTick" />
+          </BubbleMenu>
+        </div>
+      </div>
 
       <p v-if="isEdit && logDate && !compact" class="note-editor__meta" data-test="note-editor-logdate">
         日志日期：{{ logDate }}（创建后不可修改）
@@ -515,6 +535,7 @@ defineExpose({
           {{ errorMessage }}，点击重试
         </button>
         <template v-else-if="status === 'saved'">已保存 {{ savedAt }}</template>
+        <template v-else>自动保存已开启 · Ctrl+S 立即保存</template>
       </div>
     </template>
   </div>
@@ -535,6 +556,11 @@ defineExpose({
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--bb-radius-sm);
   overflow: hidden;
+  background: var(--bg-primary);
+}
+.note-editor__body {
+  position: relative;
+  padding: 10px 14px 20px 44px;
 }
 .note-editor__meta {
   margin: 8px 0 0;
@@ -566,14 +592,7 @@ defineExpose({
   cursor: pointer;
   text-decoration: underline;
 }
-
-/* 内容区：编辑器高度随内容自适应（未设固定 height），min-height 只保证空文档
-   时也有可点击的书写区域；内容变长后整块随内容增高，长日志整页滚动而非内部翻页。
-   横向留白收窄到 4px（Vditor 默认 .vditor-reset 左右各 10px，叠在页面栅格上缩进过多），
-   只留一点避免正文贴到 1px 边框上，纵向 padding 维持 Vditor 默认的 10px。 */
-.note-editor__content :deep(.vditor-reset) {
-  min-height: 480px;
-  padding-left: 4px;
-  padding-right: 4px;
+.note-editor__editor {
+  min-height: 460px;
 }
 </style>

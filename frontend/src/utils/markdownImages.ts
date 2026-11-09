@@ -23,7 +23,7 @@ export interface ImageHydrator {
 }
 
 /**
- * 监听容器内新增的 `<img>`（含 Vditor 异步渲染出的正文图），逐个补图。
+ * 监听容器内新增的 `<img>`（含 Markdown 转换后异步插入的正文图），逐个补图。
  *
  * @param getRoot 返回渲染容器；容器本身可能稍后才挂载，故用函数而非元素
  */
