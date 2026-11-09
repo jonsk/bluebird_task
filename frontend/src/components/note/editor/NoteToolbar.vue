@@ -280,16 +280,6 @@ function toggleEmoji(): void {
     >
       <NoteIcon name="strike" />
     </button>
-    <button
-      type="button"
-      class="tb-btn tb-btn--code"
-      :class="{ 'is-active': editor.isActive('code') }"
-      title="行内代码"
-      @click="editor.chain().focus().toggleCode().run()"
-    >
-      <NoteIcon name="code" />
-    </button>
-
     <span class="tb-sep" />
 
     <label class="tb-color" title="文字颜色">
@@ -419,15 +409,6 @@ function toggleEmoji(): void {
     <button
       type="button"
       class="tb-btn"
-      :class="{ 'is-active': editor.isActive('codeBlock') }"
-      title="代码块"
-      @click="editor.chain().focus().toggleCodeBlock().run()"
-    >
-      <NoteIcon name="codeBlock" />
-    </button>
-    <button
-      type="button"
-      class="tb-btn"
       title="分割线"
       @click="editor.chain().focus().setHorizontalRule().run()"
     >
@@ -436,10 +417,11 @@ function toggleEmoji(): void {
     <button
       type="button"
       class="tb-btn"
-      title="插入折叠块"
+      title="插入折叠代码"
+      data-test="note-details"
       @click="editor.chain().focus().setDetails().run()"
     >
-      <NoteIcon name="details" />
+      <NoteIcon name="codeBlock" />
     </button>
     <button type="button" class="tb-btn" title="插入图片" @click="pickImages">
       <NoteIcon name="image" />

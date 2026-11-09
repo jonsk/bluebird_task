@@ -72,16 +72,6 @@ const items: SlashItem[] = [
       editor.chain().focus().deleteRange(range).toggleBlockquote().run(),
   },
   {
-    title: '代码块',
-    description: '保留换行的代码片段',
-    icon: 'codeBlock',
-    group: '基础',
-    tone: 'code',
-    keywords: ['code', 'codeblock', '代码'],
-    command: ({ editor, range }) =>
-      editor.chain().focus().deleteRange(range).setCodeBlock().run(),
-  },
-  {
     title: '无序列表',
     description: '用圆点组织要点',
     icon: 'bulletList',
@@ -122,12 +112,12 @@ const items: SlashItem[] = [
       editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
   },
   {
-    title: '折叠块',
-    description: '可展开/收起的详情区域',
-    icon: 'details',
+    title: '折叠代码',
+    description: '可展开/收起的代码片段',
+    icon: 'codeBlock',
     group: '插入',
-    tone: 'details',
-    keywords: ['details', 'toggle', '折叠', '收起'],
+    tone: 'code',
+    keywords: ['details', 'toggle', 'code', '折叠', '收起', '代码'],
     command: ({ editor, range }) =>
       editor
         .chain()
@@ -139,7 +129,7 @@ const items: SlashItem[] = [
           content: [
             {
               type: 'detailsSummary',
-              content: [{ type: 'text', text: '折叠块标题' }],
+              content: [{ type: 'text', text: '折叠代码标题' }],
             },
             {
               type: 'detailsContent',

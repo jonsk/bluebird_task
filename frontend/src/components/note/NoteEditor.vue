@@ -628,13 +628,11 @@ defineExpose({
 .note-editor__main {
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
-  align-items: start;
+  align-items: stretch;
 }
 .note-editor__outline {
   align-self: stretch;
   min-width: 0;
-  max-height: 520px;
-  overflow-y: auto;
   border-right: 1px solid var(--el-border-color-lighter);
   background: var(--bg-secondary);
 }

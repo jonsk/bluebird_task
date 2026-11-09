@@ -33,7 +33,10 @@ function filterEmojis(query: string): NoteEmojiItem[] {
   const q = query.trim().toLowerCase()
   if (!q) return NOTE_EMOJIS.slice(0, 24)
   return NOTE_EMOJIS.filter((item) =>
-    [item.name, ...(item.shortcodes ?? []), ...(item.tags ?? [])].join(' ').toLowerCase().includes(q),
+    [item.name, item.label, ...(item.shortcodes ?? []), ...(item.tags ?? [])]
+      .join(' ')
+      .toLowerCase()
+      .includes(q),
   ).slice(0, 24)
 }
 

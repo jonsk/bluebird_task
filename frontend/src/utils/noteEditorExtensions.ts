@@ -15,8 +15,16 @@ import { SlashCommand } from '@/utils/slashCommand'
 import { NoteAttachment } from '@/utils/noteAttachment'
 import { NoteEmoji } from '@/utils/noteEmoji'
 import { NoteIndent } from '@/utils/noteIndent'
+import { LegacyCode, LegacyCodeBlock } from '@/utils/noteLegacyCode'
 import { NoteMention } from '@/utils/noteMention'
 import { NoteTypography } from '@/utils/noteTypography'
+
+/**
+ * Tiptap 默认的 detailsSummary 只允许纯文本（text*），Emoji 是 inline atom，
+ * 在折叠代码标题里会被 schema 拒绝。summary 本身是 phrasing content，
+ * 放宽到 inline* 后即可插入 Emoji、提及等行内节点。
+ */
+const NoteDetailsSummary = DetailsSummary.extend({ content: 'inline*' })
 
 export interface NoteExtensionOptions {
   /** editor = 可编辑（带占位符）；render = 只读详情渲染。 */
@@ -37,12 +45,17 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
   const extensions = [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
+      // 旧日志仍可解析 code / codeBlock，但不再提供创建入口和快捷键。
+      code: false,
+      codeBlock: false,
       link: {
         openOnClick: mode === 'render',
         autolink: true,
         linkOnPaste: true,
       },
     }),
+    LegacyCode,
+    LegacyCodeBlock,
     Highlight.configure({ multicolor: true }),
     TextStyle,
     Color,
@@ -57,7 +70,7 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
         element.setAttribute('aria-label', isOpen ? '收起' : '展开')
       },
     }),
-    DetailsSummary,
+    NoteDetailsSummary,
     DetailsContent,
     Image.configure({
       inline: false,

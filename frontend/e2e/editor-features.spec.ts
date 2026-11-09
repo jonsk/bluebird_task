@@ -173,4 +173,41 @@ test.describe('工作日志编辑器能力', () => {
     await page.locator('[data-test="note-find-replace-all"]').click()
     await expect(editor).toContainText('baz bar baz')
   })
+
+  test('E-05 折叠代码支持 Emoji，目录高度随正文增长', async ({ page }) => {
+    const { host, editor } = await openEditor(page)
+    await resetEditor(editor)
+
+    await expect(page.locator('.note-toolbar [title="行内代码"]')).toHaveCount(0)
+    await expect(page.locator('.note-toolbar [title="代码块"]')).toHaveCount(0)
+
+    await page.locator('[data-test="note-details"]').click()
+    const details = editor.locator('[data-type="details"]').first()
+    const summary = details.locator('summary').first()
+    await expect(summary).toBeVisible()
+    await summary.click()
+
+    await page.locator('[data-test="note-emoji-toggle"]').click()
+    const picker = page.locator('[data-test="note-emoji-picker"]')
+    await expect(picker).toBeVisible()
+    await picker.locator('[data-test="note-emoji-tab-people"]').click()
+    await picker.locator('.emoji-picker__item').first().click()
+    await expect(summary.locator('span[data-type="emoji"]')).toHaveCount(1)
+
+    await resetEditor(editor)
+    await editor.click()
+    for (let i = 0; i < 40; i += 1) {
+      await page.keyboard.type(`长内容行 ${i}`)
+      await page.keyboard.press('Enter')
+    }
+
+    const outline = page.locator('[data-test="note-outline-panel"]')
+    const body = page.locator('[data-test="note-editor-content"]')
+    const [outlineBox, bodyBox] = await Promise.all([outline.boundingBox(), body.boundingBox()])
+    expect(outlineBox?.height ?? 0).toBeGreaterThan(520)
+    expect(Math.abs((outlineBox?.height ?? 0) - (bodyBox?.height ?? 0))).toBeLessThan(3)
+
+    await editor.press('Escape')
+    await expect(host).toHaveCount(0)
+  })
 })

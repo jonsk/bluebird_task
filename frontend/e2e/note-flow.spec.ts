@@ -334,7 +334,7 @@ test.describe('工作日志', () => {
     await expect(content).toContainText('E=mc^2')
   })
 
-  test('N-25 斜杠菜单插入折叠块，折叠块可展开 / 收起', async ({ page }) => {
+  test('N-25 斜杠菜单插入折叠代码，折叠代码可展开 / 收起', async ({ page }) => {
     await page.goto('/notes')
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
     const host = page.locator('[data-test="note-inline-editor"]')
@@ -364,7 +364,7 @@ test.describe('工作日志', () => {
     await expect(host).toHaveCount(0)
   })
 
-  test('N-26 斜杠菜单：11 项命令都能生成对应文档结构', async ({ page }) => {
+  test('N-26 斜杠菜单：10 项命令都能生成对应文档结构', async ({ page }) => {
     await page.goto('/notes')
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
     const host = page.locator('[data-test="note-inline-editor"]')
@@ -383,7 +383,6 @@ test.describe('工作日志', () => {
       { title: '标题 2', assert: async () => { await expect(editor.locator('h2')).toHaveCount(1) } },
       { title: '标题 3', assert: async () => { await expect(editor.locator('h3')).toHaveCount(1) } },
       { title: '引用', assert: async () => { await expect(editor.locator('blockquote')).toHaveCount(1) } },
-      { title: '代码块', assert: async () => { await expect(editor.locator('pre')).toHaveCount(1) } },
       {
         title: '无序列表',
         assert: async () => {
@@ -399,10 +398,10 @@ test.describe('工作日志', () => {
       },
       { title: '分割线', assert: async () => { await expect(editor.locator('hr')).toHaveCount(1) } },
       {
-        title: '折叠块',
+        title: '折叠代码',
         assert: async () => {
           await expect(editor.locator('[data-type="details"]')).toHaveCount(1)
-          await expect(editor).toContainText('折叠块标题')
+          await expect(editor).toContainText('折叠代码标题')
         },
       },
     ]

@@ -66,16 +66,6 @@ function setLink(): void {
     >
       <NoteIcon name="strike" :size="16" />
     </button>
-    <button
-      type="button"
-      class="bubble-btn bubble-btn--code"
-      :class="{ 'is-active': editor.isActive('code') }"
-      title="行内代码"
-      @click="editor.chain().focus().toggleCode().run()"
-    >
-      <NoteIcon name="code" :size="16" />
-    </button>
-
     <span class="bubble-sep" />
 
     <button
