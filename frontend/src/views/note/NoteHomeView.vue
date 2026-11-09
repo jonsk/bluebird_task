@@ -94,11 +94,6 @@ const displayNotes = computed(() => {
   return notes.value.filter((n) => n.id == null || !hide.has(n.id))
 })
 
-/** 正在编辑的日志（用于标题栏提示），列表里被隐藏但仍可在此取日期做标识。 */
-const editingNote = computed(() =>
-  editId.value == null ? undefined : notes.value.find((n) => n.id === editId.value),
-)
-
 onMounted(() => {
   side.setQuery({ date: selectedDate.value ?? today })
 })
@@ -202,7 +197,7 @@ function openDetail(id: number): void {
           compact
           @saved="onComposerSaved"
         />
-        <div class="note-composer__actions">
+        <div class="note-inline-editor__actions note-inline-editor__actions--end">
           <el-button
             size="small"
             type="primary"
@@ -225,10 +220,22 @@ function openDetail(id: number): void {
     </template>
 
     <template #editor>
-      <div v-if="editId != null" class="note-inline-editor" data-test="note-inline-editor">
-        <div class="note-inline-editor__bar">
-          <span class="note-inline-editor__label">
-            正在编辑<template v-if="editingNote?.logDate"> · {{ editingNote.logDate }}</template>
+      <div
+        v-if="editId != null"
+        class="note-inline-editor note-editor-panel"
+        data-test="note-inline-editor"
+      >
+        <NoteEditor
+          ref="inlineEditorRef"
+          :key="`edit:${editId}`"
+          :note-id="editId"
+          compact
+          closable
+          @saved="onInlineSaved"
+          @cancel="closeInlineEditor"
+        />
+        <div class="note-inline-editor__actions">
+          <span class="note-inline-editor__status">
             <template v-if="inlineEditorRef?.status === 'saving'">
               <span class="note-inline-editor__save is-saving">保存中…</span>
             </template>
@@ -255,15 +262,6 @@ function openDetail(id: number): void {
             完成编辑
           </el-button>
         </div>
-        <NoteEditor
-          ref="inlineEditorRef"
-          :key="`edit:${editId}`"
-          :note-id="editId"
-          compact
-          closable
-          @saved="onInlineSaved"
-          @cancel="closeInlineEditor"
-        />
       </div>
     </template>
 
@@ -302,20 +300,20 @@ function openDetail(id: number): void {
   border-radius: var(--bb-radius-sm);
   background: var(--bg-primary);
 }
-.note-inline-editor__bar {
+.note-inline-editor__actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-top: 8px;
 }
-.note-inline-editor__label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--bb-text-secondary);
+.note-inline-editor__actions--end {
+  justify-content: flex-end;
+}
+.note-inline-editor__status {
+  min-height: 20px;
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 .note-inline-editor__save {
   font-size: 12px;
@@ -335,19 +333,16 @@ function openDetail(id: number): void {
   color: var(--bb-danger, #f56c6c);
   text-decoration: underline;
 }
-/* 新建框：去掉外层标题行和包裹留白，只保留编辑器自身的边框 */
-.note-composer {
+/* 新建 / 编辑统一：去掉外层标题行和包裹留白，只保留编辑器自身的边框 */
+.note-composer,
+.note-editor-panel {
   padding: 0;
   border: 0;
   background: transparent;
 }
-.note-composer :deep(.note-editor) {
+.note-composer :deep(.note-editor),
+.note-editor-panel :deep(.note-editor) {
   padding: 0;
-}
-.note-composer__actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
 }
 /* 新建框收起后的「新建日志」入口 */
 .note-composer__new {

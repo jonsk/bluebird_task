@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import NoteIcon from './NoteIcon.vue'
 import NoteFindBar from './NoteFindBar.vue'
@@ -23,6 +23,15 @@ const attachmentInput = ref<HTMLInputElement | null>(null)
 const findOpen = ref(false)
 const outlineOpen = ref(false)
 const emojiOpen = ref(false)
+const alignOpen = ref(false)
+const alignRef = ref<HTMLElement | null>(null)
+
+const alignOptions = [
+  { value: 'left', label: '左对齐', icon: 'alignLeft' },
+  { value: 'center', label: '居中', icon: 'alignCenter' },
+  { value: 'right', label: '右对齐', icon: 'alignRight' },
+  { value: 'justify', label: '两端对齐', icon: 'alignJustify' },
+] as const
 
 const highlightColors = [
   { name: '黄', color: '#fff3a3' },
@@ -32,8 +41,7 @@ const highlightColors = [
 ]
 
 const fontFamilies = [
-  { label: '默认字体', value: '' },
-  { label: '系统无衬线', value: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
+  { label: '字体', value: '' },
   { label: '宋体', value: '"Songti SC", SimSun, serif' },
   { label: '黑体', value: '"Heiti SC", SimHei, sans-serif' },
   { label: '楷体', value: '"Kaiti SC", KaiTi, serif' },
@@ -41,7 +49,7 @@ const fontFamilies = [
 ]
 
 const fontSizes = [
-  { label: '默认字号', value: '' },
+  { label: '字号', value: '' },
   { label: '12', value: '12px' },
   { label: '14', value: '14px' },
   { label: '15', value: '15px' },
@@ -105,6 +113,23 @@ function isAlign(align: string): boolean {
   void props.tick
   return editor.isActive({ textAlign: align })
 }
+
+const currentAlign = computed(() => {
+  void props.tick
+  return alignOptions.find((item) => editor.isActive({ textAlign: item.value })) ?? alignOptions[0]
+})
+
+function applyAlign(align: 'left' | 'center' | 'right' | 'justify'): void {
+  setTextAlign(align)
+  alignOpen.value = false
+}
+
+function closeAlignOnOutside(event: PointerEvent): void {
+  if (!alignRef.value?.contains(event.target as Node)) alignOpen.value = false
+}
+
+onMounted(() => document.addEventListener('pointerdown', closeAlignOnOutside))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', closeAlignOnOutside))
 
 function setLink(): void {
   const previous = editor.getAttributes('link').href as string | undefined
@@ -277,8 +302,7 @@ function toggleEmoji(): void {
       />
     </label>
 
-    <span class="tb-dots" title="高亮颜色">
-      <NoteIcon name="highlight" class="tb-dots__icon" />
+    <span class="tb-dots" title="高亮">
       <button
         v-for="c in highlightColors"
         :key="c.color"
@@ -306,46 +330,34 @@ function toggleEmoji(): void {
 
     <span class="tb-sep" />
 
-    <button
-      type="button"
-      class="tb-btn"
-      :class="{ 'is-active': isAlign('left') }"
-      title="左对齐"
-      data-test="note-align-left"
-      @click="setTextAlign('left')"
-    >
-      <NoteIcon name="alignLeft" />
-    </button>
-    <button
-      type="button"
-      class="tb-btn"
-      :class="{ 'is-active': isAlign('center') }"
-      title="居中"
-      data-test="note-align-center"
-      @click="setTextAlign('center')"
-    >
-      <NoteIcon name="alignCenter" />
-    </button>
-    <button
-      type="button"
-      class="tb-btn"
-      :class="{ 'is-active': isAlign('right') }"
-      title="右对齐"
-      data-test="note-align-right"
-      @click="setTextAlign('right')"
-    >
-      <NoteIcon name="alignRight" />
-    </button>
-    <button
-      type="button"
-      class="tb-btn"
-      :class="{ 'is-active': isAlign('justify') }"
-      title="两端对齐"
-      data-test="note-align-justify"
-      @click="setTextAlign('justify')"
-    >
-      <NoteIcon name="alignJustify" />
-    </button>
+    <div ref="alignRef" class="tb-align">
+      <button
+        type="button"
+        class="tb-btn tb-align__trigger"
+        title="对齐"
+        data-test="note-align-menu"
+        :aria-expanded="alignOpen"
+        @click="alignOpen = !alignOpen"
+      >
+        <NoteIcon :name="currentAlign.icon" />
+        <span class="tb-caret" aria-hidden="true" />
+      </button>
+      <div v-if="alignOpen" class="tb-align__menu" role="menu">
+        <button
+          v-for="item in alignOptions"
+          :key="item.value"
+          type="button"
+          class="tb-align__item"
+          :class="{ 'is-active': isAlign(item.value) }"
+          role="menuitem"
+          :data-test="`note-align-${item.value}`"
+          @click="applyAlign(item.value)"
+        >
+          <NoteIcon :name="item.icon" />
+          <span>{{ item.label }}</span>
+        </button>
+      </div>
+    </div>
 
     <button type="button" class="tb-btn" title="减少缩进" data-test="note-outdent" @click="editor.chain().focus().outdentBlock().run()">
       <NoteIcon name="outdent" />
@@ -450,7 +462,7 @@ function toggleEmoji(): void {
     <button type="button" class="tb-btn" :class="{ 'is-active': findOpen }" title="查找替换" data-test="note-find-toggle" @click="toggleFind">
       <NoteIcon name="search" />
     </button>
-    <button type="button" class="tb-btn" :class="{ 'is-active': outlineOpen }" title="目录" data-test="note-toc-toggle" @click="toggleOutline">
+    <button type="button" class="tb-btn tb-toc-btn" :class="{ 'is-active': outlineOpen }" title="目录" data-test="note-toc-toggle" @click="toggleOutline">
       <NoteIcon name="toc" />
     </button>
 

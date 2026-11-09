@@ -44,6 +44,7 @@ test.describe('工作日志编辑器能力', () => {
 
     await resetEditor(editor)
     await page.keyboard.type('居中段落')
+    await page.locator('[data-test="note-align-menu"]').click()
     await page.locator('[data-test="note-align-center"]').click()
     const paragraph = editor.locator('p').first()
     await expect(paragraph).toHaveAttribute('style', /text-align:\s*center/)
@@ -97,6 +98,10 @@ test.describe('工作日志编辑器能力', () => {
 
   test('E-03 目录与字体设置', async ({ page }) => {
     const { editor } = await openEditor(page)
+    const fontSelect = page.locator('[data-test="note-font-family"]')
+    await expect(fontSelect.locator('option').first()).toHaveText('字体')
+    await expect(fontSelect).not.toContainText('系统无衬线')
+    await expect(page.locator('[data-test="note-font-size"] option').first()).toHaveText('字号')
     await resetEditor(editor)
 
     await page.locator('.note-toolbar select[title="段落格式"]').selectOption('h2')
@@ -105,8 +110,7 @@ test.describe('工作日志编辑器能力', () => {
     await page.locator('.note-toolbar select[title="段落格式"]').selectOption('h2')
     await page.keyboard.type('第二章')
 
-    await page.locator('[data-test="note-toc-toggle"]').click()
-    const outline = page.locator('[data-test="note-outline"]')
+    const outline = page.locator('[data-test="note-outline-panel"]')
     await expect(outline).toBeVisible()
     await expect(outline.locator('.note-outline__item')).toHaveCount(2)
     await expect(outline).toContainText('第一章')

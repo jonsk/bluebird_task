@@ -12,6 +12,7 @@ import { buildNoteExtensions } from '@/utils/noteEditorExtensions'
 import { isBlankHtml, plainTextFromHtml, toEditorHtml, visibleLength } from '@/utils/richText'
 import NoteToolbar from './editor/NoteToolbar.vue'
 import NoteBubbleMenu from './editor/NoteBubbleMenu.vue'
+import NoteOutline from './editor/NoteOutline.vue'
 import type { NoteDetailVO } from '@/types/note'
 import '@/styles/note-editor.css'
 
@@ -533,36 +534,46 @@ defineExpose({
           @upload-attachment="uploadAttachments"
         />
 
-        <div ref="hostRef" class="note-editor__body" data-test="note-editor-content">
-          <DragHandle
+        <div class="note-editor__main">
+          <aside
             v-if="editor && canEditContent"
-            :editor="editor"
-            class="drag-handle"
-            :compute-position-config="{ placement: 'left-start' }"
-            :on-node-change="onNodeChange"
+            class="note-editor__outline"
+            data-test="note-outline-panel"
           >
-            <div class="drag-handle__inner">
-              <button
-                class="dh-btn"
-                type="button"
-                title="在下方插入段落"
-                draggable="false"
-                @mousedown.stop
-                @click.stop="insertBelow"
-              >
-                +
-              </button>
-              <button class="dh-btn dh-grip" type="button" title="拖拽排序" draggable="false">
-                ⠿
-              </button>
-            </div>
-          </DragHandle>
+            <NoteOutline :editor="editor" :tick="stateTick" persistent />
+          </aside>
 
-          <EditorContent :editor="editor" class="note-editor__editor" />
+          <div ref="hostRef" class="note-editor__body" data-test="note-editor-content">
+            <DragHandle
+              v-if="editor && canEditContent"
+              :editor="editor"
+              class="drag-handle"
+              :compute-position-config="{ placement: 'left-start' }"
+              :on-node-change="onNodeChange"
+            >
+              <div class="drag-handle__inner">
+                <button
+                  class="dh-btn"
+                  type="button"
+                  title="在下方插入段落"
+                  draggable="false"
+                  @mousedown.stop
+                  @click.stop="insertBelow"
+                >
+                  +
+                </button>
+                <button class="dh-btn dh-grip" type="button" title="拖拽排序" draggable="false">
+                  ⠿
+                </button>
+              </div>
+            </DragHandle>
 
-          <BubbleMenu v-if="editor && canEditContent" :editor="editor" :options="{ placement: 'top' }">
-            <NoteBubbleMenu :editor="editor" :tick="stateTick" />
-          </BubbleMenu>
+            <EditorContent :editor="editor" class="note-editor__editor" />
+
+            <BubbleMenu v-if="editor && canEditContent" :editor="editor" :options="{ placement: 'top' }">
+              <NoteBubbleMenu :editor="editor" :tick="stateTick" />
+            </BubbleMenu>
+          </div>
         </div>
       </div>
 
@@ -614,9 +625,34 @@ defineExpose({
   overflow: hidden;
   background: var(--bg-primary);
 }
+.note-editor__main {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  align-items: start;
+}
+.note-editor__outline {
+  align-self: stretch;
+  min-width: 0;
+  max-height: 520px;
+  overflow-y: auto;
+  border-right: 1px solid var(--el-border-color-lighter);
+  background: var(--bg-secondary);
+}
+.note-editor__outline :deep(.note-outline) {
+  padding: 12px 8px;
+}
 .note-editor__body {
   position: relative;
+  min-width: 0;
   padding: 10px 14px 20px 44px;
+}
+@media (max-width: 1100px) {
+  .note-editor__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .note-editor__outline {
+    display: none;
+  }
 }
 .note-editor__meta {
   margin: 8px 0 0;
