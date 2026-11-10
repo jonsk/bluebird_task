@@ -1,17 +1,23 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-/** 内置主题 key（务必与 tokens.css 的 :root[data-theme=…] 作用域一一对应）。 */
-export type ThemeKey = 'light-classic' | 'dark-soft' | 'dark-vivid'
+/**
+ * 内置主题 key（务必与 tokens.css 的 :root[data-theme=…] 作用域一一对应）。
+ * 2×2：{浅色, 深色} × {柔和, 鲜明}，差异集中在编辑器四色高亮与文字色对比度。
+ */
+export type ThemeKey = 'light-soft' | 'light-vivid' | 'dark-soft' | 'dark-vivid'
 
 const THEME_STORAGE_KEY = 'bb-theme'
-const THEMES: readonly ThemeKey[] = ['light-classic', 'dark-soft', 'dark-vivid']
+const THEMES: readonly ThemeKey[] = ['light-soft', 'light-vivid', 'dark-soft', 'dark-vivid']
 
-/** 旧版本只有一个 dark 主题，存量用户在 localStorage 里可能还是 'dark'。 */
-const LEGACY_THEME_ALIASES: Record<string, ThemeKey> = { dark: 'dark-soft' }
+/** 旧 key 兼容：'light-classic' 是浅色的旧名，'dark' 来自只有一套深色的年代。 */
+const LEGACY_THEME_ALIASES: Record<string, ThemeKey> = {
+  'light-classic': 'light-soft',
+  dark: 'dark-soft',
+}
 
 export function isDarkTheme(t: ThemeKey): boolean {
-  return t !== 'light-classic'
+  return t.startsWith('dark')
 }
 
 function isThemeKey(v: unknown): v is ThemeKey {
@@ -27,7 +33,7 @@ function normalizeTheme(v: unknown): ThemeKey | null {
 /**
  * 把主题应用到 <html>：`data-theme` 驱动自有令牌，`dark` 类驱动 Element Plus 官方暗色变量
  * （element-plus/theme-chalk/dark/css-vars.css）。theme-init.js 首帧做同样的事。
- * 登录/回调页固定浅色，由 App.vue 在路由变化时用 'light-classic' 覆盖调用。
+ * 登录/回调页固定浅色，由 App.vue 在路由变化时用 'light-soft' 覆盖调用。
  */
 export function applyThemeToDom(t: ThemeKey): void {
   const root = document.documentElement
@@ -48,7 +54,7 @@ export const useAppStore = defineStore('app', () => {
     /* ignore */
   }
   const restored = normalizeTheme(stored)
-  const theme = ref<ThemeKey>(restored ?? 'light-classic')
+  const theme = ref<ThemeKey>(restored ?? 'light-soft')
 
   /** 把主题应用到 <html>（data-theme + dark 类）。 */
   function applyTheme(t: ThemeKey): void {

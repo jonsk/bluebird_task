@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { isDarkTheme, useAppStore } from '@/stores/app'
 
-describe('app store 主题功能（浅色 / 深色·柔和 / 深色·鲜明）', () => {
+describe('app store 主题功能（浅色/深色 × 柔和/鲜明 四套）', () => {
   beforeEach(() => {
     localStorage.clear()
     document.documentElement.removeAttribute('data-theme')
@@ -10,49 +10,56 @@ describe('app store 主题功能（浅色 / 深色·柔和 / 深色·鲜明）',
     setActivePinia(createPinia())
   })
 
-  it('无持久化记录时默认 light-classic，且同步到 <html data-theme>', () => {
+  it('无持久化记录时默认 light-soft，且同步到 <html data-theme>', () => {
     const store = useAppStore()
-    expect(store.theme).toBe('light-classic')
-    expect(document.documentElement.dataset.theme).toBe('light-classic')
+    expect(store.theme).toBe('light-soft')
+    expect(document.documentElement.dataset.theme).toBe('light-soft')
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
-  it('持久化的合法主题会在初始化时被读取并应用到 DOM（含 Element Plus 的 dark 类）', () => {
-    for (const key of ['dark-soft', 'dark-vivid'] as const) {
+  it('持久化的合法主题会在初始化时被读取并应用到 DOM（深色同时挂 Element Plus 的 dark 类）', () => {
+    for (const key of ['light-vivid', 'dark-soft', 'dark-vivid'] as const) {
       localStorage.clear()
       setActivePinia(createPinia())
       localStorage.setItem('bb-theme', key)
       const store = useAppStore()
       expect(store.theme).toBe(key)
       expect(document.documentElement.dataset.theme).toBe(key)
-      expect(document.documentElement.classList.contains('dark')).toBe(true)
+      expect(document.documentElement.classList.contains('dark')).toBe(isDarkTheme(key))
     }
   })
 
-  it('旧版 dark 主题迁移为 dark-soft 并写回存储', () => {
-    localStorage.setItem('bb-theme', 'dark')
-    const store = useAppStore()
-    expect(store.theme).toBe('dark-soft')
-    expect(document.documentElement.dataset.theme).toBe('dark-soft')
-    expect(document.documentElement.classList.contains('dark')).toBe(true)
-    expect(localStorage.getItem('bb-theme')).toBe('dark-soft')
+  it('旧 key 迁移：light-classic → light-soft，dark → dark-soft，并写回存储', () => {
+    const legacy: Array<[string, string]> = [
+      ['light-classic', 'light-soft'],
+      ['dark', 'dark-soft'],
+    ]
+    for (const [oldKey, newKey] of legacy) {
+      localStorage.clear()
+      setActivePinia(createPinia())
+      localStorage.setItem('bb-theme', oldKey)
+      const store = useAppStore()
+      expect(store.theme).toBe(newKey)
+      expect(document.documentElement.dataset.theme).toBe(newKey)
+      expect(localStorage.getItem('bb-theme')).toBe(newKey)
+    }
   })
 
-  it('持久化的非法值回退到 light-classic（isThemeKey 校验）', () => {
+  it('持久化的非法值回退到 light-soft（isThemeKey 校验）', () => {
     localStorage.setItem('bb-theme', 'hacky-theme')
     const store = useAppStore()
-    expect(store.theme).toBe('light-classic')
+    expect(store.theme).toBe('light-soft')
   })
 
-  it('已下线主题（light-modern / teal）回退为 light-classic 并清掉残留值', () => {
+  it('已下线主题（light-modern / teal）回退为 light-soft 并清掉残留值', () => {
     for (const retired of ['light-modern', 'teal']) {
       localStorage.clear()
       setActivePinia(createPinia())
       localStorage.setItem('bb-theme', retired)
       const store = useAppStore()
-      expect(store.theme).toBe('light-classic')
-      expect(document.documentElement.dataset.theme).toBe('light-classic')
-      expect(localStorage.getItem('bb-theme')).toBe('light-classic')
+      expect(store.theme).toBe('light-soft')
+      expect(document.documentElement.dataset.theme).toBe('light-soft')
+      expect(localStorage.getItem('bb-theme')).toBe('light-soft')
     }
   })
 
@@ -64,15 +71,15 @@ describe('app store 主题功能（浅色 / 深色·柔和 / 深色·鲜明）',
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(localStorage.getItem('bb-theme')).toBe('dark-vivid')
 
-    store.setTheme('light-classic')
-    expect(document.documentElement.dataset.theme).toBe('light-classic')
+    store.setTheme('light-vivid')
+    expect(document.documentElement.dataset.theme).toBe('light-vivid')
     expect(document.documentElement.classList.contains('dark')).toBe(false)
-    expect(localStorage.getItem('bb-theme')).toBe('light-classic')
+    expect(localStorage.getItem('bb-theme')).toBe('light-vivid')
   })
 
-  it('三个内置主题 key 与 tokens.css 的 data-theme 作用域一一对应', () => {
+  it('四个内置主题 key 与 tokens.css 的 data-theme 作用域一一对应', () => {
     const store = useAppStore()
-    const keys = ['light-classic', 'dark-soft', 'dark-vivid'] as const
+    const keys = ['light-soft', 'light-vivid', 'dark-soft', 'dark-vivid'] as const
     for (const k of keys) {
       store.setTheme(k)
       expect(document.documentElement.dataset.theme).toBe(k)
@@ -80,7 +87,8 @@ describe('app store 主题功能（浅色 / 深色·柔和 / 深色·鲜明）',
   })
 
   it('isDarkTheme 只把两套深色主题认定为深色', () => {
-    expect(isDarkTheme('light-classic')).toBe(false)
+    expect(isDarkTheme('light-soft')).toBe(false)
+    expect(isDarkTheme('light-vivid')).toBe(false)
     expect(isDarkTheme('dark-soft')).toBe(true)
     expect(isDarkTheme('dark-vivid')).toBe(true)
   })

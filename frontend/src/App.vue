@@ -16,7 +16,7 @@ const route = useRoute()
  */
 watch(
   () => [app.theme, route.meta.forceLight] as const,
-  ([theme, forceLight]) => applyThemeToDom(forceLight ? 'light-classic' : theme),
+  ([theme, forceLight]) => applyThemeToDom(forceLight ? 'light-soft' : theme),
   { immediate: true },
 )
 </script>

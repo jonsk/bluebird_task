@@ -882,36 +882,36 @@
 }
 
 /**
- * 深色主题下四色高亮的显示映射。
- * 内容里存的始终是浅色系 data-color（#fff3a3 / #c9f7d4 / #cfe4ff / #ffd6e7），
- * 直接放在深色正文上会「浅底 + 浅字」读不出来，这里按主题换成 --bb-hl-* 令牌：
- *   · dark-soft：半透明低饱和底，文字恢复正文色
- *   · dark-vivid：明亮实色底，文字统一压深（--bb-hl-text）
- * 自定义颜色（color input 写入的任意值）不走映射，只兜底文字对比度。
+ * 四色高亮的「显示层」映射。
+ * 笔记里存的 data-color 始终是同一组浅色十六进制（#fff3a3 / #c9f7d4 / #cfe4ff / #ffd6e7），
+ * 保证导出、打印、他人换主题打开都稳定。各主题只换显示：
+ *   · 柔和（light-soft / dark-soft）：浅色直接就是淡底深字；深色换成半透明低饱和底 + 正文色
+ *   · 鲜明（light-vivid / dark-vivid）：饱和实色底 + 深色字（--bb-hl-text），荧光笔观感
+ * 自定义颜色（取色器写入的任意值）不走映射，只兜底文字对比度。
  */
 :root[data-theme='dark-soft'] .note-prose mark {
   color: #12161d !important;
 }
-:root[data-theme='dark-vivid'] .note-prose mark {
+:root[data-theme$='-vivid'] .note-prose mark {
   color: var(--bb-hl-text) !important;
 }
-:root[data-theme='dark-soft'] .note-prose mark[data-color='#fff3a3'],
-:root[data-theme='dark-vivid'] .note-prose mark[data-color='#fff3a3'] {
+:root[data-theme$='-soft'] .note-prose mark[data-color='#fff3a3'],
+:root[data-theme$='-vivid'] .note-prose mark[data-color='#fff3a3'] {
   background-color: var(--bb-hl-yellow) !important;
 }
-:root[data-theme='dark-soft'] .note-prose mark[data-color='#c9f7d4'],
-:root[data-theme='dark-vivid'] .note-prose mark[data-color='#c9f7d4'] {
+:root[data-theme$='-soft'] .note-prose mark[data-color='#c9f7d4'],
+:root[data-theme$='-vivid'] .note-prose mark[data-color='#c9f7d4'] {
   background-color: var(--bb-hl-green) !important;
 }
-:root[data-theme='dark-soft'] .note-prose mark[data-color='#cfe4ff'],
-:root[data-theme='dark-vivid'] .note-prose mark[data-color='#cfe4ff'] {
+:root[data-theme$='-soft'] .note-prose mark[data-color='#cfe4ff'],
+:root[data-theme$='-vivid'] .note-prose mark[data-color='#cfe4ff'] {
   background-color: var(--bb-hl-blue) !important;
 }
-:root[data-theme='dark-soft'] .note-prose mark[data-color='#ffd6e7'],
-:root[data-theme='dark-vivid'] .note-prose mark[data-color='#ffd6e7'] {
+:root[data-theme$='-soft'] .note-prose mark[data-color='#ffd6e7'],
+:root[data-theme$='-vivid'] .note-prose mark[data-color='#ffd6e7'] {
   background-color: var(--bb-hl-pink) !important;
 }
-/* 柔和主题的四色是半透明底，文字要回到正文色（上面的兜底是深色字） */
+/* 深色·柔和的四色是半透明底，文字要回到正文色（上面的兜底是深色字） */
 :root[data-theme='dark-soft'] .note-prose mark[data-color='#fff3a3'],
 :root[data-theme='dark-soft'] .note-prose mark[data-color='#c9f7d4'],
 :root[data-theme='dark-soft'] .note-prose mark[data-color='#cfe4ff'],

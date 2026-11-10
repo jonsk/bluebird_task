@@ -108,6 +108,16 @@
   --bb-hl-text: inherit;
 }
 
+/* 浅色·鲜明：底色与浅色一致（白底黑字对比已经够高），只把四色高亮换成饱和实色 + 深字。
+   与「浅色·柔和」的差别就是这一层，避免为了「鲜明」去动整页配色。 */
+:root[data-theme='light-vivid'] {
+  --bb-hl-yellow: #ffd60a;
+  --bb-hl-green: #4ade80;
+  --bb-hl-blue: #60a5fa;
+  --bb-hl-pink: #ff9ec4;
+  --bb-hl-text: #12161d;
+}
+
 /* 深色·鲜明：底色与柔和一致，提高文字/强调色对比，配合编辑器的高饱和高亮（见 note-editor.css）。 */
 :root[data-theme='dark-vivid'] {
   --bb-text: #f4f7fb;

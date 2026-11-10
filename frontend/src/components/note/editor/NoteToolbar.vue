@@ -5,7 +5,7 @@ import NoteIcon from './NoteIcon.vue'
 import NoteOutline from './NoteOutline.vue'
 import NoteEmojiPicker from './NoteEmojiPicker.vue'
 import { firstFontFamily, withCurrentValue } from '@/utils/toolbarSelect'
-import { isDarkTheme, useAppStore } from '@/stores/app'
+import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
   editor: Editor
@@ -51,7 +51,11 @@ const highlightColors = [
 ]
 
 /** 文字颜色选择器的默认值：深色主题给深紫会看不清，换成同色系的浅色 */
-const defaultTextColor = computed(() => (isDarkTheme(appStore.theme) ? '#a5b4fc' : '#5b5bd6'))
+const defaultTextColor = computed(() => {
+  if (appStore.theme === 'light-soft') return '#5b5bd6'
+  if (appStore.theme === 'light-vivid') return '#4338ca'
+  return '#a5b4fc'
+})
 
 const fontFamilies = [
   { label: '字体', value: '' },
