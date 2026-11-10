@@ -16,6 +16,7 @@ public record AiModelSaveReq(
         @NotBlank @Size(max = 120) String model,
         @DecimalMin("0.0") @DecimalMax("2.0") Double temperature,
         @Min(1) @Max(32768) Integer maxTokens,
-        @Min(5) @Max(300) Integer timeoutSeconds,
+        /** 只校验下限：上限交给 AI 网关与各平台自身超时，不写死在代码里。 */
+        @Min(5) Integer timeoutSeconds,
         Boolean enabled) {
 }

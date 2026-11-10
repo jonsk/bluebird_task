@@ -296,7 +296,7 @@ async function onDelete(row: AiModelVO): Promise<void> {
           <el-input-number v-model="form.maxTokens" :min="256" :max="32768" :step="256" />
         </el-form-item>
         <el-form-item label="超时（秒）">
-          <el-input-number v-model="form.timeoutSeconds" :min="5" :max="300" :step="5" />
+          <el-input-number v-model="form.timeoutSeconds" :min="5" :step="5" />
         </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="form.enabled" />
