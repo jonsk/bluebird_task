@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,10 +33,10 @@ public class AiClient {
     }
 
     /**
-     * 连通性测试的固定超时：前端请求 20s 超时，测试必须在此之前返回，
-     * 否则用户只看到「请求超时」，拿不到模型服务真正的错误信息。
+     * 连通性测试超时：测试只做轻量探测（GET /v1/models），不触发生成。
+     * 生成可能因上游排队/推理耗时几十秒，交给真实对话与周报任务验证。
      */
-    private static final int TEST_TIMEOUT_SECONDS = 12;
+    private static final int TEST_TIMEOUT_SECONDS = 8;
 
     public AiChatResult chat(AiModelConfig model, String apiKey, String system, String user, int maxTokens) {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -67,22 +68,33 @@ public class AiClient {
         }
     }
 
+    /**
+     * 只探测接口连通性与模型可见性：GET /v1/models，秒级返回。
+     * 通过不代表模型能生成内容，生成能力由真实对话/周报任务检验。
+     */
     public AiModelTestResult test(AiModelConfig model, String apiKey) {
         long start = System.currentTimeMillis();
-        String url = endpoint(model.getBaseUrl());
+        String url = modelsEndpoint(model.getBaseUrl());
         boolean hasKey = apiKey != null && !apiKey.isBlank();
         try {
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", model.getModel());
-            body.put("messages", List.of(
-                    Map.of("role", "system", "content", "You are a connectivity tester."),
-                    Map.of("role", "user", "content", "Reply with OK.")));
-            body.put("temperature", 0);
-            body.put("max_tokens", 8);
-            JsonNode root = post(model, apiKey, body, TEST_TIMEOUT_SECONDS);
-            String content = root.path("choices").path(0).path("message").path("content").asText("");
-            return new AiModelTestResult(true, content.isBlank() ? "连接成功" : content,
-                    System.currentTimeMillis() - start, model.getModel());
+            JsonNode root = getModels(model, apiKey);
+            long latency = System.currentTimeMillis() - start;
+            List<String> ids = new ArrayList<>();
+            for (JsonNode node : root.path("data")) {
+                String id = node.path("id").asText("");
+                if (!id.isBlank()) {
+                    ids.add(id);
+                }
+            }
+            if (ids.isEmpty()) {
+                return new AiModelTestResult(true, "连接成功（接口未返回模型列表）", latency, model.getModel());
+            }
+            boolean visible = ids.stream().anyMatch(id -> id.equalsIgnoreCase(model.getModel()));
+            if (visible) {
+                return new AiModelTestResult(true, "连接成功，模型可用：" + model.getModel(), latency, model.getModel());
+            }
+            return new AiModelTestResult(false, "接口可访问，但模型列表中未找到「" + model.getModel()
+                    + "」，请检查模型名或该 Key 的模型权限", latency, model.getModel());
         } catch (Exception e) {
             // 只有失败才打印：模型信息、地址、耗时、异常类型、消息与完整堆栈。
             log.error("AI 模型测试失败：id={}, name={}, model={}, endpoint={}, timeout={}s, hasApiKey={}, "
@@ -94,14 +106,44 @@ public class AiClient {
         }
     }
 
-    private JsonNode post(AiModelConfig model, String apiKey, Map<String, Object> body) {
-        return post(model, apiKey, body, null);
+    private JsonNode getModels(AiModelConfig model, String apiKey) {
+        URI uri = URI.create(modelsEndpoint(model.getBaseUrl()));
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(TEST_TIMEOUT_SECONDS))
+                    .build();
+            HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(TEST_TIMEOUT_SECONDS))
+                    .header("Accept", "application/json")
+                    .GET();
+            if (apiKey != null && !apiKey.isBlank()) {
+                builder.header("Authorization", "Bearer " + apiKey);
+            }
+            HttpResponse<String> response = client.send(builder.build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR,
+                        "AI 服务返回 HTTP " + response.statusCode() + ": " + abbreviate(response.body()));
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            if (root.has("error")) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR,
+                        "AI 服务错误：" + abbreviate(root.path("error").toString()));
+            }
+            return root;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 调用被中断");
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR,
+                    "AI 调用失败：" + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+        }
     }
 
-    private JsonNode post(AiModelConfig model, String apiKey, Map<String, Object> body, Integer timeoutOverride) {
-        int timeout = timeoutOverride != null
-                ? Math.max(3, timeoutOverride)
-                : (model.getTimeoutSeconds() == null ? 60 : Math.max(5, model.getTimeoutSeconds()));
+    private JsonNode post(AiModelConfig model, String apiKey, Map<String, Object> body) {
+        int timeout = model.getTimeoutSeconds() == null ? 60 : Math.max(5, model.getTimeoutSeconds());
         URI uri = URI.create(endpoint(model.getBaseUrl()));
         try {
             String json = objectMapper.writeValueAsString(body);
@@ -154,6 +196,12 @@ public class AiClient {
             return base + "/chat/completions";
         }
         return base + "/v1/chat/completions";
+    }
+
+    /** 由对话地址反推模型列表地址，用于轻量连通性探测。 */
+    static String modelsEndpoint(String baseUrl) {
+        String chat = endpoint(baseUrl);
+        return chat.substring(0, chat.length() - "/chat/completions".length()) + "/models";
     }
 
     private String abbreviate(String text) {

@@ -154,7 +154,7 @@ async function onTest(row: AiModelVO): Promise<void> {
   testTarget.value = row
   testResult.value = null
   testError.value = ''
-  ElMessage.info(`正在测试「${row.name}」，最多约 12 秒…`)
+  ElMessage.info(`正在检测「${row.name}」接口连通性，最多约 8 秒…`)
   try {
     testResult.value = await testAiModel(row.id)
   } catch (e) {
@@ -335,6 +335,7 @@ async function onDelete(row: AiModelVO): Promise<void> {
             <el-descriptions-item label="模型">{{ testResult.model || '—' }}</el-descriptions-item>
           </el-descriptions>
           <p class="ai__test-message">{{ testResult.message || '（无返回内容）' }}</p>
+          <p class="ai__test-hint">仅检测接口连通性与模型可见性，不代表真实生成效果。</p>
         </template>
 
         <el-empty v-else description="暂无测试结果" :image-size="60" />
@@ -413,6 +414,11 @@ async function onDelete(row: AiModelVO): Promise<void> {
   color: var(--bb-text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+.ai__test-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--bb-text-muted);
 }
 </style>
 

@@ -66,19 +66,50 @@ class AiModelTestFlowTest {
 
     @Test
     void testEndpointCallsProviderAndReturnsResult() throws Exception {
+        int port = startServer("{\"object\":\"list\",\"data\":[{\"id\":\"fake\"}]}");
+        String token = newAdminToken();
+        long id = createModel(token, port);
+
+        mvc.perform(post("/api/v1/admin/ai/models/" + id + "/test").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.ok").value(true))
+                .andExpect(jsonPath("$.data.message").value("连接成功，模型可用：fake"));
+    }
+
+    @Test
+    void testReportsModelNotVisibleInsteadOfFailingSilently() throws Exception {
+        int port = startServer("{\"object\":\"list\",\"data\":[{\"id\":\"other-model\"}]}");
+        String token = newAdminToken();
+        long id = createModel(token, port);
+
+        mvc.perform(post("/api/v1/admin/ai/models/" + id + "/test").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.ok").value(false))
+                .andExpect(jsonPath("$.data.message").value(org.hamcrest.Matchers.containsString("未找到")));
+    }
+
+    private int startServer(String modelsJson) throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/v1/chat/completions", exchange -> {
-            byte[] body = "{\"choices\":[{\"message\":{\"content\":\"OK\"}}],\"usage\":{}}"
-                    .getBytes(StandardCharsets.UTF_8);
+        server.createContext("/v1/models", exchange -> {
+            byte[] body = modelsJson.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, body.length);
             try (OutputStream out = exchange.getResponseBody()) {
                 out.write(body);
             }
         });
+        // 测试不应触发生成：一旦调用 chat/completions 就返回 500，让测试失败。
+        server.createContext("/v1/chat/completions", exchange -> {
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        });
         server.start();
-        int port = server.getAddress().getPort();
+        return server.getAddress().getPort();
+    }
 
+    private String newAdminToken() {
         SysUser admin = new SysUser();
         admin.setUsername("ai-test-" + UUID.randomUUID().toString().substring(0, 8));
         admin.setName("ai-test");
@@ -86,8 +117,10 @@ class AiModelTestFlowTest {
         admin.setStatus("ACTIVE");
         admin.setDeleted(0);
         userMapper.insert(admin);
-        String token = "Bearer " + jwtUtils.createAccess(admin.getId(), admin.getUsername(), admin.getRoleCode());
+        return "Bearer " + jwtUtils.createAccess(admin.getId(), admin.getUsername(), admin.getRoleCode());
+    }
 
+    private long createModel(String token, int port) throws Exception {
         String created = mvc.perform(post("/api/v1/admin/ai/models")
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -96,12 +129,6 @@ class AiModelTestFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andReturn().getResponse().getContentAsString();
-        long id = objectMapper.readTree(created).path("data").path("id").asLong();
-
-        mvc.perform(post("/api/v1/admin/ai/models/" + id + "/test").header("Authorization", token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.ok").value(true))
-                .andExpect(jsonPath("$.data.message").value("OK"));
+        return objectMapper.readTree(created).path("data").path("id").asLong();
     }
 }
