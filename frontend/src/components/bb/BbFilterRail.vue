@@ -110,8 +110,7 @@ watch(
 const currentName = computed(() => String(route.name ?? ''))
 /** 后台入口（独立布局）：ADMIN/AUDITOR/USER_MANAGER 三者任一即可进入，页面级再按角色收窄。 */
 const canEnterAdmin = computed(() => auth.hasRole('ADMIN', 'AUDITOR', 'USER_MANAGER'))
-const displayName = computed(() => auth.user?.name ?? auth.user?.username ?? '未登录')
-const userName = computed(() => auth.user?.username ?? '')
+const displayName = computed(() => auth.user?.name?.trim() || auth.user?.username || '未登录')
 const menus = computed(() => menuStore.menus)
 const activeMenuId = computed(() => taskStore.menuId)
 
@@ -216,8 +215,8 @@ async function onDelete(menu: Menu): Promise<void> {
   }
 }
 
-async function runHandler(command: string): Promise<void> {
-  if (command !== 'logout') return
+/** 退出登录：点图标直接走，不再弹二级菜单（2026-11 用户要求）。 */
+async function onLogout(): Promise<void> {
   await logoutEverywhere(router)
 }
 
@@ -237,25 +236,14 @@ function onThemeCommand(command: string | number | object): void {
 <template>
   <aside class="left-box">
     <div class="left-title">
-      <el-dropdown class="left-title__user" trigger="click" @command="runHandler">
-        <div class="left-title__inner">
-          <p class="left-title__name">{{ displayName }}</p>
-          <p class="left-title__account">
-            <span>{{ userName }}</span>
-            <el-icon><SwitchButton /></el-icon>
-          </p>
-        </div>
-        <template #dropdown>
-          <el-dropdown-menu class="left-title__menu">
-            <el-dropdown-item command="logout">
-              <div class="left-title__logout">
-                <el-icon class="t-b-i-b-c-l-d-item-icon"><SwitchButton /></el-icon>
-                <span class="ml-5">退出登录</span>
-              </div>
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      <div class="left-title__user">
+        <p class="left-title__name" :title="displayName">{{ displayName }}</p>
+        <el-tooltip content="退出登录" placement="bottom" effect="light">
+          <el-icon class="left-title__logout" data-test="rail-logout" @click="onLogout">
+            <SwitchButton />
+          </el-icon>
+        </el-tooltip>
+      </div>
 
       <el-tooltip content="收起菜单" placement="bottom" effect="light">
         <el-icon class="left-title__fold" data-test="rail-fold" @click="app.toggleLeft()"><Fold /></el-icon>
@@ -449,18 +437,17 @@ function onThemeCommand(command: string | number | object): void {
   box-shadow: 0 0.5px 0 0 var(--bg-separator);
 }
 .left-title__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   width: calc(100% - 50px);
+  padding-left: 10px;
   color: var(--bb-text-secondary);
 }
-.left-title__inner {
-  min-height: 50px;
-  width: 100%;
-  padding: 10px;
-  box-sizing: border-box;
-  overflow: hidden;
-  cursor: pointer;
-}
 .left-title__name {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   font-size: 16px;
   line-height: 1.2;
@@ -469,26 +456,19 @@ function onThemeCommand(command: string | number | object): void {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.left-title__account {
-  display: flex;
-  align-items: center;
-  margin: 2px 0 0;
-  font-size: 14px;
-  line-height: 1.2;
-  color: var(--bb-text-muted);
-  overflow: hidden;
-}
-.left-title__account .el-icon {
-  margin-left: 10px;
-  font-size: 14px;
-}
+/* 退出登录：图标即按钮，点一下直接退出（原有的二级下拉菜单已按 2026-11 需求移除） */
 .left-title__logout {
-  display: flex;
-  align-items: center;
-  padding: 8px 0;
+  flex: 0 0 auto;
+  padding: 4px;
+  border-radius: var(--bb-radius-sm);
+  color: var(--bb-text-muted);
+  font-size: 15px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
 }
-.ml-5 {
-  margin-left: 5px;
+.left-title__logout:hover {
+  background: var(--bg-hover);
+  color: var(--el-color-danger);
 }
 .left-title__fold {
   margin-right: 5px;

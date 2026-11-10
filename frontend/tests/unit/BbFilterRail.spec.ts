@@ -83,6 +83,7 @@ vi.mock('@element-plus/icons-vue', () => {
 })
 
 import BbFilterRail from '@/components/bb/BbFilterRail.vue'
+import { logoutEverywhere } from '@/utils/logout'
 
 const stubs = {
   'el-icon': { template: '<i><slot /></i>' },
@@ -174,5 +175,27 @@ describe('BbFilterRail · 工作日志分组', () => {
     expect(active.classes()).toContain('item-active')
     await w.find('[data-test="nav-note-mine"]').trigger('click')
     expect(router.push).toHaveBeenCalled()
+  })
+})
+
+describe('BbFilterRail · 左上角用户区', () => {
+  it('只显示一个名字（姓名优先，没有姓名时回落到账号）', () => {
+    const w = mountRail()
+    const name = w.find('.left-title__name')
+    expect(name.text()).toBe('张三')
+    // 账号不再单独占一行
+    expect(w.text()).not.toContain('zhangli')
+
+    authState.user = { name: '', username: 'zhangli' }
+    const w2 = mountRail()
+    expect(w2.find('.left-title__name').text()).toBe('zhangli')
+  })
+
+  it('点退出图标直接退出，不弹二级下拉菜单', async () => {
+    vi.mocked(logoutEverywhere).mockClear()
+    const w = mountRail()
+    expect(w.findComponent({ name: 'ElDropdown' }).exists()).toBe(false)
+    await w.find('[data-test="rail-logout"]').trigger('click')
+    expect(logoutEverywhere).toHaveBeenCalledTimes(1)
   })
 })
