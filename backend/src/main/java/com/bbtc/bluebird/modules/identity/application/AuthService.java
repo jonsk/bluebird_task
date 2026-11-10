@@ -31,6 +31,7 @@ public class AuthService {
     private final LoginAttemptState loginAttemptState;
     private final LoginLogService loginLogService;
     private final ConfigService config;
+    private final OidcSessionService oidcSessionService;
 
     public TokenVO login(LoginReq req, String ip, String ua) {
         if ("OIDC".equals(config.provider()) && !BOOTSTRAP_ADMIN.equals(req.username())) {
@@ -77,6 +78,7 @@ public class AuthService {
         }
         SysUser user = userMapper.selectById(userId);
         tokenService.revoke(userId);
+        oidcSessionService.clear(userId);
         if (user != null) {
             String provider = "CASDOOR".equals(user.getExternalSource())
                     ? LoginLogService.PROVIDER_CASDOOR

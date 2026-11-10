@@ -98,11 +98,22 @@ public class CasdoorClient {
         return v == null ? "" : v;
     }
 
-    /** 退出登录跳转（清 Casdoor 侧会话）。 */
-    public String logoutUrl(String postLogoutRedirect) {
+    /**
+     * 退出登录跳转（清 Casdoor 侧会话）。
+     *
+     * <p>带 {@code id_token_hint} 时 Casdoor 直接静默登出并回跳；不带则弹「确认退出」页，
+     * 用户得多点一次才能回到登录页——所以登录时必须把 id_token 存下来（{@code OidcSessionService}）。
+     */
+    public String logoutUrl(String postLogoutRedirect, String idToken) {
         try {
-            return endpoint() + "/login/oauth/logout?post_logout_redirect_uri="
-                    + URLEncoder.encode(postLogoutRedirect, StandardCharsets.UTF_8);
+            StringBuilder url = new StringBuilder(endpoint())
+                    .append("/login/oauth/logout?post_logout_redirect_uri=")
+                    .append(enc(nz(postLogoutRedirect)));
+            if (idToken != null && !idToken.isBlank()) {
+                url.append("&id_token_hint=").append(enc(idToken))
+                        .append("&client_id=").append(enc(clientId()));
+            }
+            return url.toString();
         } catch (Exception e) {
             return null;
         }

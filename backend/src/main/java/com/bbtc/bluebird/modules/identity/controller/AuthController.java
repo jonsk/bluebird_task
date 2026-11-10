@@ -5,6 +5,7 @@ import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.common.util.IpUtils;
 import com.bbtc.bluebird.modules.config.application.ConfigService;
 import com.bbtc.bluebird.modules.identity.application.AuthService;
+import com.bbtc.bluebird.modules.identity.application.OidcSessionService;
 import com.bbtc.bluebird.modules.identity.dto.LoginReq;
 import com.bbtc.bluebird.modules.identity.dto.RefreshReq;
 import com.bbtc.bluebird.modules.identity.dto.TokenVO;
@@ -38,6 +39,7 @@ public class AuthController {
     private final AuthService authService;
     private final ConfigService config;
     private final CasdoorClient casdoorClient;
+    private final OidcSessionService oidcSessionService;
 
     @Operation(summary = "账号密码登录")
     @PostMapping("/login")
@@ -69,7 +71,8 @@ public class AuthController {
         if ("OIDC".equals(provider)) {
             body.put("authorizeUrl", "/api/v1/auth/oidc/redirect");
             body.put("displayName", "Casdoor");
-            body.put("logoutUrl", casdoorClient.logoutUrl(origin(request) + "/login"));
+            body.put("logoutUrl", casdoorClient.logoutUrl(origin(request) + "/login",
+                    oidcSessionService.findIdToken(UserContext.currentUserId())));
         }
         return ApiResult.ok(body);
     }

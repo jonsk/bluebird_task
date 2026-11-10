@@ -55,6 +55,12 @@ class CasdoorIntegrationTest {
     @Autowired
     ObjectMapper objectMapper;
 
+    @Autowired
+    com.bbtc.bluebird.modules.identity.application.OidcSessionService oidcSessionService;
+
+    @Autowired
+    com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper sysUserMapper;
+
     private String adminToken() throws Exception {
         String body = mvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -164,6 +170,42 @@ class CasdoorIntegrationTest {
                         .content("{\"values\":{\"provider\":\"LOCAL\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    @Order(44)
+    void logoutUrlCarriesIdTokenHintForSilentLogout() throws Exception {
+        // 回归：不带 id_token_hint 时 Casdoor 会停在「确认退出」页，用户点退出回不到登录页。
+        String token = adminToken();
+        Long adminId = sysUserMapper.selectOne(com.baomidou.mybatisplus.core.toolkit.Wrappers
+                .<com.bbtc.bluebird.modules.identity.domain.SysUser>lambdaQuery()
+                .eq(com.bbtc.bluebird.modules.identity.domain.SysUser::getUsername, "admin")
+                .last("limit 1")).getId();
+        oidcSessionService.saveIdToken(adminId, "test-id-token");
+
+        try {
+            mvc.perform(put("/api/v1/admin/config/identity")
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"values\":{\"provider\":\"OIDC\"}}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0));
+
+            String body = mvc.perform(get("/api/v1/auth/external/config")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            String logoutUrl = objectMapper.readTree(body).path("data").path("logoutUrl").asText("");
+            assertTrue(logoutUrl.contains("id_token_hint=test-id-token"), "应带 id_token_hint：" + logoutUrl);
+            assertTrue(logoutUrl.contains("client_id="), "应带 client_id：" + logoutUrl);
+        } finally {
+            oidcSessionService.clear(adminId);
+            mvc.perform(put("/api/v1/admin/config/identity")
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"values\":{\"provider\":\"LOCAL\"}}"))
+                    .andExpect(status().isOk());
+        }
     }
 
     @Test

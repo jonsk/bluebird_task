@@ -3,6 +3,7 @@ package com.bbtc.bluebird.modules.identity.oidc;
 import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.util.IpUtils;
 import com.bbtc.bluebird.modules.audit.application.LoginLogService;
+import com.bbtc.bluebird.modules.identity.application.OidcSessionService;
 import com.bbtc.bluebird.modules.identity.application.TokenService;
 import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.dto.TokenVO;
@@ -48,6 +49,7 @@ public class OidcLoginController {
     private final CasdoorClient casdoorClient;
     private final CasdoorUserService casdoorUserService;
     private final TokenService tokenService;
+    private final OidcSessionService oidcSessionService;
     private final LoginLogService loginLogService;
 
     @GetMapping("/redirect")
@@ -100,6 +102,7 @@ public class OidcLoginController {
         try {
             Map<String, Object> token = casdoorClient.exchangeCode(code, redirectUri(request));
             String accessToken = String.valueOf(token.get("access_token"));
+            Object rawIdToken = token.get("id_token");
             Map<String, Object> info = casdoorClient.userInfo(accessToken);
             SysUser user = casdoorUserService.upsert(info);
             if (!"ACTIVE".equals(user.getStatus())) {
@@ -108,6 +111,8 @@ public class OidcLoginController {
                 return;
             }
             TokenVO issued = tokenService.issue(user);
+            // 存下 id_token：登出时作为 id_token_hint 让 Casdoor 静默登出（不弹确认页）
+            oidcSessionService.saveIdToken(user.getId(), rawIdToken == null ? null : String.valueOf(rawIdToken));
             loginLogService.record(user.getUsername(), true, ip, ua, "CASDOOR", "LOGIN", user.getExternalId());
             response.sendRedirect("/oauth/success#access_token=" + enc(issued.accessToken())
                     + "&refresh_token=" + enc(issued.refreshToken())
