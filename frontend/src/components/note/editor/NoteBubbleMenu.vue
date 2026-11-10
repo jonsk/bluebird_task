@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3'
 import NoteIcon from './NoteIcon.vue'
 
@@ -9,11 +9,12 @@ const props = defineProps<{
 
 const editor = props.editor
 
+// 内容色固定，深色观感由 note-editor.css 的 --bb-hl-* 映射决定
 const highlightColors = [
-  { name: '黄', color: '#fff3a3' },
-  { name: '绿', color: '#c9f7d4' },
-  { name: '蓝', color: '#cfe4ff' },
-  { name: '粉', color: '#ffd6e7' },
+  { name: '黄', color: '#fff3a3', cls: 'hl-dot--yellow' },
+  { name: '绿', color: '#c9f7d4', cls: 'hl-dot--green' },
+  { name: '蓝', color: '#cfe4ff', cls: 'hl-dot--blue' },
+  { name: '粉', color: '#ffd6e7', cls: 'hl-dot--pink' },
 ]
 
 function setLink(): void {
@@ -73,8 +74,7 @@ function setLink(): void {
       :key="c.color"
       type="button"
       class="bubble-dot"
-      :class="{ 'is-active': editor.isActive('highlight', { color: c.color }) }"
-      :style="{ background: c.color }"
+      :class="[c.cls, { 'is-active': editor.isActive('highlight', { color: c.color }) }]"
       :title="`${c.name}色高亮`"
       @click="editor.chain().focus().toggleHighlight({ color: c.color }).run()"
     />

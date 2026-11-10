@@ -35,14 +35,26 @@
   --bb-color-danger: #e5484d;
   --bb-color-overdue: #e5484d;
   --bb-color-near: #e6a23c;
+
+  /**
+   * 编辑器四色高亮的「显示色」。注意：写入笔记 HTML 的 data-color 始终是下面这组浅色十六进制，
+   * 与主题无关（导出 / 打印 / 他人查看都稳定）；深色主题只改显示，见 note-editor.css 的映射规则。
+   */
+  --bb-hl-yellow: #fff3a3;
+  --bb-hl-green: #c9f7d4;
+  --bb-hl-blue: #cfe4ff;
+  --bb-hl-pink: #ffd6e7;
+  /* 高亮上应使用的文字色；浅色/柔和主题用正文色（inherit），鲜明主题改用深字 */
+  --bb-hl-text: inherit;
 }
 
-/* ════════════ 主题：深色 dark（自有令牌 + Element Plus 官方暗色变量）════════
+/* ════════════ 主题：深色（dark-soft 柔和 / dark-vivid 鲜明，共用同一套底色）════════
    默认 :root 即「浅色」(light-classic)，故不为它写覆盖块；
    「现代浅色」「青绿」两套主题已下线，宿主机残留的旧值由 stores/app.ts 回退为浅色。
+   选择器用 [data-theme^='dark'] 前缀，两套深色共用；差异见文件末尾 dark-vivid 覆盖块。
    EP 的红/黄/绿等语义色由 element-plus/theme-chalk/dark/css-vars.css 提供（挂在 html.dark），
    这里只覆盖与自有布局强相关的 --el-* 值，顺序上必须晚于官方暗色变量。 */
-:root[data-theme='dark'] {
+:root[data-theme^='dark'] {
   --bg-primary: #1a1f27;
   --bg-secondary: #14181f;
   --bg-hover: #232933;
@@ -88,16 +100,38 @@
   --el-fill-color-light: #232933;
   --el-fill-color-lighter: #20262f;
   --el-fill-color-extra-light: #1e242c;
+  /* 柔和：高亮换成低饱和半透明底，正文仍用 --bb-text 的亮度 */
+  --bb-hl-yellow: rgba(245, 211, 58, 0.30);
+  --bb-hl-green: rgba(94, 224, 160, 0.28);
+  --bb-hl-blue: rgba(127, 184, 255, 0.32);
+  --bb-hl-pink: rgba(255, 158, 196, 0.30);
+  --bb-hl-text: inherit;
 }
 
-/* 深色主题下登录页（LoginView 自带浅色渐变，覆盖为深色系）
-   必须带 html 前缀：组件 scoped 样式 `.login[data-v-x]` 与 `[data-theme] .login` 同权重，
-   谁后加载谁生效，加一级元素选择器才能稳定压过它。 */
-html[data-theme='dark'] .login {
-  background: linear-gradient(135deg, #10141a 0%, #1a2130 100%);
-}
-html[data-theme='dark'] .login-box {
-  background: var(--bg-primary);
+/* 深色·鲜明：底色与柔和一致，提高文字/强调色对比，配合编辑器的高饱和高亮（见 note-editor.css）。 */
+:root[data-theme='dark-vivid'] {
+  --bb-text: #f4f7fb;
+  --bb-text-secondary: #dbe3ee;
+  --bb-text-muted: #a9b6c8;
+  --bb-text-meta: #97a5b8;
+  --bg-accent: #4b8cfb;
+  --bb-color-primary: #4b8cfb;
+  --el-color-primary: #4b8cfb;
+  --el-color-primary-light-3: #5f99fb;
+  --el-color-primary-light-5: #77a9fc;
+  --el-color-primary-light-7: #9cc2fd;
+  --el-color-primary-light-8: #b2d0fe;
+  --el-color-primary-light-9: #23415f;
+  --el-color-primary-dark-2: #3376e0;
+  --el-text-color-primary: #f4f7fb;
+  --el-text-color-regular: #dbe3ee;
+  --el-text-color-secondary: #a9b6c8;
+  /* 鲜明：明亮实色高亮 + 深色字，观感接近荧光笔 */
+  --bb-hl-yellow: #f5d33a;
+  --bb-hl-green: #5ee0a0;
+  --bb-hl-blue: #7fb8ff;
+  --bb-hl-pink: #ff9ec4;
+  --bb-hl-text: #12161d;
 }
 
 /* preflight 关闭后的最小 reset（R8：不干扰 Element Plus） */

@@ -10,6 +10,8 @@ declare module 'vue-router' {
     module?: 'task' | 'note'
     /** note 列表 scope（4 值集合的子集；NoteListView/useNoteList 唯一输入） */
     scope?: 'mine' | 'subordinate' | 'visible' | 'all'
+    /** 该页固定浅色（登录 / 回调），不跟随用户主题；与 theme-init.js 的 AUTH_PATHS 保持一致 */
+    forceLight?: boolean
   }
 }
 
@@ -23,13 +25,13 @@ export const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'login',
     component: () => import('@/views/auth/LoginView.vue'),
-    meta: { title: '登录', requiresAuth: false },
+    meta: { title: '登录', requiresAuth: false, forceLight: true },
   },
   {
     path: '/oauth/success',
     name: 'oidcSuccess',
     component: () => import('@/views/auth/OidcSuccessView.vue'),
-    meta: { title: '登录中', requiresAuth: false },
+    meta: { title: '登录中', requiresAuth: false, forceLight: true },
   },
   {
     path: '/',

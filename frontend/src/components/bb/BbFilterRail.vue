@@ -224,7 +224,8 @@ async function runHandler(command: string): Promise<void> {
 /** 内置主题清单（key 与 tokens.css data-theme 作用域一致，展示用色块）。 */
 const themeList: ReadonlyArray<{ key: ThemeKey; label: string; color: string }> = [
   { key: 'light-classic', label: '浅色', color: '#0065c0' },
-  { key: 'dark', label: '深色', color: '#3b82f6' },
+  { key: 'dark-soft', label: '深色·柔和', color: '#3b82f6' },
+  { key: 'dark-vivid', label: '深色·鲜明', color: '#4b8cfb' },
 ]
 
 function onThemeCommand(command: string | number | object): void {

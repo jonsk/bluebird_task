@@ -1,10 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Editor } from '@tiptap/vue-3'
 import NoteIcon from './NoteIcon.vue'
 import NoteOutline from './NoteOutline.vue'
 import NoteEmojiPicker from './NoteEmojiPicker.vue'
 import { firstFontFamily, withCurrentValue } from '@/utils/toolbarSelect'
+import { isDarkTheme, useAppStore } from '@/stores/app'
 
 const props = defineProps<{
   editor: Editor
@@ -23,6 +24,7 @@ const emit = defineEmits<{
 }>()
 
 const editor = props.editor
+const appStore = useAppStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const attachmentInput = ref<HTMLInputElement | null>(null)
 const outlineOpen = ref(false)
@@ -37,12 +39,19 @@ const alignOptions = [
   { value: 'justify', label: '两端对齐', icon: 'alignJustify' },
 ] as const
 
+/**
+ * 四色高亮的「内容色」不随主题变化（写进 HTML 的 data-color 必须稳定），
+ * 深色下的观感由 note-editor.css 按主题映射 --bb-hl-* 决定，所以色块预览用 CSS 类而不是内联背景。
+ */
 const highlightColors = [
-  { name: '黄', color: '#fff3a3' },
-  { name: '绿', color: '#c9f7d4' },
-  { name: '蓝', color: '#cfe4ff' },
-  { name: '粉', color: '#ffd6e7' },
+  { name: '黄', color: '#fff3a3', cls: 'hl-dot--yellow' },
+  { name: '绿', color: '#c9f7d4', cls: 'hl-dot--green' },
+  { name: '蓝', color: '#cfe4ff', cls: 'hl-dot--blue' },
+  { name: '粉', color: '#ffd6e7', cls: 'hl-dot--pink' },
 ]
+
+/** 文字颜色选择器的默认值：深色主题给深紫会看不清，换成同色系的浅色 */
+const defaultTextColor = computed(() => (isDarkTheme(appStore.theme) ? '#a5b4fc' : '#5b5bd6'))
 
 const fontFamilies = [
   { label: '字体', value: '' },
@@ -300,7 +309,7 @@ function toggleEmoji(): void {
       <input
         class="tb-color__input"
         type="color"
-        :value="editor.getAttributes('textStyle').color || '#5b5bd6'"
+        :value="editor.getAttributes('textStyle').color || defaultTextColor"
         @input="setTextColor"
       />
     </label>
@@ -310,9 +319,7 @@ function toggleEmoji(): void {
         v-for="c in highlightColors"
         :key="c.color"
         type="button"
-        class="tb-dot"
-        :class="{ 'is-active': editor.isActive('highlight', { color: c.color }) }"
-        :style="{ background: c.color }"
+        :class="['tb-dot', c.cls, { 'is-active': editor.isActive('highlight', { color: c.color }) }]"
         :title="`${c.name}色高亮`"
         @click="editor.chain().focus().toggleHighlight({ color: c.color }).run()"
       />

@@ -1,5 +1,6 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import NoteToolbar from '@/components/note/editor/NoteToolbar.vue'
 
 /**
@@ -31,7 +32,10 @@ function editorWith(attrs: Record<string, string> = {}) {
 function mountToolbar(attrs: Record<string, string> = {}) {
   return shallowMount(NoteToolbar, {
     props: { editor: editorWith(attrs) as never, tick: 0 },
-    global: { stubs: { NoteIcon: true, NoteOutline: true, NoteEmojiPicker: true } },
+    global: {
+      plugins: [createPinia()],
+      stubs: { NoteIcon: true, NoteOutline: true, NoteEmojiPicker: true },
+    },
   })
 }
 
