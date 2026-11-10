@@ -9,7 +9,9 @@ import com.bbtc.bluebird.modules.ai.dto.AiModelTestResult;
 import com.bbtc.bluebird.modules.ai.dto.AiModelVO;
 import com.bbtc.bluebird.modules.ai.infrastructure.AiModelConfigMapper;
 import com.bbtc.bluebird.modules.config.application.ConfigCrypto;
+import com.bbtc.bluebird.common.model.UserContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -17,6 +19,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 /** AI 模型配置管理：多模型、全局单选启用、密钥加密。 */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiModelService {
@@ -81,7 +84,12 @@ public class AiModelService {
 
     public AiModelTestResult test(Long id) {
         AiModelConfig entity = require(id);
-        return aiClient.test(entity, decryptKey(entity));
+        log.info("收到 AI 模型测试请求：id={}, name={}, operator={}",
+                id, entity.getName(), UserContext.currentUserId());
+        AiModelTestResult result = aiClient.test(entity, decryptKey(entity));
+        log.info("AI 模型测试返回：id={}, ok={}, latencyMs={}, model={}, message={}",
+                id, result.ok(), result.latencyMs(), result.model(), result.message());
+        return result;
     }
 
     public boolean hasActive() {
