@@ -84,11 +84,12 @@ public class AiModelService {
 
     public AiModelTestResult test(Long id) {
         AiModelConfig entity = require(id);
-        log.info("收到 AI 模型测试请求：id={}, name={}, operator={}",
-                id, entity.getName(), UserContext.currentUserId());
         AiModelTestResult result = aiClient.test(entity, decryptKey(entity));
-        log.info("AI 模型测试返回：id={}, ok={}, latencyMs={}, model={}, message={}",
-                id, result.ok(), result.latencyMs(), result.model(), result.message());
+        if (!result.ok()) {
+            log.warn("AI 模型测试未通过：id={}, name={}, model={}, operator={}, latency={}ms, message={}",
+                    id, entity.getName(), entity.getModel(), UserContext.currentUserId(),
+                    result.latencyMs(), result.message());
+        }
         return result;
     }
 
