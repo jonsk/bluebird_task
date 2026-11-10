@@ -127,7 +127,7 @@ public final class ConfigDefinition {
                                     + "JSON 结构与安全约束由系统固定，用户只能补充行文规则",
                             List.of(), null),
                     new Item("weeklyreport", "auto-enabled", "启用自动生成", "BOOL", "true",
-                            false, false, "每周固定时间自动为有日志的用户生成周报草稿", List.of(), null),
+                            false, false, "每周固定时间自动为有日志的用户生成周报（生成即定稿）", List.of(), null),
                     new Item("weeklyreport", "auto-day", "自动生成日", "SELECT", "FRI",
                             false, false, "自动生成周报的星期", List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"),
                             null),

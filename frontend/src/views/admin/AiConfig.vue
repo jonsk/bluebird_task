@@ -2,6 +2,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Connection, Delete, Edit, Plus, Select } from '@element-plus/icons-vue'
+import { getConfigGroup, type ConfigGroupVO } from '@/api/adminConfig'
+import ConfigGroupForm from '@/components/admin/ConfigGroupForm.vue'
 import {
   activateAiModel,
   createAiModel,
@@ -18,7 +20,8 @@ import {
  * AI 模型配置（ADMIN）。
  *
  * 多条模型可并存，但全局只有一条 active；API Key 只写不读，编辑时留空表示不修改。
- * 周报生成固定使用当前启用模型。
+ * 周报生成固定使用当前启用模型；周报策略（提示词/自动生成/日志条数）同页维护，
+ * 由后端配置注册表驱动。
  */
 const loading = ref(false)
 const saving = ref(false)
@@ -31,6 +34,7 @@ const testDialogVisible = ref(false)
 const testTarget = ref<AiModelVO | null>(null)
 const testResult = ref<AiModelTestResult | null>(null)
 const testError = ref('')
+const weeklyGroup = ref<ConfigGroupVO | null>(null)
 
 const form = reactive({
   name: '',
@@ -69,7 +73,23 @@ async function load(): Promise<void> {
   }
 }
 
-onMounted(load)
+/** 周报策略分组：配置项由后端注册表描述，这里只取分组壳。 */
+async function loadWeeklyGroup(): Promise<void> {
+  try {
+    weeklyGroup.value = await getConfigGroup('weeklyreport')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '周报配置加载失败')
+  }
+}
+
+onMounted(() => {
+  void load()
+  void loadWeeklyGroup()
+})
+
+function onWeeklySaved(updated: ConfigGroupVO): void {
+  weeklyGroup.value = updated
+}
 
 function resetForm(): void {
   form.name = ''
@@ -191,6 +211,7 @@ async function onDelete(row: AiModelVO): Promise<void> {
         <h2 class="ai__title">AI 模型</h2>
         <p class="ai__desc">
           周报生成使用「当前模型」。可配置多条，但同一时间只能启用一条；API Key 加密存储且不会回显。
+          下方的「工作周报」为该功能自身的生成策略。
         </p>
       </div>
       <el-button type="primary" :icon="Plus" data-test="ai-model-create" @click="openCreate">
@@ -268,6 +289,9 @@ async function onDelete(row: AiModelVO): Promise<void> {
         </template>
       </el-table-column>
     </el-table>
+
+    <ConfigGroupForm v-if="weeklyGroup" :group="weeklyGroup" @saved="onWeeklySaved" />
+
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px" destroy-on-close>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
