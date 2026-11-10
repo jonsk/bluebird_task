@@ -58,9 +58,49 @@ describe('excelTablePaste', () => {
   })
 
   it('单行、没有制表符或列数不完整的普通文本不会误判成表格', () => {
-    expect(tsvToTableJson('姓名\t数量')).toBeNull()
     expect(tsvToTableJson('第一行\n第二行')).toBeNull()
     expect(tsvToTableJson('姓名\t数量\n张三')).toBeNull()
+  })
+
+  it('单行但多列的制表符文本仍按表格处理', () => {
+    const table = tsvToTableJson('姓名\t数量')
+    expect(table?.type).toBe('table')
+    expect(table?.content).toHaveLength(1)
+    expect(table?.content?.[0]?.content).toHaveLength(2)
+    expect(cellText(table?.content?.[0]?.content?.[1])).toBe('数量')
+  })
+
+  it('合并单元格按网格补齐，每行列数一致', () => {
+    // 第 1 列被 rowspan=2 占掉，第二行只有 1 个 <td>（Excel 的真实形态）
+    const table = htmlTableToJson(`
+      <table>
+        <tr><td rowspan="2">合并</td><td>A</td><td>B</td></tr>
+        <tr><td>C</td><td>D</td></tr>
+      </table>
+    `)
+    const rows = table?.content ?? []
+    expect(rows).toHaveLength(2)
+    // 第二行不能再补格子：合并列归上方单元格，列数仍为 3
+    const secondRow = rows[1]?.content ?? []
+    expect(secondRow).toHaveLength(2)
+    expect(cellText(secondRow[0])).toBe('C')
+    expect(cellText(secondRow[1])).toBe('D')
+
+    const merged = rows[0]?.content?.[0] as { attrs?: Record<string, number> } | undefined
+    expect(merged?.attrs).toEqual({ rowspan: 2 })
+  })
+
+  it('行尾缺格时补空单元格，保证行宽一致', () => {
+    const table = htmlTableToJson(`
+      <table>
+        <tr><td>A</td><td>B</td></tr>
+        <tr><td>C</td></tr>
+      </table>
+    `)
+    const rows = table?.content ?? []
+    expect(rows[0]?.content).toHaveLength(2)
+    expect(rows[1]?.content).toHaveLength(2)
+    expect(cellText(rows[1]?.content?.[1])).toBe('')
   })
 
   it('剪贴板同时有 HTML 和纯文本时优先使用 HTML 表格', () => {

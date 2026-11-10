@@ -298,4 +298,44 @@ describe('NoteEditor × fieldPermissions', () => {
     await settle()
     expect(w.find('.note-editor__loading').exists()).toBe(false)
   })
+
+  it('Excel 粘贴：剪贴板同时带表格和区域快照时，插表格而不是图片', async () => {
+    // 回归：Excel 会把复制区域做成 PNG 一起放进剪贴板，旧顺序先判图片，
+    // 结果粘进来的是 image.png 图片节点（原子节点，选不中文字）。
+    await mountEdit(detail())
+    const insert = vi.spyOn(chain as never, 'insertContent' as never)
+    const options = state.options as unknown as {
+      editorProps?: { handlePaste?: (view: unknown, event: unknown) => boolean }
+    }
+    const handlePaste = options.editorProps?.handlePaste as (
+      view: unknown,
+      event: unknown,
+    ) => boolean
+    const preventDefault = vi.fn()
+    const snapshot = new File([new Uint8Array([1, 2, 3])], 'image.png', { type: 'image/png' })
+
+    const handled = handlePaste(
+      {},
+      {
+        preventDefault,
+        clipboardData: {
+          files: [snapshot],
+          getData: (type: string) =>
+            type === 'text/html'
+              ? '<table><tr><td rowspan="2">合并</td><td>A</td></tr><tr><td>B</td></tr></table>'
+              : '合并\tA\n\tB',
+        },
+      },
+    )
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    const inserted = (insert.mock.calls[0] as unknown[])?.[0] as {
+      type?: string
+      content?: unknown[]
+    }
+    expect(inserted?.type).toBe('table')
+    expect(inserted?.content).toHaveLength(2)
+    expect(uploadFile).not.toHaveBeenCalled()
+  })
 })

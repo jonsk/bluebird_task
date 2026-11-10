@@ -4,6 +4,7 @@ import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import DragHandle from '@tiptap/extension-drag-handle-vue-3'
 import { buildWeeklyReportExtensions } from '@/utils/weeklyReportExtensions'
+import { tableFromClipboard } from '@/utils/excelTablePaste'
 import NoteToolbar from '@/components/note/editor/NoteToolbar.vue'
 import NoteBubbleMenu from '@/components/note/editor/NoteBubbleMenu.vue'
 import NoteOutline from '@/components/note/editor/NoteOutline.vue'
@@ -42,6 +43,15 @@ const editor = useEditor({
   extensions: buildWeeklyReportExtensions(),
   editorProps: {
     attributes: { class: 'note-prose weekly-prose', spellcheck: 'false' },
+    handlePaste: (_view, event) => {
+      // 与日志编辑器保持一致：Excel 粘贴转成真正的表格节点，而不是制表符文本
+      const table = tableFromClipboard(event.clipboardData)
+      const ed = editor.value
+      if (!table || !ed) return false
+      event.preventDefault()
+      ed.chain().focus().insertContent(table).run()
+      return true
+    },
   },
   onUpdate: ({ editor: ed }) => {
     if (hydrating) return

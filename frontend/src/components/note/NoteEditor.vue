@@ -133,16 +133,18 @@ const editor = useEditor({
       spellcheck: 'false',
     },
     handlePaste: (_view, event) => {
-      const images = imageFilesFromEvent(event.clipboardData)
-      const attachments = attachmentFilesFromEvent(event.clipboardData)
-      if (!images.length && !attachments.length) {
-        const table = tableFromClipboard(event.clipboardData)
-        const ed = editor.value
-        if (!table || !ed) return false
+      // Excel 复制区域时会把「表格 HTML」和「一张区域快照 PNG」同时放进剪贴板，
+      // 必须先判表格再判图片，否则粘贴出来的永远是 image.png 那张快照。
+      const table = tableFromClipboard(event.clipboardData)
+      const ed = editor.value
+      if (table && ed) {
         event.preventDefault()
         ed.chain().focus().insertContent(table).run()
         return true
       }
+      const images = imageFilesFromEvent(event.clipboardData)
+      const attachments = attachmentFilesFromEvent(event.clipboardData)
+      if (!images.length && !attachments.length) return false
       event.preventDefault()
       if (images.length) void uploadImages(images)
       if (attachments.length) void uploadAttachments(attachments)
