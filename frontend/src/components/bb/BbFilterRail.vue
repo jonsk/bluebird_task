@@ -38,7 +38,7 @@ import { logoutEverywhere } from '@/utils/logout'
  *    分组折叠状态按模块持久化（`bb.filter-rail.<module>.collapsed`），
  *    工作日志组 = 我的 / 员工（开关）；「全部日志」已移到后台（/admin/notes，仅 ADMIN）。
  *    2026-10-26 二轮减法：授权日志（被授权 / 授权管理）整体下线。
- *    task 组在 note 页隐藏自定义栏。
+ *    task 组的自定义栏与「新增自定义任务栏」始终显示，不随页面模块隐藏。
  */
 const app = useAppStore()
 const auth = useAuthStore()
@@ -290,62 +290,60 @@ function onThemeCommand(command: string | number | object): void {
               </div>
             </li>
 
-            <template v-if="module === 'task'">
-              <li v-for="m in menus" :key="`menu-${m.id}`">
-                <div
-                  class="tabs-item bb-menu-row"
-                  data-test="menu-row"
-                  :class="{ 'item-active': activeMenuId === Number(m.id) }"
-                  @click="selectMenu(m)"
-                >
-                  <div class="tabs-item-left">
-                    <el-icon class="t-i-l-icon"><Notebook /></el-icon>
-                    <template v-if="editingId === Number(m.id)">
-                      <el-input
-                        ref="nameInput"
-                        v-model="draftName"
-                        size="small"
-                        class="bb-menu-row__input"
-                        @click.stop
-                        @keyup.enter="commitEdit(m)"
-                        @blur="commitEdit(m)"
-                      />
-                    </template>
-                    <span v-else class="t-i-l-text">{{ m.name }}</span>
-                  </div>
-                  <div class="tabs-item-right">
-                    <span class="bb-menu-row__ops">
-                      <el-icon class="bb-menu-row__op" title="重命名" @click.stop="startEdit(m)"><Edit /></el-icon>
-                      <el-icon class="bb-menu-row__op" title="删除" @click.stop="onDelete(m)"><Delete /></el-icon>
-                    </span>
-                  </div>
-                </div>
-              </li>
-
-              <li v-if="creating">
-                <div class="tabs-item bb-menu-row">
-                  <div class="tabs-item-left">
-                    <el-icon class="t-i-l-icon"><Notebook /></el-icon>
+            <li v-for="m in menus" :key="`menu-${m.id}`">
+              <div
+                class="tabs-item bb-menu-row"
+                data-test="menu-row"
+                :class="{ 'item-active': activeMenuId === Number(m.id) }"
+                @click="selectMenu(m)"
+              >
+                <div class="tabs-item-left">
+                  <el-icon class="t-i-l-icon"><Notebook /></el-icon>
+                  <template v-if="editingId === Number(m.id)">
                     <el-input
                       ref="nameInput"
                       v-model="draftName"
                       size="small"
                       class="bb-menu-row__input"
-                      placeholder="栏名称，回车保存"
-                      @keyup.enter="commitCreate"
-                      @blur="commitCreate"
+                      @click.stop
+                      @keyup.enter="commitEdit(m)"
+                      @blur="commitEdit(m)"
                     />
-                  </div>
+                  </template>
+                  <span v-else class="t-i-l-text">{{ m.name }}</span>
                 </div>
-              </li>
-
-              <div class="tabs-item bb-add-row" data-test="menu-add" @click="startCreate">
-                <div class="tabs-item-left">新增自定义任务栏</div>
                 <div class="tabs-item-right">
-                  <el-icon class="t-i-l-icon"><Plus /></el-icon>
+                  <span class="bb-menu-row__ops">
+                    <el-icon class="bb-menu-row__op" title="重命名" @click.stop="startEdit(m)"><Edit /></el-icon>
+                    <el-icon class="bb-menu-row__op" title="删除" @click.stop="onDelete(m)"><Delete /></el-icon>
+                  </span>
                 </div>
               </div>
-            </template>
+            </li>
+
+            <li v-if="creating">
+              <div class="tabs-item bb-menu-row">
+                <div class="tabs-item-left">
+                  <el-icon class="t-i-l-icon"><Notebook /></el-icon>
+                  <el-input
+                    ref="nameInput"
+                    v-model="draftName"
+                    size="small"
+                    class="bb-menu-row__input"
+                    placeholder="栏名称，回车保存"
+                    @keyup.enter="commitCreate"
+                    @blur="commitCreate"
+                  />
+                </div>
+              </div>
+            </li>
+
+            <div class="tabs-item bb-add-row" data-test="menu-add" @click="startCreate">
+              <div class="tabs-item-left">新增自定义任务栏</div>
+              <div class="tabs-item-right">
+                <el-icon class="t-i-l-icon"><Plus /></el-icon>
+              </div>
+            </div>
           </ul>
         </div>
 

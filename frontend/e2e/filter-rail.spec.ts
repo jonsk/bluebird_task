@@ -13,6 +13,14 @@ test.beforeEach(async ({ page }) => {
   await freezeTime(page)
 })
 
+test('E-09 日志页仍显示自定义任务栏和新增入口', async ({ page }) => {
+  await login(page)
+  await page.locator('[data-test="nav-note-mine"]').click()
+  await expect(page).toHaveURL(/\/notes$/)
+  await expect(page.locator('[data-test="menu-row"]')).toHaveCount(3)
+  await expect(page.locator('[data-test="menu-add"]')).toBeVisible()
+})
+
 test('E-08 自定义栏：新建栏（内联行）→ 卡片添加到栏 → 按栏过滤；重命名/删除', async ({ page }) => {
   await login(page)
   await goView(page, '/allTask', /\/allTask$/)

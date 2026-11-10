@@ -134,6 +134,11 @@ describe('BbFilterRail · 工作日志分组', () => {
     expect(navTests(w)).not.toContain('nav-note-all')
   })
 
+  it('日志页也渲染自定义栏和新增自定义任务栏入口', () => {
+    const w = mountRail()
+    expect(w.find('[data-test="menu-add"]').exists()).toBe(true)
+  })
+
   it('两组分组都存在，且日志页时日志组展开', () => {
     const w = mountRail()
     expect(w.find('[data-test="nav-group-task"]').exists()).toBe(true)
