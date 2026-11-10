@@ -10,11 +10,13 @@ type GenItem = components['schemas']['ConfigItemVO']
 type GenGroup = components['schemas']['ConfigGroupVO']
 
 export type ConfigItemVO = Required<
-  Pick<GenItem, 'key' | 'label' | 'type' | 'secret' | 'hasSecret' | 'source' | 'requiresRestart'>
+  Pick<GenItem, 'key' | 'label' | 'secret' | 'hasSecret' | 'source' | 'requiresRestart'>
 > & {
   value: string
   description: string
   options: string[]
+  /** 后端 ConfigDefinition 的 type；TEXT 为本项目新增的多行文本类型。 */
+  type: string
 }
 
 export type ConfigGroupVO = Required<Pick<GenGroup, 'group' | 'label'>> & {

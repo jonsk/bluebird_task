@@ -83,7 +83,7 @@ class CasdoorIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
 
         JsonNode groups = objectMapper.readTree(body).path("data");
-        assertEquals(6, groups.size(), "六个配置分组：casdoor/identity/orgsync/security/audit/storage");
+        assertEquals(7, groups.size(), "七个配置分组：casdoor/identity/orgsync/weeklyreport/security/audit/storage");
 
         JsonNode casdoor = null;
         for (JsonNode g : groups) {

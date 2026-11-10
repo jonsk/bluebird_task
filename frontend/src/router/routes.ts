@@ -55,6 +55,12 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/recycle/RecycleView.vue'),
         meta: { title: '回收站' },
       },
+      {
+        path: 'weekly-reports',
+        name: 'WeeklyReport',
+        component: () => import('@/views/weekly/WeeklyReportView.vue'),
+        meta: { module: 'task', title: '工作周报', requiresAuth: true },
+      },
       /**
        * 工作日志（note）。**声明顺序是硬约束**：静态段必须排在 `notes/:id(\d+)` 之前，
        * 否则 `/notes/calendar` 会被 `:id` 吞（`\d+` 只能挡住字母段，不能作为依赖）。
@@ -112,6 +118,12 @@ export const routes: RouteRecordRaw[] = [
         name: 'adminCasdoor',
         component: () => import('@/views/admin/CasdoorConfig.vue'),
         meta: { title: 'Casdoor 对接', roles: ['ADMIN'] },
+      },
+      {
+        path: 'ai',
+        name: 'adminAi',
+        component: () => import('@/views/admin/AiConfig.vue'),
+        meta: { title: 'AI 配置', roles: ['ADMIN'] },
       },
       {
         path: 'notes',

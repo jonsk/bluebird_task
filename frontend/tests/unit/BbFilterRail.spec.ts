@@ -62,6 +62,7 @@ vi.mock('@element-plus/icons-vue', () => {
     'Calendar',
     'ChatDotRound',
     'Delete',
+    'Document',
     'Edit',
     'Fold',
     'Folder',

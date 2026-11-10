@@ -9,6 +9,7 @@ import {
   Calendar,
   ChatDotRound,
   Delete,
+  Document,
   Edit,
   Fold,
   List,
@@ -53,6 +54,7 @@ const taskNavItems = [
   { name: 'myDo', label: '分配给我的任务', countKey: 'assigned', icon: User },
   { name: 'myCollect', label: '我的收藏', countKey: 'collect', icon: Star },
   { name: 'allTask', label: '全部任务', countKey: 'all', icon: List },
+  { name: 'WeeklyReport', label: '工作周报', countKey: '', icon: Document },
 ] as const
 
 /** 当前模块（路由 meta.module 单一来源；无 meta → 任务模块）。 */
@@ -118,6 +120,7 @@ const draftName = ref('')
 const nameInput = shallowRef<{ focus: () => void } | null>(null)
 
 function countOf(key: string): number | null {
+  if (!key) return null
   const c = taskStore.counts
   if (!c) return null
   return Number((c as unknown as Record<string, number>)[key] ?? 0)

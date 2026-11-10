@@ -8,7 +8,7 @@ import ConfigGroupForm from '@/components/admin/ConfigGroupForm.vue'
  * 常规设置（ADMIN）：登录安全 / 审计留存 / 文件存储。
  * 同样由后端配置注册表驱动，前端不硬编码字段。
  */
-const GROUP_ORDER = ['security', 'audit', 'storage'] as const
+const GROUP_ORDER = ['weeklyreport', 'security', 'audit', 'storage'] as const
 
 const loading = ref(false)
 const groups = ref<ConfigGroupVO[]>([])

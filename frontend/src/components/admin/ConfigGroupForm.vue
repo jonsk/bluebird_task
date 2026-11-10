@@ -140,6 +140,15 @@ function onReset(): void {
           />
 
           <el-input
+            v-else-if="item.type === 'TEXT'"
+            v-model="draft[item.key]"
+            type="textarea"
+            :rows="10"
+            class="cfg__control cfg__control--wide"
+            :data-test="`cfg-${item.key}`"
+          />
+
+          <el-input
             v-else
             v-model="draft[item.key]"
             :type="item.secret ? 'password' : 'text'"
@@ -228,6 +237,9 @@ function onReset(): void {
 .cfg__control--narrow {
   flex: 0 1 140px;
   min-width: 120px;
+}
+.cfg__control--wide {
+  flex: 1 1 640px;
 }
 .cfg__source {
   margin-top: 5px;
