@@ -467,4 +467,56 @@ test.describe('工作日志', () => {
     await expect(page).toHaveURL(/\/notes\/\d+$/)
     await expect(page.locator('.note-detail')).toBeVisible()
   })
+
+  test('N-29 粘贴 Excel HTML 表格：自动转成编辑器表格', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    const editor = irEditor(host)
+    await expect(editor).toBeVisible()
+
+    await editor.click()
+    await editor.press('Control+End')
+    await editor.press('Enter')
+    await page.evaluate(() => {
+      const target = document.querySelector<HTMLElement>('.note-editor__prose')
+      if (!target) return
+      const data = new DataTransfer()
+      data.setData(
+        'text/html',
+        '<meta charset="utf-8"><table border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><col width="64"><tr><td class="xl65" style="font-weight:700">姓名</td><td>数量</td></tr><tr><td>张三</td><td>2</td></tr></table>',
+      )
+      target.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+      )
+    })
+
+    await expect(editor.locator('table')).toHaveCount(1)
+    await expect(editor.locator('table')).toContainText('姓名')
+    await expect(editor.locator('table')).toContainText('张三')
+  })
+
+  test('N-30 粘贴 Excel 制表符文本：没有 HTML 时自动转成表格', async ({ page }) => {
+    await page.goto('/notes')
+    await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
+    const host = page.locator('[data-test="note-inline-editor"]')
+    const editor = irEditor(host)
+    await expect(editor).toBeVisible()
+
+    await editor.click()
+    await editor.press('Control+End')
+    await editor.press('Enter')
+    await page.evaluate(() => {
+      const target = document.querySelector<HTMLElement>('.note-editor__prose')
+      if (!target) return
+      const data = new DataTransfer()
+      data.setData('text/plain', '姓名\t数量\n张三\t2')
+      target.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+      )
+    })
+
+    await expect(editor.locator('table')).toHaveCount(1)
+    await expect(editor.locator('table')).toContainText('张三')
+  })
 })

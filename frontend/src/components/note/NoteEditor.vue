@@ -8,6 +8,7 @@ import { getNote, createNote, updateNote, bindAttachment } from '@/api/note'
 import { uploadFile } from '@/api/file'
 import { BizError, HttpError } from '@/api/http'
 import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
+import { tableFromClipboard } from '@/utils/excelTablePaste'
 import { buildNoteExtensions } from '@/utils/noteEditorExtensions'
 import { isBlankHtml, plainTextFromHtml, toEditorHtml, visibleLength } from '@/utils/richText'
 import NoteToolbar from './editor/NoteToolbar.vue'
@@ -134,7 +135,14 @@ const editor = useEditor({
     handlePaste: (_view, event) => {
       const images = imageFilesFromEvent(event.clipboardData)
       const attachments = attachmentFilesFromEvent(event.clipboardData)
-      if (!images.length && !attachments.length) return false
+      if (!images.length && !attachments.length) {
+        const table = tableFromClipboard(event.clipboardData)
+        const ed = editor.value
+        if (!table || !ed) return false
+        event.preventDefault()
+        ed.chain().focus().insertContent(table).run()
+        return true
+      }
       event.preventDefault()
       if (images.length) void uploadImages(images)
       if (attachments.length) void uploadAttachments(attachments)
