@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/vue-3'
 import NoteIcon from './NoteIcon.vue'
 import NoteOutline from './NoteOutline.vue'
 import NoteEmojiPicker from './NoteEmojiPicker.vue'
+import { firstFontFamily, withCurrentValue } from '@/utils/toolbarSelect'
 
 const props = defineProps<{
   editor: Editor
@@ -92,6 +93,17 @@ const blockAttrs = computed(() => {
 const currentFontFamily = computed(() => String(blockAttrs.value.fontFamily || ''))
 const currentFontSize = computed(() => String(blockAttrs.value.fontSize || ''))
 const currentLineHeight = computed(() => String(blockAttrs.value.lineHeight || ''))
+
+/**
+ * 段落上的字体 / 字号 / 行距可能是 HTML 里带进来的任意值（老数据、Word 粘贴），
+ * 不在固定选项表里时 <select> 会显示空白。这里把当前值补成一条选项，
+ * 保证下拉框永远有字可看；空值仍落到「字体 / 字号 / 行距」这条占位项上。
+ */
+const fontFamilyOptions = computed(() =>
+  withCurrentValue(fontFamilies, currentFontFamily.value, firstFontFamily),
+)
+const fontSizeOptions = computed(() => withCurrentValue(fontSizes, currentFontSize.value))
+const lineHeightOptions = computed(() => withCurrentValue(lineHeights, currentLineHeight.value))
 
 function onBlockChange(event: Event): void {
   const value = (event.target as HTMLSelectElement).value
@@ -212,32 +224,35 @@ function toggleEmoji(): void {
 
     <select
       class="tb-select tb-select--font"
+      :class="{ 'is-placeholder': !currentFontFamily }"
       :value="currentFontFamily"
       title="字体"
       data-test="note-font-family"
       @change="setBlockAttr('fontFamily', $event)"
     >
-      <option v-for="item in fontFamilies" :key="item.value" :value="item.value">{{ item.label }}</option>
+      <option v-for="item in fontFamilyOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
     </select>
 
     <select
       class="tb-select tb-select--size"
+      :class="{ 'is-placeholder': !currentFontSize }"
       :value="currentFontSize"
       title="字号"
       data-test="note-font-size"
       @change="setBlockAttr('fontSize', $event)"
     >
-      <option v-for="item in fontSizes" :key="item.value" :value="item.value">{{ item.label }}</option>
+      <option v-for="item in fontSizeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
     </select>
 
     <select
       class="tb-select tb-select--size"
+      :class="{ 'is-placeholder': !currentLineHeight }"
       :value="currentLineHeight"
       title="行距"
       data-test="note-line-height"
       @change="setBlockAttr('lineHeight', $event)"
     >
-      <option v-for="item in lineHeights" :key="item.value" :value="item.value">{{ item.label }}</option>
+      <option v-for="item in lineHeightOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
     </select>
 
     <span class="tb-sep" />

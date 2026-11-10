@@ -45,6 +45,11 @@
   background: var(--bg-hover);
 }
 
+/* 未设置字体/字号/行距时显示「字体 / 字号 / 行距」占位项，弱化成提示色 */
+.tb-select.is-placeholder {
+  color: var(--bb-text-muted);
+}
+
 .tb-sep {
   flex: 0 0 auto;
   width: 1px;
