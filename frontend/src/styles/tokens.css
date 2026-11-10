@@ -37,9 +37,11 @@
   --bb-color-near: #e6a23c;
 }
 
-/* ════════════ 主题：深色 dark（方案 A：手动覆盖 EP 关键变量）════════
-   默认 :root 即「经典浅色」(light-classic)，故不为它写覆盖块；
-   「现代浅色」「青绿」两套主题已下线，宿主机残留的旧值由 stores/app.ts 回退为经典浅色。 */
+/* ════════════ 主题：深色 dark（自有令牌 + Element Plus 官方暗色变量）════════
+   默认 :root 即「浅色」(light-classic)，故不为它写覆盖块；
+   「现代浅色」「青绿」两套主题已下线，宿主机残留的旧值由 stores/app.ts 回退为浅色。
+   EP 的红/黄/绿等语义色由 element-plus/theme-chalk/dark/css-vars.css 提供（挂在 html.dark），
+   这里只覆盖与自有布局强相关的 --el-* 值，顺序上必须晚于官方暗色变量。 */
 :root[data-theme='dark'] {
   --bg-primary: #1a1f27;
   --bg-secondary: #14181f;
@@ -88,12 +90,14 @@
   --el-fill-color-extra-light: #1e242c;
 }
 
-/* 深色主题下登录页（LoginView 自带浅色渐变，覆盖为深色系） */
-[data-theme='dark'] .login {
+/* 深色主题下登录页（LoginView 自带浅色渐变，覆盖为深色系）
+   必须带 html 前缀：组件 scoped 样式 `.login[data-v-x]` 与 `[data-theme] .login` 同权重，
+   谁后加载谁生效，加一级元素选择器才能稳定压过它。 */
+html[data-theme='dark'] .login {
   background: linear-gradient(135deg, #10141a 0%, #1a2130 100%);
 }
-[data-theme='dark'] .login-box {
-  background: #1a1f27;
+html[data-theme='dark'] .login-box {
+  background: var(--bg-primary);
 }
 
 /* preflight 关闭后的最小 reset（R8：不干扰 Element Plus） */

@@ -499,7 +499,7 @@ async function onSubmit(): Promise<void> {
 .bb-cfg-menu__item {
   padding: 6px 16px;
   font-size: 13px;
-  color: #292827;
+  color: var(--bb-text);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -613,7 +613,7 @@ async function onSubmit(): Promise<void> {
   line-height: 32px;
   text-align: center;
   font-size: 13px;
-  color: #323232;
+  color: var(--bb-text);
   cursor: pointer;
 }
 .bb-cfg-custom__week.is-active {

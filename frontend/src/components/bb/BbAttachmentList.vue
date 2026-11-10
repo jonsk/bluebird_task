@@ -105,11 +105,11 @@ async function onDelete(file: FileVO): Promise<void> {
   text-decoration: none;
 }
 .bb-attachments__size {
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
   font-size: 12px;
 }
 .bb-attachments__empty {
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
   font-size: 13px;
   padding: 4px 0;
 }

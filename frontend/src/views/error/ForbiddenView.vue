@@ -41,11 +41,11 @@ function goHome(): void {
 .error-page h1 {
   font-size: 64px;
   margin: 0;
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
 }
 .error-page__from {
   margin: 0;
   font-size: 12px;
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
 }
 </style>

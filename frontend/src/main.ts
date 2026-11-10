@@ -1,5 +1,8 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+// Element Plus 官方暗色变量（作用域 html.dark）：必须排在自有令牌之前，
+// 这样 tokens.css 里的 --el-* / 自有 --bg-* 覆盖仍然生效，其余语义色（红黄绿提示）由官方补齐。
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import '@/styles/index.css'
 // 命令式组件样式必须显式引入：ElMessage / ElMessageBox 由 JS `import` 使用（而非模板组件），
 // unplugin 的按需解析器（Components/AutoImport）只处理模板用法，不会注入它们的 CSS。

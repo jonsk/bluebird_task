@@ -25,6 +25,6 @@ const router = useRouter()
 .error-page h1 {
   font-size: 64px;
   margin: 0;
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
 }
 </style>

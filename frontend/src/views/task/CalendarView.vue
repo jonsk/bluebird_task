@@ -79,7 +79,7 @@ onMounted(load)
 }
 .calendar-view__day {
   font-size: 12px;
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
 }
 .calendar-view__tasks {
   margin: 2px 0 0;
@@ -92,17 +92,17 @@ onMounted(load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #1f2430;
+  color: var(--bb-text);
 }
 .calendar-view__task.is-done {
   text-decoration: line-through;
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
 }
 .calendar-view__task.is-urgent {
-  color: #f56c6c;
+  color: var(--bb-color-danger);
 }
 .calendar-view__more {
   font-size: 11px;
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
 }
 </style>

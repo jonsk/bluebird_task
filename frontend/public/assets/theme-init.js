@@ -8,6 +8,8 @@
     var t = localStorage.getItem('bb-theme');
     if (['light-classic', 'dark'].indexOf(t) === -1) t = 'light-classic';
     document.documentElement.setAttribute('data-theme', t);
+    // Element Plus 官方暗色变量挂在 .dark 上，首帧同步类名，避免组件先按浅色渲染
+    document.documentElement.classList.toggle('dark', t === 'dark');
   } catch (e) {
     /* 隐私模式/禁用 localStorage 时静默回退到默认主题 */
   }

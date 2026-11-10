@@ -136,7 +136,7 @@ function loginOidc(): void {
   margin: 0 0 4px;
   font-size: 24px;
   font-weight: 700;
-  color: #555;
+  color: var(--bb-text);
 }
 .demo-tabs :deep(.el-tabs__header) {
   margin-bottom: 15px;

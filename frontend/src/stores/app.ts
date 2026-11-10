@@ -16,7 +16,7 @@ export const useAppStore = defineStore('app', () => {
   const leftCollapsed = ref(false)
   const detailVisible = ref(false)
 
-  // 读取持久化主题；localStorage 不可用或非法值（含已下线的 light-modern / teal）→ 回退经典浅色。
+  // 读取持久化主题；localStorage 不可用或非法值（含已下线的 light-modern / teal）→ 回退浅色。
   let stored: unknown = null
   try {
     stored = localStorage.getItem(THEME_STORAGE_KEY)
@@ -25,9 +25,14 @@ export const useAppStore = defineStore('app', () => {
   }
   const theme = ref<ThemeKey>(isThemeKey(stored) ? (stored as ThemeKey) : 'light-classic')
 
-  /** 把主题应用到 <html data-theme>（index.html 内联脚本已预设，此处兜底同步）。 */
+  /**
+   * 把主题应用到 <html>：`data-theme` 驱动自有令牌，`dark` 类驱动 Element Plus 官方暗色变量
+   * （element-plus/theme-chalk/dark/css-vars.css）。theme-init.js 首帧做同样的事。
+   */
   function applyTheme(t: ThemeKey): void {
-    document.documentElement.dataset.theme = t
+    const root = document.documentElement
+    root.dataset.theme = t
+    root.classList.toggle('dark', t === 'dark')
   }
 
   function setTheme(t: ThemeKey): void {

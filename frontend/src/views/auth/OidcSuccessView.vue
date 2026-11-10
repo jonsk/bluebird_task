@@ -53,6 +53,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--bb-color-muted);
+  color: var(--bb-text-muted);
 }
 </style>

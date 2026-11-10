@@ -207,7 +207,7 @@ async function toggleExpand(): Promise<void> {
   white-space: nowrap;
 }
 .bb-task-card__title.is-done {
-  color: #64748b;
+  color: var(--bb-text-meta);
   text-decoration: line-through;
 }
 .bb-task-card__meta {
@@ -281,7 +281,7 @@ async function toggleExpand(): Promise<void> {
   cursor: pointer;
 }
 .bb-task-card__child .is-done {
-  color: #94a3b8;
+  color: var(--bb-text-muted);
   text-decoration: line-through;
 }
 </style>
