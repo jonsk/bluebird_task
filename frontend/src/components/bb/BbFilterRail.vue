@@ -224,6 +224,7 @@ async function onLogout(): Promise<void> {
 const themeList: ReadonlyArray<{ key: ThemeKey; label: string; color: string }> = [
   { key: 'light-soft', label: '浅色·柔和', color: '#8fbdf0' },
   { key: 'light-vivid', label: '浅色·鲜明', color: '#0065c0' },
+  { key: 'light-contrast', label: '浅色·硬朗', color: '#0d6efd' },
   { key: 'dark-soft', label: '深色·柔和', color: '#3b82f6' },
   { key: 'dark-vivid', label: '深色·鲜明', color: '#4b8cfb' },
 ]

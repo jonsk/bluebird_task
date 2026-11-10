@@ -54,6 +54,8 @@ const highlightColors = [
 const defaultTextColor = computed(() => {
   if (appStore.theme === 'light-soft') return '#5b5bd6'
   if (appStore.theme === 'light-vivid') return '#4338ca'
+  // 浅色·硬朗：跟着它的主色 #0d6efd 走，比深紫更利落
+  if (appStore.theme === 'light-contrast') return '#0b5ed7'
   return '#a5b4fc'
 })
 

@@ -1,24 +1,26 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+﻿import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { isDarkTheme, useAppStore } from '@/stores/app'
 
-describe('app store 主题功能（浅色/深色 × 柔和/鲜明 四套）', () => {
+describe('app store 主题功能（浅色 3 套 / 深色 2 套）', () => {
   beforeEach(() => {
     localStorage.clear()
     document.documentElement.removeAttribute('data-theme')
+    document.documentElement.removeAttribute('data-hl')
     document.documentElement.classList.remove('dark')
     setActivePinia(createPinia())
   })
 
-  it('无持久化记录时默认 light-soft，且同步到 <html data-theme>', () => {
+  it('无持久化记录时默认 light-soft，且同步到 <html data-theme> / data-hl', () => {
     const store = useAppStore()
     expect(store.theme).toBe('light-soft')
     expect(document.documentElement.dataset.theme).toBe('light-soft')
+    expect(document.documentElement.dataset.hl).toBe('soft')
     expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
   it('持久化的合法主题会在初始化时被读取并应用到 DOM（深色同时挂 Element Plus 的 dark 类）', () => {
-    for (const key of ['light-vivid', 'dark-soft', 'dark-vivid'] as const) {
+    for (const key of ['light-vivid', 'light-contrast', 'dark-soft', 'dark-vivid'] as const) {
       localStorage.clear()
       setActivePinia(createPinia())
       localStorage.setItem('bb-theme', key)
@@ -77,18 +79,34 @@ describe('app store 主题功能（浅色/深色 × 柔和/鲜明 四套）', ()
     expect(localStorage.getItem('bb-theme')).toBe('light-vivid')
   })
 
-  it('四个内置主题 key 与 tokens.css 的 data-theme 作用域一一对应', () => {
+  it('五个内置主题 key 与 tokens.css 的 data-theme 作用域一一对应', () => {
     const store = useAppStore()
-    const keys = ['light-soft', 'light-vivid', 'dark-soft', 'dark-vivid'] as const
+    const keys = ['light-soft', 'light-vivid', 'light-contrast', 'dark-soft', 'dark-vivid'] as const
     for (const k of keys) {
       store.setTheme(k)
       expect(document.documentElement.dataset.theme).toBe(k)
     }
   })
 
+  it('data-hl 只区分「柔和 / 鲜明」两族：硬朗与鲜明同族，柔和同族自成一档', () => {
+    const store = useAppStore()
+    const expectHl: Array<[string, string]> = [
+      ['light-soft', 'soft'],
+      ['dark-soft', 'soft'],
+      ['light-vivid', 'vivid'],
+      ['light-contrast', 'vivid'],
+      ['dark-vivid', 'vivid'],
+    ]
+    for (const [theme, hl] of expectHl) {
+      store.setTheme(theme as never)
+      expect(document.documentElement.dataset.hl).toBe(hl)
+    }
+  })
+
   it('isDarkTheme 只把两套深色主题认定为深色', () => {
     expect(isDarkTheme('light-soft')).toBe(false)
     expect(isDarkTheme('light-vivid')).toBe(false)
+    expect(isDarkTheme('light-contrast')).toBe(false)
     expect(isDarkTheme('dark-soft')).toBe(true)
     expect(isDarkTheme('dark-vivid')).toBe(true)
   })

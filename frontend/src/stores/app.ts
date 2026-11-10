@@ -3,12 +3,36 @@ import { ref } from 'vue'
 
 /**
  * 内置主题 key（务必与 tokens.css 的 :root[data-theme=…] 作用域一一对应）。
- * 2×2：{浅色, 深色} × {柔和, 鲜明}，差异集中在编辑器四色高亮与文字色对比度。
+ * 浅色三套（柔和 / 鲜明 / 硬朗）+ 深色两套（柔和 / 鲜明）：
+ *   · 柔和：淡彩高亮，界面配色最轻
+ *   · 鲜明：高亮换成饱和实色 + 深字
+ *   · 硬朗：在鲜明基础上把强调色提亮、边框/分隔线加深、页面底色压灰，卡片边界更清楚
  */
-export type ThemeKey = 'light-soft' | 'light-vivid' | 'dark-soft' | 'dark-vivid'
+export type ThemeKey =
+  | 'light-soft'
+  | 'light-vivid'
+  | 'light-contrast'
+  | 'dark-soft'
+  | 'dark-vivid'
 
 const THEME_STORAGE_KEY = 'bb-theme'
-const THEMES: readonly ThemeKey[] = ['light-soft', 'light-vivid', 'dark-soft', 'dark-vivid']
+const THEMES: readonly ThemeKey[] = [
+  'light-soft',
+  'light-vivid',
+  'light-contrast',
+  'dark-soft',
+  'dark-vivid',
+]
+
+/** 高亮显示族：柔和 = 淡彩底 + 正文色；鲜明 = 饱和底 + 深字。CSS 按 <html data-hl> 选规则。 */
+export type HighlightStyle = 'soft' | 'vivid'
+const HIGHLIGHT_STYLE: Record<ThemeKey, HighlightStyle> = {
+  'light-soft': 'soft',
+  'light-vivid': 'vivid',
+  'light-contrast': 'vivid',
+  'dark-soft': 'soft',
+  'dark-vivid': 'vivid',
+}
 
 /** 旧 key 兼容：'light-classic' 是浅色的旧名，'dark' 来自只有一套深色的年代。 */
 const LEGACY_THEME_ALIASES: Record<string, ThemeKey> = {
@@ -38,6 +62,7 @@ function normalizeTheme(v: unknown): ThemeKey | null {
 export function applyThemeToDom(t: ThemeKey): void {
   const root = document.documentElement
   root.dataset.theme = t
+  root.dataset.hl = HIGHLIGHT_STYLE[t]
   root.classList.toggle('dark', isDarkTheme(t))
 }
 
