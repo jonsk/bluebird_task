@@ -96,6 +96,17 @@ const status = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 const savedAt = ref('')
 const errorMessage = ref('')
 
+/** 后端 updatedAt / 本地保存时间统一显示为 HH:mm。 */
+function formatClock(input?: string | Date | null): string {
+  const date = input ? new Date(input) : new Date()
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString('zh-CN', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let saving: Promise<void> | null = null
 let loadToken = 0
@@ -196,12 +207,16 @@ async function loadDetail(): Promise<void> {
   if (!isEdit.value || props.noteId == null) return
   const token = ++loadToken
   loading.value = true
+  savedAt.value = ''
+  status.value = 'idle'
+  errorMessage.value = ''
   try {
     const d = await getNote(props.noteId)
     if (token !== loadToken) return
     content.value = d.content ?? ''
     logDate.value = d.logDate ?? ''
     currentVersion.value = d.version
+    savedAt.value = formatClock(d.updatedAt)
     loadedPerms.value = (d as { fieldPermissions?: typeof loadedPerms.value }).fieldPermissions ?? null
     await nextTick()
     if (token !== loadToken) return
@@ -231,6 +246,7 @@ function applyNewDefaults(): void {
   currentVersion.value = undefined
   loadedPerms.value = null
   status.value = 'idle'
+  savedAt.value = ''
   errorMessage.value = ''
   applyContent(toEditorHtml(content.value))
   // 预置标题不算"已保存内容"：正文写出来才会真正建这条日志
@@ -329,11 +345,7 @@ async function saveNow(): Promise<void> {
       if (detail.logDate) logDate.value = detail.logDate
       lastSaved.value = value
       status.value = 'saved'
-      savedAt.value = new Date().toLocaleTimeString('zh-CN', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      savedAt.value = formatClock(detail.updatedAt) || formatClock()
       // 卸载中的兜底保存不再通知宿主（宿主可能已销毁，回调里 setQuery 会打乱新路由）
       if (!tearingDown) emit('saved', detail, { created })
     } catch (e) {
@@ -591,7 +603,9 @@ defineExpose({
         :class="`is-${status}`"
         data-test="note-editor-status"
       >
-        <template v-if="status === 'saving'">保存中…</template>
+        <template v-if="status === 'saving'">
+          保存中…<span v-if="savedAt"> · 已保存 {{ savedAt }}</span>
+        </template>
         <button
           v-else-if="status === 'error'"
           type="button"
@@ -599,9 +613,9 @@ defineExpose({
           data-test="note-editor-retry"
           @click="saveNow"
         >
-          {{ errorMessage }}，点击重试
+          {{ errorMessage }}，点击重试<span v-if="savedAt"> · 已保存 {{ savedAt }}</span>
         </button>
-        <template v-else-if="status === 'saved'">已保存 {{ savedAt }}</template>
+        <template v-else-if="savedAt">已保存 {{ savedAt }}</template>
         <template v-else>自动保存已开启 · Ctrl+S 立即保存</template>
       </div>
     </template>

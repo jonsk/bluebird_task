@@ -88,7 +88,7 @@ test.describe('工作日志编辑器能力', () => {
     await expect(card).toContainText('PDF')
 
     await editor.press('Control+Enter')
-    await expect(host.locator('.note-inline-editor__save.is-saved')).toBeVisible()
+    await expect(host.locator('[data-test="note-inline-status"]')).toHaveAttribute('data-status', 'saved')
     // MSW 状态在整页 reload 后会重置，这里用「退出编辑 → 再进入」验证保存后的 HTML 能被重新解析。
     await editor.press('Escape')
     await expect(host).toHaveCount(0)
@@ -132,7 +132,9 @@ test.describe('工作日志编辑器能力', () => {
     )
 
     await editor.press('Control+Enter')
-    await expect(page.locator('[data-test="note-inline-editor"] .note-inline-editor__save.is-saved')).toBeVisible()
+    await expect(
+      page.locator('[data-test="note-inline-editor"] [data-test="note-inline-status"]'),
+    ).toHaveAttribute('data-status', 'saved')
     await editor.press('Escape')
     await expect(page.locator('[data-test="note-inline-editor"]')).toHaveCount(0)
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
@@ -161,7 +163,7 @@ test.describe('工作日志编辑器能力', () => {
     await expect(editor.locator('span[data-type="emoji"]')).toHaveCount(1)
 
     await editor.press('Control+Enter')
-    await expect(host.locator('.note-inline-editor__save.is-saved')).toBeVisible()
+    await expect(host.locator('[data-test="note-inline-status"]')).toHaveAttribute('data-status', 'saved')
     await editor.press('Escape')
     await expect(host).toHaveCount(0)
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()

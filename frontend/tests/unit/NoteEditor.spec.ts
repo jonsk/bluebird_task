@@ -117,6 +117,7 @@ function detail(over: Record<string, unknown> = {}) {
     logDate: '2026-09-28',
     version: 1,
     role: 'OWNER',
+    updatedAt: '2026-09-28T18:16:00',
     fieldPermissions: { content: true },
     ...over,
   }
@@ -201,6 +202,21 @@ describe('NoteEditor × fieldPermissions', () => {
     expect(state.html).toContain('<h1>已有内容</h1>')
     expect(state.html).toContain('正文')
     expect(state.html).not.toContain('2026年9月28日')
+  })
+
+  it('编辑态加载后显示后端最后更新时间', async () => {
+    const w = await mountEdit(detail({ updatedAt: '2026-09-28T18:16:00' }))
+    expect(w.find('[data-test="note-editor-status"]').text()).toContain('已保存 18:16')
+  })
+
+  it('保存成功后用响应 updatedAt 更新已保存时间', async () => {
+    const w = await mountEdit(detail({ updatedAt: '2026-09-28T18:16:00' }))
+    updateNote.mockResolvedValue(
+      detail({ content: '<p>改过的正文</p>', version: 2, updatedAt: '2026-09-28T19:20:00' }),
+    )
+    await type('<p>改过的正文</p>')
+    await submit(w)
+    expect(w.find('[data-test="note-editor-status"]').text()).toContain('已保存 19:20')
   })
 
   it('编辑保存不带 logDate / tagIds', async () => {

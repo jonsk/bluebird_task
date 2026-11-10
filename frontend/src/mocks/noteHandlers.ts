@@ -29,6 +29,8 @@ interface NoteRow {
   deptId: number | null
   version: number
   deleted: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 interface NoteAttachmentRow {
   id: number
@@ -217,9 +219,13 @@ function fieldPermsOf(n: NoteRow): { content: boolean } {
 
 function detailOf(n: NoteRow) {
   const perms = fieldPermsOf(n)
+  const createdAt = n.createdAt ?? `${n.logDate}T09:00:00+08:00`
+  const updatedAt = n.updatedAt ?? `${n.logDate}T18:16:00+08:00`
   return {
     ...brief(n),
     content: n.content,
+    createdAt,
+    updatedAt,
     fieldPermissions: perms,
     attachments: attachments.filter((a) => a.noteId === n.id).map(withUrls),
   }
@@ -381,6 +387,7 @@ export const noteHandlers = [
   http.post(`${AUTH}/notes`, async ({ request }) => {
     const body = (await request.json()) as { content?: string }
     if (!body.content?.trim()) return fail(10001, '内容不能为空', 400)
+    const now = new Date().toISOString()
     const row: NoteRow = {
       id: ++noteSeq,
       content: body.content,
@@ -391,6 +398,8 @@ export const noteHandlers = [
       deptId: ME_DEPT,
       version: 1,
       deleted: false,
+      createdAt: now,
+      updatedAt: now,
     }
     notes.unshift(row)
     return ok(detailOf(row))
@@ -411,6 +420,7 @@ export const noteHandlers = [
     }
     if (body.content !== undefined) n.content = body.content
     n.version += 1
+    n.updatedAt = new Date().toISOString()
     return ok(detailOf(n))
   }),
 

@@ -98,9 +98,13 @@ test.describe('工作日志', () => {
     await expect(page.locator('.el-dialog')).toHaveCount(0)
     // 编辑器必须回显详情全文（不是列表摘要）
     await expect(irEditor(host)).toContainText(/移动端适配方案/)
+    // 打开即显示后端最后更新时间，不依赖本次是否保存过
+    await expect(host.locator('.note-inline-editor__save.is-saved')).toContainText(/已保存 \d{2}:\d{2}/)
 
     await typeMarkdown(irEditor(host), '私有：移动端适配方案已改为两栏布局')
-    await expect(host.locator('.note-inline-editor__save.is-saved')).toBeVisible()
+    // 输入过程中状态切回 idle，最后保存时间仍持续显示
+    await expect(host.locator('.note-inline-editor__save.is-saved')).toContainText(/已保存 \d{2}:\d{2}/)
+    await expect(host.locator('[data-test="note-inline-status"]')).toHaveAttribute('data-status', 'saved')
     // 没有「保存/取消」按钮，Esc 收起编辑
     await expect(host.getByRole('button', { name: /保存|取消|创建/ })).toHaveCount(0)
     await irEditor(host).press('Escape')
@@ -234,7 +238,7 @@ test.describe('工作日志', () => {
     const editor = irEditor(host)
     await typeMarkdown(editor, '快捷键保存的内容')
     await editor.press('Control+Enter')
-    await expect(host.locator('.note-inline-editor__save.is-saved')).toBeVisible()
+    await expect(host.locator('[data-test="note-inline-status"]')).toHaveAttribute('data-status', 'saved')
 
     // 自动保存不会自己关面板，Esc 收起后卡片已更新
     await editor.press('Escape')
@@ -290,7 +294,7 @@ test.describe('工作日志', () => {
 
     await typeMarkdown(irEditor(host), '工具栏默认：这段内容必须落库')
     await irEditor(host).press('Control+Enter')
-    await expect(host.locator('.note-inline-editor__save.is-saved')).toBeVisible()
+    await expect(host.locator('[data-test="note-inline-status"]')).toHaveAttribute('data-status', 'saved')
     await irEditor(host).press('Escape')
     await expect(host).toHaveCount(0)
     await expect(page.locator('[data-test="note-card-1002"]')).toContainText('工具栏默认')

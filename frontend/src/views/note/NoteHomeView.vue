@@ -232,12 +232,13 @@ function retryInlineSave(): void {
           @cancel="closeInlineEditor"
         />
         <div class="note-inline-editor__actions">
-          <span class="note-inline-editor__status">
+          <span
+            class="note-inline-editor__status"
+            data-test="note-inline-status"
+            :data-status="inlineEditorRef?.status ?? 'idle'"
+          >
             <template v-if="inlineEditorRef?.status === 'saving'">
               <span class="note-inline-editor__save is-saving">保存中…</span>
-            </template>
-            <template v-else-if="inlineEditorRef?.status === 'saved'">
-              <span class="note-inline-editor__save is-saved">已保存 {{ inlineEditorRef.savedAt }}</span>
             </template>
             <template v-else-if="inlineEditorRef?.status === 'error'">
               <button
@@ -248,6 +249,16 @@ function retryInlineSave(): void {
                 {{ inlineEditorRef.errorMessage }}，点击重试
               </button>
             </template>
+            <span v-if="inlineEditorRef?.savedAt" class="note-inline-editor__save is-saved">
+              <template
+                v-if="
+                  inlineEditorRef?.status === 'saving' || inlineEditorRef?.status === 'error'
+                "
+              >
+                ·
+              </template>
+              已保存 {{ inlineEditorRef.savedAt }}
+            </span>
           </span>
           <el-button
             size="small"
@@ -311,6 +322,8 @@ function retryInlineSave(): void {
   min-height: 20px;
   display: flex;
   align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 .note-inline-editor__save {
   font-size: 12px;
