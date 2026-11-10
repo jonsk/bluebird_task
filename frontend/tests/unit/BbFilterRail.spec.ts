@@ -118,7 +118,7 @@ describe('BbFilterRail · 工作日志分组', () => {
   it('普通用户：只有我的日志，无员工、无全部日志、无授权入口', () => {
     const w = mountRail()
     const tests = navTests(w)
-    expect(tests).toEqual(['nav-note-mine'])
+    expect(tests).toEqual(['nav-note-mine', 'nav-note-weekly-report'])
     expect(tests).not.toContain('nav-note-shared')
     expect(tests).not.toContain('nav-note-grants')
   })

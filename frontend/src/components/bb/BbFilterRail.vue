@@ -54,7 +54,6 @@ const taskNavItems = [
   { name: 'myDo', label: '分配给我的任务', countKey: 'assigned', icon: User },
   { name: 'myCollect', label: '我的收藏', countKey: 'collect', icon: Star },
   { name: 'allTask', label: '全部任务', countKey: 'all', icon: List },
-  { name: 'WeeklyReport', label: '工作周报', countKey: '', icon: Document },
 ] as const
 
 /** 当前模块（路由 meta.module 单一来源；无 meta → 任务模块）。 */
@@ -70,6 +69,8 @@ const noteNavItems = computed<
   if (auth.user?.managerCanReadSubordinate) {
     items.push({ name: 'NoteSubordinate', label: '员工日志', icon: User, test: 'note-subordinate' })
   }
+  // 周报由工作日志生成，放在日志分组内，日志用户无需切到「任务」分组才能找到。
+  items.push({ name: 'WeeklyReport', label: '工作周报', icon: Document, test: 'note-weekly-report' })
   return items
 })
 

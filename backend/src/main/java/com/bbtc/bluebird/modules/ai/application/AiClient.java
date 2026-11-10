@@ -29,6 +29,12 @@ public class AiClient {
     public record AiChatResult(String content, int inputTokens, int outputTokens) {
     }
 
+    /**
+     * 连通性测试的固定超时：前端请求 20s 超时，测试必须在此之前返回，
+     * 否则用户只看到「请求超时」，拿不到模型服务真正的错误信息。
+     */
+    private static final int TEST_TIMEOUT_SECONDS = 12;
+
     public AiChatResult chat(AiModelConfig model, String apiKey, String system, String user, int maxTokens) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model.getModel());
@@ -61,7 +67,7 @@ public class AiClient {
                     Map.of("role", "user", "content", "Reply with OK.")));
             body.put("temperature", 0);
             body.put("max_tokens", 8);
-            JsonNode root = post(model, apiKey, body);
+            JsonNode root = post(model, apiKey, body, TEST_TIMEOUT_SECONDS);
             String content = root.path("choices").path(0).path("message").path("content").asText("");
             return new AiModelTestResult(true, content.isBlank() ? "连接成功" : content,
                     System.currentTimeMillis() - start, model.getModel());
@@ -72,7 +78,13 @@ public class AiClient {
     }
 
     private JsonNode post(AiModelConfig model, String apiKey, Map<String, Object> body) {
-        int timeout = model.getTimeoutSeconds() == null ? 60 : Math.max(5, model.getTimeoutSeconds());
+        return post(model, apiKey, body, null);
+    }
+
+    private JsonNode post(AiModelConfig model, String apiKey, Map<String, Object> body, Integer timeoutOverride) {
+        int timeout = timeoutOverride != null
+                ? Math.max(3, timeoutOverride)
+                : (model.getTimeoutSeconds() == null ? 60 : Math.max(5, model.getTimeoutSeconds()));
         try {
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(Math.min(timeout, 20)))

@@ -59,7 +59,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'weekly-reports',
         name: 'WeeklyReport',
         component: () => import('@/views/weekly/WeeklyReportView.vue'),
-        meta: { module: 'task', title: '工作周报', requiresAuth: true },
+        meta: { module: 'note', title: '工作周报', requiresAuth: true },
       },
       /**
        * 工作日志（note）。**声明顺序是硬约束**：静态段必须排在 `notes/:id(\d+)` 之前，

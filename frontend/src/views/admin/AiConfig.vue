@@ -10,6 +10,7 @@ import {
   testAiModel,
   updateAiModel,
   type AiModelSaveReq,
+  type AiModelTestResult,
   type AiModelVO,
 } from '@/api/ai'
 
@@ -26,6 +27,10 @@ const dialogVisible = ref(false)
 const editing = ref<AiModelVO | null>(null)
 const formRef = ref<FormInstance>()
 const testingId = ref<number | null>(null)
+const testDialogVisible = ref(false)
+const testTarget = ref<AiModelVO | null>(null)
+const testResult = ref<AiModelTestResult | null>(null)
+const testError = ref('')
 
 const form = reactive({
   name: '',
@@ -141,18 +146,22 @@ async function onActivate(row: AiModelVO): Promise<void> {
 }
 
 async function onTest(row: AiModelVO): Promise<void> {
+  if (!row) {
+    ElMessage.error('模型不存在，请刷新后重试')
+    return
+  }
   testingId.value = row.id
+  testTarget.value = row
+  testResult.value = null
+  testError.value = ''
+  ElMessage.info(`正在测试「${row.name}」，最多约 12 秒…`)
   try {
-    const result = await testAiModel(row.id)
-    if (result.ok) {
-      ElMessage.success(`连接正常（${result.latencyMs} ms）：${result.message}`)
-    } else {
-      ElMessage.warning(result.message || '连接失败')
-    }
+    testResult.value = await testAiModel(row.id)
   } catch (e) {
-    ElMessage.error((e as Error).message || '测试失败')
+    testError.value = (e as Error).message || '测试请求失败'
   } finally {
     testingId.value = null
+    testDialogVisible.value = true
   }
 }
 
@@ -298,6 +307,42 @@ async function onDelete(row: AiModelVO): Promise<void> {
         <el-button type="primary" :loading="saving" data-test="ai-model-save" @click="submit">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="testDialogVisible" title="连接测试结果" width="520px">
+      <div class="ai__test">
+        <p v-if="testTarget" class="ai__test-target">
+          {{ testTarget.name }} · {{ testTarget.model }}
+        </p>
+
+        <el-alert
+          v-if="testError"
+          type="error"
+          show-icon
+          :closable="false"
+          title="测试请求失败"
+          :description="testError"
+        />
+
+        <template v-else-if="testResult">
+          <el-alert
+            :type="testResult.ok ? 'success' : 'error'"
+            show-icon
+            :closable="false"
+            :title="testResult.ok ? '连接成功' : '连接失败'"
+          />
+          <el-descriptions :column="2" border size="small" class="ai__test-meta">
+            <el-descriptions-item label="耗时">{{ testResult.latencyMs }} ms</el-descriptions-item>
+            <el-descriptions-item label="模型">{{ testResult.model || '—' }}</el-descriptions-item>
+          </el-descriptions>
+          <p class="ai__test-message">{{ testResult.message || '（无返回内容）' }}</p>
+        </template>
+
+        <el-empty v-else description="暂无测试结果" :image-size="60" />
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="testDialogVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -341,6 +386,33 @@ async function onDelete(row: AiModelVO): Promise<void> {
 .ai__params {
   font-size: 12px;
   color: var(--bb-text-muted);
+}
+.ai__test {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ai__test-target {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bb-text-primary);
+}
+.ai__test-meta {
+  margin-top: 2px;
+}
+.ai__test-message {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: var(--bb-radius);
+  background: var(--bg-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--bb-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>
 
