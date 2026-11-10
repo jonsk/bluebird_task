@@ -8,7 +8,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.HtmlUtils;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -102,7 +104,9 @@ public class WeeklyReportContentRenderer {
             if (!StringUtils.hasText(text)) {
                 continue;
             }
-            items.append("<li>").append(escape(text)).append(citations(item)).append("</li>");
+            List<String> ids = noteIds(item);
+            items.append("<li>").append(escape(stripInlineCitations(text, ids)))
+                    .append(citations(ids)).append("</li>");
         }
         if (!items.isEmpty()) {
             html.append("<h2>").append(title).append("</h2><ul>").append(items).append("</ul>");
@@ -148,26 +152,61 @@ public class WeeklyReportContentRenderer {
     }
 
     private String citations(JsonNode item) {
+        return citations(noteIds(item));
+    }
+
+    /** 条目引用的日志 ID：只接受纯数字，避免把模型输出直接拼进链接。 */
+    private List<String> noteIds(JsonNode item) {
         if (item == null || !item.isObject()) {
-            return "";
+            return List.of();
         }
         JsonNode ids = item.get("noteIds");
         if (ids == null || !ids.isArray() || ids.isEmpty()) {
-            return "";
+            return List.of();
         }
-        StringBuilder sb = new StringBuilder("（");
-        int count = 0;
+        List<String> out = new ArrayList<>();
         for (JsonNode id : ids) {
-            if (count > 0) {
-                sb.append("、");
+            String value = id.asText("").trim();
+            if (!value.matches("\\d{1,19}")) {
+                continue;
             }
-            sb.append('#').append(HtmlUtils.htmlEscape(id.asText()));
-            count += 1;
-            if (count >= 6) {
+            out.add(value);
+            if (out.size() >= 6) {
                 break;
             }
         }
+        return out;
+    }
+
+    /** 引用渲染成站内链接，点一下就能回到对应日志。 */
+    private String citations(List<String> ids) {
+        if (ids.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("（");
+        for (int i = 0; i < ids.size(); i++) {
+            if (i > 0) {
+                sb.append('、');
+            }
+            String id = ids.get(i);
+            sb.append("<a href=\"/notes/").append(id).append("\">#").append(id).append("</a>");
+        }
         return sb.append("）").toString();
+    }
+
+    /**
+     * 模型有时会把日志 ID 也写进正文，渲染时又补一份，界面上就成了「##369」。
+     * 正文里的括号引用（含不带 # 的写法）统一剥掉，只保留后面统一渲染的链接。
+     */
+    private String stripInlineCitations(String text, List<String> ids) {
+        if (ids.isEmpty()) {
+            return text;
+        }
+        String result = text;
+        for (String id : ids) {
+            result = result.replaceAll("[（(]\\s*#?\\s*" + id + "\\s*[）)]", "");
+        }
+        return result.trim();
     }
 
     private String firstLine(String text) {
