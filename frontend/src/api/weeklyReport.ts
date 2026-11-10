@@ -5,10 +5,16 @@ import type {
   WeeklyReportPreference,
   WeeklyReportUpdateReq,
   WeeklyReportVO,
+  WeeklyReportWeek,
 } from '@/types/weeklyReport'
 
 export function listWeeklyReports(page = 1, size = 20): Promise<WeeklyReportListData> {
   return get<WeeklyReportListData>('/weekly-reports', { page, size })
+}
+
+/** 左侧周次列表：当前周及之前、且至少有 1 条日志的周（含该周周报状态）。 */
+export function listWeeklyReportWeeks(): Promise<WeeklyReportWeek[]> {
+  return get<WeeklyReportWeek[]>('/weekly-reports/weeks')
 }
 
 export function getWeeklyReport(id: number): Promise<WeeklyReportVO> {

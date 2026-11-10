@@ -1,6 +1,7 @@
 /** 个人周报（前端手写类型：后端 DTO 与 openapi 生成器解耦，避免新接口需先跑 gen:types）。 */
 
-export type WeeklyReportStatus = 'GENERATING' | 'DRAFT' | 'DONE' | 'FAILED'
+/** 周报状态：AI 生成即定稿，不再有 DRAFT。 */
+export type WeeklyReportStatus = 'GENERATING' | 'DONE' | 'FAILED'
 
 export interface WeeklyReportBrief {
   id: number
@@ -11,6 +12,19 @@ export interface WeeklyReportBrief {
   errorMessage?: string
   generatedAt?: string
   updatedAt?: string
+}
+
+/**
+ * 左侧「按周生成」列表项：当前周及之前、且至少有 1 条日志的周。
+ * 该周还没有周报时 reportId / status 为空，选中后可直接生成。
+ */
+export interface WeeklyReportWeek {
+  weekStart: string
+  weekEnd: string
+  noteCount: number
+  reportId?: number | null
+  status?: WeeklyReportStatus | null
+  errorMessage?: string | null
 }
 
 export interface WeeklyReportVO {

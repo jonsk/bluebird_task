@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, MagicStick, Setting } from '@element-plus/icons-vue'
 import WeeklyReportEditor from '@/components/weekly/WeeklyReportEditor.vue'
@@ -8,31 +8,35 @@ import {
   generateWeeklyReport,
   getWeeklyReport,
   getWeeklyReportPreference,
-  listWeeklyReports,
+  listWeeklyReportWeeks,
   saveWeeklyReportPreference,
   updateWeeklyReport,
 } from '@/api/weeklyReport'
 import type {
-  WeeklyReportBrief,
   WeeklyReportPreference,
   WeeklyReportStatus,
   WeeklyReportStyle,
   WeeklyReportVO,
+  WeeklyReportWeek,
 } from '@/types/weeklyReport'
 
 /**
- * 工作周报：左侧历史周报列表，右侧编辑器。
+ * 工作周报：左侧按周列表，右侧编辑器。
  *
- * - 「AI 生成」异步执行：后端先落 GENERATING，前端轮询到 DRAFT/FAILED 为止；
- * - 生成的是草稿，用户可直接编辑，点「保存定稿」后状态变为 DONE；
+ * - 左侧只列「当前周及之前、且至少 1 条日志」的周（后端 /weekly-reports/weeks 口径）；
+ *   选中某周即可生成，没生成的周也会出现在列表里。
+ * - 「AI 生成」异步执行：后端先落 GENERATING，前端轮询到 DONE/FAILED 为止；
+ * - **生成即定稿**（没有草稿态、没有「保存定稿」按钮），正文修改后自动保存；
  * - 同一周只保留一份，已存在时再次生成需要确认覆盖。
  */
 const statusMeta: Record<WeeklyReportStatus, { label: string; type: 'success' | 'warning' | 'info' | 'danger' }> = {
   GENERATING: { label: '生成中', type: 'warning' },
-  DRAFT: { label: '草稿', type: 'info' },
   DONE: { label: '已定稿', type: 'success' },
   FAILED: { label: '生成失败', type: 'danger' },
 }
+
+/** 停止输入多久后自动保存（毫秒），与编辑日志保持一致 */
+const AUTO_SAVE_DELAY = 1200
 
 const styles: Array<{ value: WeeklyReportStyle; label: string }> = [
   { value: 'concise', label: '简洁' },
@@ -41,25 +45,32 @@ const styles: Array<{ value: WeeklyReportStyle; label: string }> = [
   { value: 'plan', label: '计划导向' },
 ]
 
-const loadingList = ref(false)
+const loadingWeeks = ref(false)
 const loadingDetail = ref(false)
 const generating = ref(false)
-const saving = ref(false)
-const reports = ref<WeeklyReportBrief[]>([])
+const weeks = ref<WeeklyReportWeek[]>([])
+const selectedWeek = ref('')
 const detail = ref<WeeklyReportVO | null>(null)
 const content = ref('')
-const lastSavedHtml = ref('')
-const weekDate = ref<Date>(new Date())
 const prefVisible = ref(false)
 const prefSaving = ref(false)
 const preference = ref<WeeklyReportPreference>({ style: 'concise' })
 
+/* ==================== 自动保存状态 ==================== */
+
+const saveStatus = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+const savedAt = ref('')
+const saveError = ref('')
+
+const lastSaved = ref('')
+/** 回显内容期间忽略自动保存，避免刚打开就触发一次保存。 */
+let hydrating = false
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+let savingPromise: Promise<void> | null = null
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 
-const dirty = computed(() => content.value !== lastSavedHtml.value)
-const currentWeek = computed(() => mondayOf(weekDate.value))
-
-const statusInfo = computed(() => (detail.value ? statusMeta[detail.value.status] : null))
+const currentWeek = computed(() => mondayOf(new Date()))
+const selected = computed(() => weeks.value.find((w) => w.weekStart === selectedWeek.value) ?? null)
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
@@ -77,22 +88,64 @@ function mondayOf(date: Date): string {
   return toDateString(d)
 }
 
-function weekEndOf(start: string): string {
-  const [y, m, d] = start.split('-').map(Number)
-  const end = new Date(y, m - 1, d + 6)
-  return toDateString(end)
+function formatClock(input?: string | null): string {
+  const date = input ? new Date(input) : new Date()
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })
 }
 
-async function loadList(): Promise<void> {
-  loadingList.value = true
+function statusOf(status?: WeeklyReportStatus | null): { label: string; type: 'success' | 'warning' | 'info' | 'danger' } | null {
+  if (!status) return null
+  return statusMeta[status] ?? { label: status, type: 'info' }
+}
+
+/* ==================== 左侧周次列表 ==================== */
+
+async function loadWeeks(): Promise<void> {
+  loadingWeeks.value = true
   try {
-    const data = await listWeeklyReports(1, 100)
-    reports.value = data.list
+    weeks.value = await listWeeklyReportWeeks()
+    if (!weeks.value.length) {
+      selectedWeek.value = ''
+      detail.value = null
+      content.value = ''
+      lastSaved.value = ''
+      return
+    }
+    const exists = weeks.value.some((w) => w.weekStart === selectedWeek.value)
+    if (!exists) {
+      // 默认落在本周（有日志时），否则落在最近有日志的一周
+      const thisWeek = weeks.value.find((w) => w.weekStart === currentWeek.value)
+      selectedWeek.value = (thisWeek ?? weeks.value[0]).weekStart
+    }
+    await openSelectedWeek()
   } catch (e) {
-    ElMessage.error((e as Error).message || '周报列表加载失败')
+    ElMessage.error((e as Error).message || '周次列表加载失败')
   } finally {
-    loadingList.value = false
+    loadingWeeks.value = false
   }
+}
+
+/** 按当前选中周加载已有周报（没有周报则清空编辑器）。 */
+async function openSelectedWeek(): Promise<void> {
+  const row = selected.value
+  saveStatus.value = 'idle'
+  savedAt.value = ''
+  saveError.value = ''
+  if (!row?.reportId) {
+    detail.value = null
+    content.value = ''
+    lastSaved.value = ''
+    return
+  }
+  await loadDetail(row.reportId)
+}
+
+async function selectWeek(row: WeeklyReportWeek): Promise<void> {
+  if (row.weekStart === selectedWeek.value) return
+  await saveNow()
+  selectedWeek.value = row.weekStart
+  await openSelectedWeek()
 }
 
 async function loadDetail(id: number): Promise<void> {
@@ -109,10 +162,25 @@ async function loadDetail(id: number): Promise<void> {
 
 function applyDetail(d: WeeklyReportVO): void {
   detail.value = d
-  content.value = d.contentHtml ?? ''
-  lastSavedHtml.value = content.value
+  hydrating = true
+  try {
+    content.value = d.contentHtml ?? ''
+  } finally {
+    hydrating = false
+  }
+  lastSaved.value = content.value
   if (d.status === 'GENERATING') schedulePoll()
 }
+
+function refreshWeekRow(d: WeeklyReportVO): void {
+  const row = weeks.value.find((w) => w.weekStart === d.weekStart)
+  if (!row) return
+  row.reportId = d.id
+  row.status = d.status
+  row.errorMessage = d.errorMessage ?? null
+}
+
+/* ==================== 生成 ==================== */
 
 function schedulePoll(): void {
   if (pollTimer) clearTimeout(pollTimer)
@@ -124,13 +192,13 @@ function schedulePoll(): void {
       const d = await getWeeklyReport(id)
       const wasGenerating = detail.value?.status === 'GENERATING'
       applyDetail(d)
+      refreshWeekRow(d)
       if (wasGenerating && d.status !== 'GENERATING') {
         if (d.status === 'FAILED') {
           ElMessage.error(d.errorMessage || '周报生成失败')
         } else {
           ElMessage.success('周报已生成')
         }
-        await refreshBrief(d)
       }
     } catch {
       schedulePoll()
@@ -138,77 +206,35 @@ function schedulePoll(): void {
   }, 3000)
 }
 
-async function refreshBrief(d: WeeklyReportVO): Promise<void> {
-  const i = reports.value.findIndex((r) => r.id === d.id)
-  const brief: WeeklyReportBrief = {
-    id: d.id,
-    weekStart: d.weekStart,
-    weekEnd: d.weekEnd,
-    status: d.status,
-    errorMessage: d.errorMessage,
-    generatedAt: d.generatedAt,
-    updatedAt: d.updatedAt,
-  }
-  if (i >= 0) reports.value.splice(i, 1, brief)
-  else reports.value.unshift(brief)
-}
-
-async function selectReport(row: WeeklyReportBrief): Promise<void> {
-  if (detail.value?.id === row.id) return
-  if (dirty.value) {
-    try {
-      await ElMessageBox.confirm('当前周报有未保存的修改，切换后将丢失。', '未保存的修改', {
-        type: 'warning',
-        confirmButtonText: '仍要切换',
-      })
-    } catch {
-      return
-    }
-  }
-  await loadDetail(row.id)
-}
-
 async function startGenerate(): Promise<void> {
   if (generating.value) return
-  if (dirty.value) {
-    try {
-      await ElMessageBox.confirm('当前周报有未保存的修改，重新生成会丢失这些修改。', '未保存的修改', {
-        type: 'warning',
-        confirmButtonText: '继续生成',
-      })
-    } catch {
-      return
-    }
+  const weekStart = selectedWeek.value
+  if (!weekStart) {
+    ElMessage.warning('请先在左侧选择要生成周报的周')
+    return
   }
-  const weekStart = currentWeek.value
-  const existing = reports.value.find((r) => r.weekStart === weekStart)
-  if (existing) {
+  const existing = selected.value
+  if (existing?.reportId) {
     try {
       await ElMessageBox.confirm(
-        `「${weekStart} ~ ${weekEndOf(weekStart)}」已有周报，重新生成会覆盖当前正文。`,
+        `「${weekStart} ~ ${existing.weekEnd}」已有周报，重新生成会覆盖当前正文。`,
         '重新生成',
         { type: 'warning', confirmButtonText: '覆盖生成' },
       )
     } catch {
       return
     }
+    await saveNow()
   }
   generating.value = true
   try {
-    const d = await generateWeeklyReport({ weekStart, overwrite: Boolean(existing) })
+    const d = await generateWeeklyReport({ weekStart, overwrite: Boolean(existing?.reportId) })
     applyDetail(d)
-    if (d.status !== 'GENERATING') await refreshBrief(d)
-    else {
-      const brief: WeeklyReportBrief = {
-        id: d.id,
-        weekStart: d.weekStart,
-        weekEnd: d.weekEnd,
-        status: d.status,
-      }
-      const i = reports.value.findIndex((r) => r.id === d.id)
-      if (i >= 0) reports.value.splice(i, 1, brief)
-      else reports.value.unshift(brief)
+    refreshWeekRow(d)
+    if (d.status === 'GENERATING') {
       ElMessage.info('已开始生成，请稍候…')
+    } else if (d.status !== 'FAILED') {
+      ElMessage.success('周报已生成')
     }
   } catch (e) {
     ElMessage.error((e as Error).message || '生成失败')
@@ -217,28 +243,60 @@ async function startGenerate(): Promise<void> {
   }
 }
 
-async function saveReport(): Promise<void> {
+/* ==================== 自动保存 ==================== */
+
+watch(content, () => {
+  if (hydrating) return
   const d = detail.value
-  if (!d) return
-  if (d.status === 'GENERATING') {
-    ElMessage.warning('正在生成中，暂不能保存')
-    return
-  }
-  saving.value = true
-  try {
-    const updated = await updateWeeklyReport(d.id, {
-      contentHtml: content.value,
-      version: d.version,
-    })
-    applyDetail(updated)
-    await refreshBrief(updated)
-    ElMessage.success('已保存定稿')
-  } catch (e) {
-    ElMessage.error((e as Error).message || '保存失败')
-  } finally {
-    saving.value = false
-  }
+  if (!d || d.status === 'GENERATING') return
+  if (content.value === lastSaved.value) return
+  if (saveStatus.value !== 'error') saveStatus.value = 'idle'
+  scheduleSave()
+})
+
+function scheduleSave(): void {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    saveTimer = undefined
+    void saveNow()
+  }, AUTO_SAVE_DELAY)
 }
+
+async function saveNow(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = undefined
+  }
+  const d = detail.value
+  if (!d || d.status === 'GENERATING') return
+  if (savingPromise) await savingPromise
+  if (content.value === lastSaved.value) return
+
+  const value = content.value
+  const version = d.version
+  saveStatus.value = 'saving'
+  saveError.value = ''
+  savingPromise = (async () => {
+    try {
+      const updated = await updateWeeklyReport(d.id, { contentHtml: value, version })
+      applyDetail(updated)
+      refreshWeekRow(updated)
+      saveStatus.value = 'saved'
+      savedAt.value = formatClock(updated.updatedAt) || formatClock()
+    } catch (e) {
+      saveStatus.value = 'error'
+      saveError.value = (e as Error)?.message || '保存失败'
+    }
+  })()
+  try {
+    await savingPromise
+  } finally {
+    savingPromise = null
+  }
+  if (content.value !== lastSaved.value) scheduleSave()
+}
+
+/* ==================== 删除 ==================== */
 
 async function removeReport(): Promise<void> {
   const d = detail.value
@@ -253,15 +311,24 @@ async function removeReport(): Promise<void> {
   }
   try {
     await deleteWeeklyReport(d.id)
-    reports.value = reports.value.filter((r) => r.id !== d.id)
+    const row = weeks.value.find((w) => w.weekStart === d.weekStart)
+    if (row) {
+      row.reportId = null
+      row.status = null
+      row.errorMessage = null
+    }
     detail.value = null
     content.value = ''
-    lastSavedHtml.value = ''
+    lastSaved.value = ''
+    saveStatus.value = 'idle'
+    savedAt.value = ''
     ElMessage.success('已删除')
   } catch (e) {
     ElMessage.error((e as Error).message || '删除失败')
   }
 }
+
+/* ==================== 个人规则 ==================== */
 
 async function openPreference(): Promise<void> {
   try {
@@ -286,15 +353,15 @@ async function savePreference(): Promise<void> {
 }
 
 onMounted(async () => {
-  await loadList()
-  if (reports.value.length) {
-    await loadDetail(reports.value[0].id)
-  }
+  await loadWeeks()
 })
 
 onBeforeUnmount(() => {
   if (pollTimer) clearTimeout(pollTimer)
   pollTimer = null
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = undefined
+  if (content.value !== lastSaved.value) void saveNow()
 })
 </script>
 
@@ -308,43 +375,40 @@ onBeforeUnmount(() => {
         </el-button>
       </div>
 
-      <div v-loading="loadingList" class="weekly__list">
+      <div v-loading="loadingWeeks" class="weekly__list">
         <button
-          v-for="row in reports"
-          :key="row.id"
+          v-for="row in weeks"
+          :key="row.weekStart"
           type="button"
           class="weekly__item"
-          :class="{ 'is-active': detail?.id === row.id }"
-          @click="selectReport(row)"
+          :class="{ 'is-active': selectedWeek === row.weekStart }"
+          @click="selectWeek(row)"
         >
           <div class="weekly__item-top">
             <span class="weekly__item-week">{{ row.weekStart }} ~ {{ row.weekEnd }}</span>
-            <el-tag size="small" :type="statusMeta[row.status].type" effect="plain">
-              {{ statusMeta[row.status].label }}
+            <el-tag v-if="statusOf(row.status)" size="small" :type="statusOf(row.status)!.type" effect="plain">
+              {{ statusOf(row.status)!.label }}
             </el-tag>
           </div>
-          <p class="weekly__item-summary">
-            {{ row.summary || row.errorMessage || '暂无内容' }}
-          </p>
+          <p class="weekly__item-summary">{{ row.noteCount }} 条日志</p>
         </button>
-        <p v-if="!loadingList && !reports.length" class="weekly__empty">还没有周报，选择日期后生成第一份。</p>
+        <p v-if="!loadingWeeks && !weeks.length" class="weekly__empty">
+          当前周及之前还没有工作日志，先去「日志」写几条再来生成。
+        </p>
       </div>
     </aside>
 
     <section class="weekly__main">
       <header class="weekly__head">
-        <div class="weekly__week">
-          <el-date-picker
-            v-model="weekDate"
-            type="date"
-            size="small"
-            :clearable="false"
-            placeholder="选择周内任意一天"
-          />
-          <span class="weekly__range">{{ currentWeek }} ~ {{ weekEndOf(currentWeek) }}</span>
-          <el-tag v-if="statusInfo" size="small" :type="statusInfo.type" effect="plain">
-            {{ statusInfo.label }}
-          </el-tag>
+        <div class="weekly__meta">
+          <template v-if="detail?.modelName">
+            生成模型：{{ detail.modelName }}
+            <span v-if="detail.sourceNoteIds?.length"> · 引用 {{ detail.sourceNoteIds.length }} 条日志</span>
+            <span v-if="detail.generatedAt"> · {{ new Date(detail.generatedAt).toLocaleString('zh-CN') }}</span>
+          </template>
+          <template v-else-if="selected">
+            {{ selected.weekStart }} ~ {{ selected.weekEnd }} · {{ selected.noteCount }} 条日志
+          </template>
         </div>
         <div class="weekly__ops">
           <el-button
@@ -352,19 +416,11 @@ onBeforeUnmount(() => {
             type="primary"
             :icon="MagicStick"
             :loading="generating"
+            :disabled="!selectedWeek"
             data-test="weekly-generate"
             @click="startGenerate"
           >
-            {{ detail && detail.weekStart === currentWeek ? '重新生成' : 'AI 生成' }}
-          </el-button>
-          <el-button
-            size="small"
-            :disabled="!detail || detail.status === 'GENERATING' || (!dirty && detail.status === 'DONE')"
-            :loading="saving"
-            data-test="weekly-save"
-            @click="saveReport"
-          >
-            保存定稿
+            {{ selected?.reportId ? '重新生成' : 'AI 生成' }}
           </el-button>
           <el-button
             v-if="detail"
@@ -389,21 +445,25 @@ onBeforeUnmount(() => {
         class="weekly__alert"
       />
 
-      <div v-if="detail?.modelName" class="weekly__meta">
-        生成模型：{{ detail.modelName }}
-        <span v-if="detail.sourceNoteIds?.length"> · 引用 {{ detail.sourceNoteIds.length }} 条日志</span>
-        <span v-if="detail.generatedAt"> · {{ new Date(detail.generatedAt).toLocaleString('zh-CN') }}</span>
-      </div>
-
       <div v-loading="loadingDetail" class="weekly__editor">
         <WeeklyReportEditor
           v-if="detail"
           v-model="content"
           :readonly="detail.status === 'GENERATING'"
+          :save-status="saveStatus"
+          :saved-at="savedAt"
+          :error-message="saveError"
+          @retry="saveNow"
         />
-        <el-empty v-else description="选择日期后点击「AI 生成」，或从左侧打开已有周报">
-          <el-button type="primary" :icon="MagicStick" :loading="generating" @click="startGenerate">
-            AI 生成本周周报
+        <el-empty v-else :description="selected ? '该周还没有周报' : '先在左侧选择一周'">
+          <el-button
+            v-if="selectedWeek"
+            type="primary"
+            :icon="MagicStick"
+            :loading="generating"
+            @click="startGenerate"
+          >
+            生成这一周的周报
           </el-button>
         </el-empty>
       </div>
@@ -510,10 +570,6 @@ onBeforeUnmount(() => {
   font-size: 12px;
   line-height: 1.5;
   color: var(--bb-text-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 .weekly__empty {
   margin: 16px 8px;
@@ -535,14 +591,9 @@ onBeforeUnmount(() => {
   gap: 10px;
   padding: 4px 0 12px;
 }
-.weekly__week {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.weekly__range {
-  font-size: 13px;
-  color: var(--bb-text-secondary);
+.weekly__meta {
+  font-size: 12px;
+  color: var(--bb-text-muted);
 }
 .weekly__ops {
   display: flex;
@@ -551,11 +602,6 @@ onBeforeUnmount(() => {
 }
 .weekly__alert {
   margin-bottom: 10px;
-}
-.weekly__meta {
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--bb-text-muted);
 }
 .weekly__editor {
   flex: 1;

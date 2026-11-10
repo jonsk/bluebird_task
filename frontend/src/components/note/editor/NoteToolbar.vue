@@ -7,8 +7,13 @@ import NoteEmojiPicker from './NoteEmojiPicker.vue'
 
 const props = defineProps<{
   editor: Editor
-  /** 每次编辑器事务递增，用于强制重算 isActive / undo 状态。 */
+  /** 每次编辑递增的计数，用来强制刷新 isActive / undo 状态 */
   tick?: number
+  /**
+   * 是否显示「插入图片 / 附件」入口，默认 true。
+   * 周报不绑定 noteId，插进去只会产生解析不了的坏链接，需要置 false。
+   */
+  attachments?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -416,10 +421,17 @@ function toggleEmoji(): void {
     >
       <NoteIcon name="codeBlock" />
     </button>
-    <button type="button" class="tb-btn" title="插入图片" @click="pickImages">
+    <button v-if="attachments !== false" type="button" class="tb-btn" title="插入图片" @click="pickImages">
       <NoteIcon name="image" />
     </button>
-    <button type="button" class="tb-btn" title="附件" data-test="note-attachment" @click="pickAttachments">
+    <button
+      v-if="attachments !== false"
+      type="button"
+      class="tb-btn"
+      title="附件"
+      data-test="note-attachment"
+      @click="pickAttachments"
+    >
       <NoteIcon name="attachment" />
     </button>
     <button type="button" class="tb-btn" title="表格（3×3）" data-test="note-table" @click="insertTable">
@@ -483,7 +495,23 @@ function toggleEmoji(): void {
       <NoteEmojiPicker @select="insertEmoji" />
     </div>
 
-    <input ref="fileInput" class="tb-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple @change="onFiles" />
-    <input ref="attachmentInput" class="tb-file" type="file" multiple data-test="note-attachment-input" @change="onAttachmentFiles" />
+    <input
+      v-if="attachments !== false"
+      ref="fileInput"
+      class="tb-file"
+      type="file"
+      accept="image/png,image/jpeg,image/gif,image/webp,image/bmp"
+      multiple
+      @change="onFiles"
+    />
+    <input
+      v-if="attachments !== false"
+      ref="attachmentInput"
+      class="tb-file"
+      type="file"
+      multiple
+      data-test="note-attachment-input"
+      @change="onAttachmentFiles"
+    />
   </div>
 </template>

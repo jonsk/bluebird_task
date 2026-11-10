@@ -84,7 +84,8 @@ public class WeeklyReportGenerationService {
                 rendered = renderer.renderRaw(result.content());
             }
 
-            report.setStatus("DRAFT");
+            // 生成即定稿：不再有「草稿 → 手动保存定稿」两步，用户后续修改走编辑器自动保存。
+            report.setStatus("DONE");
             report.setContentHtml(rendered.html());
             report.setAiResultJson(root == null ? result.content() : root.toString());
             report.setSourceNoteIds(objectMapper.writeValueAsString(notes.stream().map(Note::getId).toList()));

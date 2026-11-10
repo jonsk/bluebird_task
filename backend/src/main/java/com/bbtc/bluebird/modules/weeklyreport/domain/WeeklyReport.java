@@ -30,7 +30,7 @@ public class WeeklyReport extends BaseEntity {
     private String weekStart;
     /** 周日，YYYY-MM-DD。 */
     private String weekEnd;
-    /** GENERATING | DRAFT | DONE | FAILED。 */
+    /** GENERATING | DONE | FAILED（不再有 DRAFT：AI 生成即定稿）。 */
     private String status;
 
     private String contentHtml;

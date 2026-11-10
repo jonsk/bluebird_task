@@ -631,6 +631,8 @@ defineExpose({
 </template>
 
 <style scoped>
+/* 外壳布局（内容区 / 大纲 / 正文 / 保存状态）在 @/styles/note-editor.css 中统一定义，
+   周报编辑器复用同一套类名，避免两处漂移。这里只保留日志编辑器自己的部分。 */
 .note-editor {
   padding: 4px 0;
 }
@@ -641,39 +643,6 @@ defineExpose({
   justify-content: center;
   color: var(--bb-text-muted);
 }
-.note-editor__content {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--bb-radius-sm);
-  overflow: hidden;
-  background: var(--bg-primary);
-}
-.note-editor__main {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  align-items: stretch;
-}
-.note-editor__outline {
-  align-self: stretch;
-  min-width: 0;
-  border-right: 1px solid var(--el-border-color-lighter);
-  background: var(--bg-secondary);
-}
-.note-editor__outline :deep(.note-outline) {
-  padding: 12px 8px;
-}
-.note-editor__body {
-  position: relative;
-  min-width: 0;
-  padding: 10px 14px 20px 44px;
-}
-@media (max-width: 1100px) {
-  .note-editor__main {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .note-editor__outline {
-    display: none;
-  }
-}
 .note-editor__meta {
   margin: 8px 0 0;
   font-size: 12px;
@@ -683,28 +652,5 @@ defineExpose({
   margin: 6px 0 0;
   font-size: 12px;
   color: var(--bb-text-muted);
-}
-.note-editor__status {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-  min-height: 20px;
-  font-size: 12px;
-  color: var(--bb-text-muted);
-}
-.note-editor__status.is-error {
-  color: var(--el-color-danger);
-}
-.note-editor__retry {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-}
-.note-editor__editor {
-  min-height: 460px;
 }
 </style>

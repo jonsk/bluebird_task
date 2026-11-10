@@ -18,6 +18,7 @@ import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportPreferenceReq;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportPreferenceVO;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportUpdateReq;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportVO;
+import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportWeekVO;
 import com.bbtc.bluebird.modules.weeklyreport.infrastructure.WeeklyReportMapper;
 import com.bbtc.bluebird.modules.weeklyreport.infrastructure.WeeklyReportPreferenceMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +32,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +74,53 @@ public class WeeklyReportService {
 
     public WeeklyReportVO detail(Long id) {
         return toVO(requireOwned(id));
+    }
+
+    /**
+     * 可生成周报的周次列表（左侧导航）。
+     *
+     * <p>口径：只统计当前用户自己的日志，且
+     * <ol>
+     *   <li>周次不晚于当前周（未来的周没有意义）；</li>
+     *   <li>该周至少有 1 条日志。</li>
+     * </ol>
+     * 该周已有周报时带上 {@code reportId} 与状态，没有则为 null，前端选中即可直接生成。
+     * 结果按 weekStart 倒序（最近的周在最上面）。
+     */
+    public List<WeeklyReportWeekVO> weeks() {
+        Long me = requireUser();
+        String currentWeek = WeeklyReportPeriod.of(LocalDate.now(ZONE)).start();
+        List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
+                .eq(Note::getOwnerId, me)
+                .select(Note::getId, Note::getLogDate));
+        Map<String, Long> counts = new HashMap<>();
+        for (Note note : notes) {
+            String start = weekStartOf(note.getLogDate());
+            if (start == null || start.compareTo(currentWeek) > 0) {
+                continue;
+            }
+            counts.merge(start, 1L, Long::sum);
+        }
+        if (counts.isEmpty()) {
+            return List.of();
+        }
+        Map<String, WeeklyReport> reports = new HashMap<>();
+        for (WeeklyReport report : reportMapper.selectList(Wrappers.<WeeklyReport>lambdaQuery()
+                .eq(WeeklyReport::getOwnerId, me))) {
+            reports.put(report.getWeekStart(), report);
+        }
+        return counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByKey().reversed())
+                .map(entry -> {
+                    WeeklyReportPeriod period = WeeklyReportPeriod.of(LocalDate.parse(entry.getKey()));
+                    WeeklyReport report = reports.get(entry.getKey());
+                    return new WeeklyReportWeekVO(
+                            period.start(), period.end(), entry.getValue(),
+                            report == null ? null : report.getId(),
+                            report == null ? null : report.getStatus(),
+                            report == null ? null : report.getErrorMessage());
+                })
+                .toList();
     }
 
     /* ==================== 手动生成 ==================== */
@@ -181,7 +230,7 @@ public class WeeklyReportService {
     /* ==================== 自动生成（定时任务） ==================== */
 
     /**
-     * 为本周有日志、且还没有周报的用户批量创建草稿。
+     * 为本周有日志、且还没有周报的用户批量生成（生成成功即定稿）。
      *
      * <p>幂等：唯一索引 owner+week_start + 生成前先查，重复触发不会产生第二条。
      */
@@ -248,6 +297,17 @@ public class WeeklyReportService {
                 .eq(WeeklyReport::getOwnerId, ownerId)
                 .eq(WeeklyReport::getWeekStart, weekStart)
                 .last("limit 1"));
+    }
+
+    private String weekStartOf(String logDate) {
+        if (!StringUtils.hasText(logDate)) {
+            return null;
+        }
+        try {
+            return WeeklyReportPeriod.of(LocalDate.parse(logDate.trim())).start();
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     private WeeklyReportPreference findPreference(Long userId) {

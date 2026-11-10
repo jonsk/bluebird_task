@@ -10,6 +10,7 @@ import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportPreferenceReq;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportPreferenceVO;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportUpdateReq;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportVO;
+import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportWeekVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 个人周报接口（全部需登录；只能访问自己的周报）。
@@ -41,6 +44,12 @@ public class WeeklyReportController {
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long size) {
         return ApiResult.ok(service.page(page, size));
+    }
+
+    @Operation(summary = "可生成周报的周次列表（当前周及之前、有日志的周）")
+    @GetMapping("/weeks")
+    public ApiResult<List<WeeklyReportWeekVO>> weeks() {
+        return ApiResult.ok(service.weeks());
     }
 
     @Operation(summary = "周报个人偏好")
