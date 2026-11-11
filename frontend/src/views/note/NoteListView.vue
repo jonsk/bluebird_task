@@ -171,24 +171,29 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
+  min-width: 0;
   /* 左右各让出与列表一致的页面栅格，搜索框右边缘和卡片右边缘对齐 */
   padding: 0 var(--bb-page-padding);
   box-sizing: border-box;
 }
 .r-b-t-l-right {
   flex: 0 1 360px;
-  min-width: 140px;
+  min-width: 120px;
   margin-left: 24px;
 }
+/* 标题块永不压缩：窄窗口下曾被挤成「一列一个字」 */
 .r-b-t-l-left {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
 }
 .r-b-t-l-l-icon {
   color: var(--bb-text-secondary);
 }
 .r-b-t-l-l-text {
   margin-left: 10px;
+  white-space: nowrap;
 }
 .r-b-t-l-l-t-top {
   font-size: 16px;

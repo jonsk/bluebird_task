@@ -243,17 +243,22 @@ async function onRemove(task: TaskVO): Promise<void> {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
+  min-width: 0;
   padding-left: 20px;
 }
+/* 标题块永不压缩：窄窗口下曾被挤成「一列一个字」 */
 .r-b-t-l-left {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
 }
 .r-b-t-l-l-icon {
   color: var(--bb-text-secondary);
 }
 .r-b-t-l-l-text {
   margin-left: 10px;
+  white-space: nowrap;
 }
 .r-b-t-l-l-t-top {
   font-size: 16px;
@@ -262,17 +267,23 @@ async function onRemove(task: TaskVO): Promise<void> {
   font-size: 12px;
   color: var(--bb-text-muted);
 }
+/* 搜索框：宽屏顶到 500px 维持原样，窄屏按比例收（原来死宽 500px 会把标题、标签挤出屏幕） */
 .r-b-t-l-right {
-  width: 500px;
-  margin-left: 50px;
+  flex: 1 1 auto;
+  min-width: 120px;
+  max-width: 500px;
+  margin-left: 24px;
 }
-.r-b-t-r-search {
-  width: 500px;
+/* 注意：模板上的类是 r-b-t-l-r-search（这里原来写成 r-b-t-r-search，选择器一直没匹配上） */
+.r-b-t-l-r-search {
+  width: 100%;
 }
 .r-b-t-right {
   display: flex;
   align-items: center;
-  padding-right: 30px;
+  flex: 0 0 auto;
+  margin-left: 12px;
+  padding-right: 12px;
 }
 .right-box-bottom {
   height: calc(100vh - 80px);
@@ -316,6 +327,7 @@ async function onRemove(task: TaskVO): Promise<void> {
 .detail {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  /* 详情面板里的表单/长标题比栏宽时左右滚动，而不是溢出压到中间的列表上 */
+  overflow: auto;
 }
 </style>

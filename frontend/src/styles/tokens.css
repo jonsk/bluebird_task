@@ -218,3 +218,20 @@ body {
   --el-font-size-small: 15px;       /* 原 13 */
   --el-font-size-extra-small: 14px; /* 原 12 */
 }
+
+/* ── 窄窗口自适应：两颗固定侧栏（300 + 360）在 <1300px 的窗口里会把中间列表压到
+   一两百像素，标题被挤成竖排、卡片挤成三行。这里按断点收缩侧栏，把宽度让回主区。
+   只在 :root 上改令牌，所有用 var(--bb-sidebar-left-width / --bb-calendar-width)
+   的视图（任务、日志）一起生效。 */
+@media (max-width: 1280px) {
+  :root {
+    --bb-sidebar-left-width: 260px;
+    --bb-calendar-width: 340px;
+  }
+}
+@media (max-width: 1080px) {
+  :root {
+    --bb-sidebar-left-width: 220px;
+    --bb-calendar-width: 300px;
+  }
+}
