@@ -15,7 +15,8 @@ describe('date utils', () => {
     expect(isNearDue(far, false)).toBe(false)
   })
 
-  it('toOffsetIso 输出 +08:00 偏移', () => {
-    expect(toOffsetIso(new Date('2026-10-01T10:00:00Z'))).toMatch(/\+08:00$/)
+  it('toOffsetIso 精确值：墙钟串在任意时区都锚定 +08:00（不随运行环境时区漂移）', () => {
+    // el-date-picker 选 18:00 产出的墙钟串，应稳定存为 18:00+08:00，不被时区换算偏移成 02:00
+    expect(toOffsetIso('2026-09-20 18:00:00')).toBe('2026-09-20T18:00:00+08:00')
   })
 })
