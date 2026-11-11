@@ -36,7 +36,9 @@ public class OrgSyncTokenFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         String presented = header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
         if (!StringUtils.hasText(pushToken) || presented == null || !constantEquals(pushToken, presented)) {
-            response.setStatus(HttpServletResponse.SC_OK);
+            // 机器对机器端点（Casdoor 组织推送 / SCIM）不能用「HTTP 200 + 业务码」表达鉴权失败：
+            // 对端与网关只看状态码，会把拒绝当成成功并继续重试/统计。故这里回 403。
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
             objectMapper.writeValue(response.getWriter(), ApiResult.fail(ErrorCode.FORBIDDEN));
