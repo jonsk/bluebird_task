@@ -1,5 +1,6 @@
 import { http, BizError } from './http'
 import { ERROR_CODE } from '@/utils/errorCode'
+import { parseContentDisposition } from '@/utils/format'
 import type { ApiResult, FileVO } from './http'
 
 export type { FileVO }
@@ -92,34 +93,38 @@ function isPathSafe(url: string): boolean {
   return true
 }
 
-function extractFilename(disposition?: string, fallback = 'download'): string {
-  if (!disposition) return fallback
-  const star = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
-  if (star) {
-    try {
-      return decodeURIComponent(star[1])
-    } catch {
-      /* ignore */
-    }
-  }
-  const plain = /filename="?([^";]+)"?/i.exec(disposition)
-  if (plain) return plain[1]
-  return fallback
-}
-
 /** 取 blob 流 + 文件名 + 内容类型（带 Bearer，拦截器已注入）。 */
 export async function fetchAttachment(url: string): Promise<AttachmentContent> {
   const safe = stripApiPrefix(url)
   if (!isPathSafe(safe)) throw new BizError(ERROR_CODE.PARAM_ERROR, '非法的附件地址')
   const resp = await http.get<Blob>(safe, { responseType: 'blob' })
   const contentType = (resp.headers?.['content-type'] as string) || 'application/octet-stream'
-  const fileName = extractFilename(resp.headers?.['content-disposition'] as string)
+  const fileName = parseContentDisposition(resp.headers?.['content-disposition'] as string)
   return { blob: resp.data as Blob, fileName, contentType }
 }
 
 // ===== 引用计数 blob URL 缓存（上限 20，LRU 回收）=====
-const PREVIEW_MIME = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf', 'text/plain']
-const FORBID_INLINE = ['text/html', 'image/svg+xml']
+const PREVIEW_MIME = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+])
+/** 可携带脚本的类型：即使响应头误标，也绝不内联预览。 */
+const FORBID_INLINE = new Set([
+  'text/html',
+  'image/svg+xml',
+  'application/xhtml+xml',
+  'text/xml',
+  'application/xml',
+])
+
+/** 去掉 `; charset=utf-8` 等参数并小写，否则 text/plain 会被白名单误判。 */
+function normalizeMime(value: string): string {
+  return value.split(';')[0].trim().toLowerCase()
+}
 
 class AttachmentBlobCache {
   private urls = new Map<string, { url: string; blob: Blob; count: number; at: number }>()
@@ -166,7 +171,14 @@ class AttachmentBlobCache {
 
 export const attachmentBlobCache = new AttachmentBlobCache()
 
-/** 预览/下载统一处理：MIME 白名单 + noopener；预览仅在白名单内联，否则降级下载。 */
+/**
+ * 预览/下载统一处理：MIME 白名单 + noopener；预览仅在白名单内联，否则降级下载。
+ *
+ * 两个纵深防御细节：
+ * - `opts.contentType`（附件 VO 声明的类型）参与判定，响应头误标时仍可拒绝内联；
+ * - 非预览内容统一包成 `application/octet-stream` 的 blob，避免后端把 `.svg` / `.html`
+ *   错标为图片后，同源 blob URL 被浏览器当文档渲染而执行内联脚本。
+ */
 export async function openAttachment(opts: {
   mode: 'download' | 'preview'
   url: string
@@ -175,12 +187,20 @@ export async function openAttachment(opts: {
 }): Promise<void> {
   const { blob, fileName, contentType } = await fetchAttachment(opts.url)
   const key = opts.url
-  const blobUrl = attachmentBlobCache.acquire(key, blob)
+  const effective = normalizeMime(contentType)
+  const declared = normalizeMime(opts.contentType ?? '')
+  const declaredUnsafe = Boolean(declared) && FORBID_INLINE.has(declared)
+  const canPreview =
+    opts.mode === 'preview' &&
+    PREVIEW_MIME.has(effective) &&
+    !FORBID_INLINE.has(effective) &&
+    !declaredUnsafe
+
+  const safeBlob = canPreview ? blob : new Blob([blob], { type: 'application/octet-stream' })
+  const blobUrl = attachmentBlobCache.acquire(key, safeBlob)
   const name = opts.fileName || fileName
 
-  const canPreview = PREVIEW_MIME.includes(contentType) && !FORBID_INLINE.includes(contentType)
-
-  if (opts.mode === 'preview' && canPreview) {
+  if (canPreview) {
     const win = window.open(blobUrl, '_blank', 'noopener,noreferrer')
     if (win) {
       const release = () => attachmentBlobCache.release(key)

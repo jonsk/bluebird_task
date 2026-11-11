@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/vue-3'
 import { ElMessage } from 'element-plus'
 import { openAttachment } from '@/api/file'
+import { formatFileSize } from '@/utils/format'
 import NoteIcon from './NoteIcon.vue'
 
 const props = defineProps<NodeViewProps>()
@@ -13,16 +14,17 @@ const size = computed(() => Number(props.node.attrs.size) || 0)
 const downloadUrl = computed(() => String(props.node.attrs.downloadUrl || ''))
 const previewUrl = computed(() => String(props.node.attrs.previewUrl || downloadUrl.value))
 
-const canPreview = computed(() =>
-  /^(image\/|text\/|application\/pdf)/i.test(contentType.value) || /\.(png|jpe?g|gif|webp|pdf|txt|md)$/i.test(fileName.value),
+/** 预览按钮只放行与 api/file.ts 的 PREVIEW_MIME 一致的位图 / PDF / 纯文本；SVG、HTML 一律只给下载。 */
+const PREVIEWABLE_MIME = /^(?:image\/(?:png|jpeg|gif|webp)|application\/pdf|text\/plain)(?:\s*;|$)/i
+const PREVIEWABLE_EXT = /\.(?:png|jpe?g|gif|webp|pdf|txt|md)$/i
+const SCRIPTABLE_EXT = /\.(?:svg|svgz|html?|xhtml|mhtml|xml|js)$/i
+const canPreview = computed(
+  () =>
+    !SCRIPTABLE_EXT.test(fileName.value) &&
+    (PREVIEWABLE_MIME.test(contentType.value) || PREVIEWABLE_EXT.test(fileName.value)),
 )
 
-const sizeText = computed(() => {
-  if (!size.value) return ''
-  if (size.value < 1024) return `${size.value} B`
-  if (size.value < 1024 * 1024) return `${(size.value / 1024).toFixed(1)} KB`
-  return `${(size.value / 1024 / 1024).toFixed(1)} MB`
-})
+const sizeText = computed(() => formatFileSize(size.value))
 
 const ext = computed(() => {
   const index = fileName.value.lastIndexOf('.')

@@ -35,12 +35,6 @@ export interface NoteQuery {
 /** setQuery 入参：剔除 scope/page/size（防绕过 route.meta 与分页单一入口）。 */
 export type NoteQueryPatch = Partial<Omit<NoteQuery, 'scope' | 'page' | 'size'>>
 
-/** 新建后临时卡片（与时间戳一起存，TTL 30 分钟）。 */
-export interface NoteDraft {
-  id: number
-  ts: number
-}
-
 /** 品牌类型（落到 attachmentId 而非 fileId，类型系统阻止误传 id）。 */
 export type AttachmentRefId = number
 export type FileId = number

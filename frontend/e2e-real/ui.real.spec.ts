@@ -4,7 +4,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * 真实后端 UI 联调用例（选入式，**不在默认 CI 中运行**）。运行见 `api.real.spec.ts` 顶部说明。
  *
  * 与 `e2e/`（MSW fixtures）互补：这里跑真实 jar，覆盖「只在真实后端才暴露」的交互链路
- * （按 id 打开详情、附件真实上传/删除、子任务改状态、部门分类建档等）。
+ * （按 id 打开详情、附件真实上传/删除、子任务改状态等）。
  */
 
 const BASE = process.env.E2E_REAL_BASE_URL ?? 'http://127.0.0.1:8080'
@@ -189,7 +189,7 @@ test('#2 自定义栏可删除且确认框居中', async ({ page }) => {
   expect(failed()).toBe(0)
 })
 
-test('#3 编辑器：优先级/指派/标签/分类「只保留图标，点图标弹出」', async ({ page }) => {
+test('#3 编辑器：优先级/指派/标签「只保留图标，点图标弹出」', async ({ page }) => {
   page.setDefaultTimeout(25_000)
   await login(page)
   const composer = page.locator('.t-b-input-box')

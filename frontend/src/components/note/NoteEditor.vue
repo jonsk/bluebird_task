@@ -11,6 +11,12 @@ import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
 import { tableFromClipboard } from '@/utils/excelTablePaste'
 import { buildNoteExtensions } from '@/utils/noteEditorExtensions'
 import { isBlankHtml, plainTextFromHtml, toEditorHtml, visibleLength } from '@/utils/richText'
+import { containsDangerousRichText } from '@/utils/sanitize'
+import { formatClock } from '@/utils/format'
+import { validateUploadFile } from '@/utils/upload'
+import { useFileConfig } from '@/composables/useFileConfig'
+import { useBlockDragHandle } from '@/composables/useBlockDragHandle'
+import BbSaveStatus from '@/components/bb/BbSaveStatus.vue'
 import NoteToolbar from './editor/NoteToolbar.vue'
 import NoteBubbleMenu from './editor/NoteBubbleMenu.vue'
 import NoteOutline from './editor/NoteOutline.vue'
@@ -97,16 +103,8 @@ const status = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 const savedAt = ref('')
 const errorMessage = ref('')
 
-/** 后端 updatedAt / 本地保存时间统一显示为 HH:mm。 */
-function formatClock(input?: string | Date | null): string {
-  const date = input ? new Date(input) : new Date()
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleTimeString('zh-CN', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+/** 附件配置（大小/扩展名上限）；三个上传入口共享一次请求。 */
+const { config: fileConfig, load: loadFileConfig } = useFileConfig()
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let saving: Promise<void> | null = null
@@ -185,6 +183,7 @@ watch(canEditContent, (editable) => {
 onMounted(() => {
   init()
   hydrator = watchMarkdownImages(() => hostRef.value)
+  void loadFileConfig()
 })
 
 onUnmounted(() => {
@@ -224,6 +223,9 @@ async function loadDetail(): Promise<void> {
     const d = await getNote(props.noteId)
     if (token !== loadToken) return
     content.value = d.content ?? ''
+    if (containsDangerousRichText(d.content ?? '')) {
+      ElMessage.warning('本文含已被过滤的嵌入式内容（视频/脚本等），编辑保存后将永久移除')
+    }
     logDate.value = d.logDate ?? ''
     currentVersion.value = d.version
     savedAt.value = formatClock(d.updatedAt)
@@ -437,8 +439,13 @@ async function uploadImages(files: File[]): Promise<void> {
   let inserted = 0
   let failed = 0
   for (const file of files) {
-    if (!IMAGE_ACCEPT.test(file.type)) {
-      ElMessage.error(`${file.name} 不是支持的图片格式（png/jpeg/gif/webp/bmp）`)
+    const error = validateUploadFile(file, fileConfig.value, {
+      allowedMime: IMAGE_ACCEPT,
+      mimeLabel: '不是支持的图片格式（png/jpeg/gif/webp/bmp）',
+      skipExtensionCheck: true,
+    })
+    if (error) {
+      ElMessage.error(error)
       failed += 1
       continue
     }
@@ -477,6 +484,12 @@ async function uploadAttachments(files: File[]): Promise<void> {
   let inserted = 0
   let failed = 0
   for (const file of files) {
+    const error = validateUploadFile(file, fileConfig.value)
+    if (error) {
+      ElMessage.error(error)
+      failed += 1
+      continue
+    }
     try {
       const vo = await uploadFile(file)
       const att = await bindAttachment(noteId, { attachmentId: Number(vo.id) })
@@ -506,27 +519,9 @@ async function uploadAttachments(files: File[]): Promise<void> {
   if (failed && !inserted) ElMessage.error('附件上传失败')
 }
 
-/* ==================== 拖拽手柄 ==================== */
+/* ==================== 拖拽手柄（与周报编辑器共用同一套逻辑） ==================== */
 
-const hoveredBlock = ref<{ pos: number; size: number } | null>(null)
-
-function onNodeChange({ node, pos }: { node: { nodeSize: number } | null; pos: number }): void {
-  hoveredBlock.value = node ? { pos, size: node.nodeSize } : null
-}
-
-function insertBelow(): void {
-  const ed = editor.value
-  if (!ed) return
-  const insertPos = hoveredBlock.value
-    ? hoveredBlock.value.pos + hoveredBlock.value.size
-    : ed.state.selection.to
-
-  ed.chain()
-    .focus()
-    .insertContentAt(insertPos, { type: 'paragraph' })
-    .setTextSelection(insertPos + 1)
-    .run()
-}
+const { onNodeChange, insertBelow } = useBlockDragHandle(() => editor.value)
 
 /* ==================== 暴露给宿主 ==================== */
 
@@ -607,27 +602,15 @@ defineExpose({
       </p>
 
       <!-- 自动保存：无常驻按钮，只显示状态；按 Esc 收起编辑 -->
-      <div
+      <BbSaveStatus
         v-if="canEditContent && !compact"
-        class="note-editor__status"
-        :class="`is-${status}`"
-        data-test="note-editor-status"
-      >
-        <template v-if="status === 'saving'">
-          保存中…<span v-if="savedAt"> · 已保存 {{ savedAt }}</span>
-        </template>
-        <button
-          v-else-if="status === 'error'"
-          type="button"
-          class="note-editor__retry"
-          data-test="note-editor-retry"
-          @click="saveNow"
-        >
-          {{ errorMessage }}，点击重试<span v-if="savedAt"> · 已保存 {{ savedAt }}</span>
-        </button>
-        <template v-else-if="savedAt">已保存 {{ savedAt }}</template>
-        <template v-else>自动保存已开启 · Ctrl+S 立即保存</template>
-      </div>
+        :status="status"
+        :saved-at="savedAt"
+        :error-message="errorMessage"
+        test-id="note-editor"
+        idle-text="自动保存已开启 · Ctrl+S 立即保存"
+        @retry="saveNow"
+      />
     </template>
   </div>
 </template>

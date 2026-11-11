@@ -4,6 +4,7 @@
  */
 withDefaults(defineProps<{ description?: string; image?: string }>(), {
   description: '暂无数据',
+  image: undefined,
 })
 </script>
 

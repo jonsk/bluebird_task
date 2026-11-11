@@ -1,0 +1,82 @@
+/**
+ * 页头外壳共享样式（旧 .right-box-top / .r-b-t-* 区段）。
+ *
+ * 由 TaskView.vue、NoteListView.vue 各自的非 scoped <style> 块以 @import 引入。
+ * 规则必须保持全局：页头结构已抽到 BbPageHeader.vue，父组件的 scoped 样式到不了
+ * 子组件内部节点，只有全局规则才能作用到这些 class 上。
+ *
+ * 注意：这些 class 名仅存在于上述两个页面外壳（组件库里另有 .r-b-t-r-item，
+ * 名字不同、互不影响），因此全局引入不会污染其它组件的样式作用域。
+ * 两个页面原本并不完全相同的声明，用 .page-shell--task / .page-shell--note
+ * 修饰类分开承载，逐条与改造前的 scoped 规则等价。
+ */
+
+.right-box-top {
+  height: 50px;
+  margin-bottom: 20px;
+  padding-top: 15px;
+  box-sizing: border-box;
+  user-select: none;
+}
+.r-b-t-left {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+/* 标题块永不压缩：窄窗口下曾被挤成「一列一个字」 */
+.r-b-t-l-left {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.r-b-t-l-l-icon {
+  color: var(--bb-text-secondary);
+}
+.r-b-t-l-l-text {
+  margin-left: 10px;
+  white-space: nowrap;
+}
+.r-b-t-l-l-t-top {
+  font-size: 16px;
+}
+.r-b-t-l-l-t-bottom {
+  font-size: 12px;
+  color: var(--bb-text-muted);
+}
+.r-b-t-l-right {
+  min-width: 120px;
+  margin-left: 24px;
+}
+/* 注意：模板上的类是 r-b-t-l-r-search（这里原来写成 r-b-t-r-search，选择器一直没匹配上） */
+.r-b-t-l-r-search {
+  width: 100%;
+}
+.r-b-t-right {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: 12px;
+  padding-right: 12px;
+}
+
+/* ── 任务视图变体（原 TaskView.vue <style scoped> 段） ── */
+/* 搜索框：宽屏顶到 500px 维持原样，窄屏按比例收（原来死宽 500px 会把标题、标签挤出屏幕） */
+.page-shell--task .r-b-t-left {
+  padding-left: 20px;
+}
+.page-shell--task .r-b-t-l-right {
+  flex: 1 1 auto;
+  max-width: 500px;
+}
+
+/* ── 日志视图变体（原 NoteListView.vue <style scoped> 段） ── */
+/* 左右各让出与列表一致的页面栅格，搜索框右边缘和卡片右边缘对齐 */
+.page-shell--note .r-b-t-left {
+  padding: 0 var(--bb-page-padding);
+  box-sizing: border-box;
+}
+.page-shell--note .r-b-t-l-right {
+  flex: 0 1 360px;
+}

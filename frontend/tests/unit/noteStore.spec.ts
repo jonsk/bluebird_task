@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useNoteStore } from '@/stores/note'
@@ -60,12 +60,12 @@ describe('noteStore · 失效与读取', () => {
 
   it('单 scope 条目数超上限时淘汰最旧的', () => {
     const s = useNoteStore()
-    // CACHE_PER_SCOPE_MAX = 8：写 10 条后同 scope 最多留 8 条
+    // CACHE_PER_SCOPE_MAX = 3：写 10 条后同 scope 最多留 3 条
     for (let i = 0; i < 10; i += 1) {
       s.cacheSet(s.cacheKey('mine', { keyword: `k${i}` } as never), page([i]))
     }
     const mineKeys = Array.from(s.cache.keys()).filter((k) => k.startsWith('mine|'))
-    expect(mineKeys.length).toBeLessThanOrEqual(8)
+    expect(mineKeys.length).toBeLessThanOrEqual(3)
   })
 })
 
@@ -90,48 +90,36 @@ describe('noteStore · 查询状态', () => {
   })
 })
 
-describe('noteStore · 会话快照（临时卡片跨路由恢复）', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-28T10:00:00+08:00'))
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('setPending 经 watch 立即落 sessionStorage（未登录会话键为 guest）', async () => {
+describe('noteStore · 会话快照', () => {
+  it('setActiveNote 经 watch 立即落 sessionStorage（未登录会话键为 guest）', async () => {
     const s = useNoteStore()
-    s.setPending(123)
+    s.setActiveNote(123, 'mine')
     await nextTick()
     const raw = JSON.parse(sessionStorage.getItem('note.session.guest') ?? '{}')
-    expect(raw.pendingCreatedNoteId?.id).toBe(123)
+    expect(raw.activeNoteId).toBe(123)
+    expect(raw.activeScopeId).toBe('mine')
   })
 
-  it('restoreSession：TTL 内恢复，超过 30 分钟丢弃', () => {
-    const payload = (ts: number) =>
-      JSON.stringify({ activeNoteId: null, activeScopeId: null, pendingCreatedNoteId: { id: 123, ts } })
-
-    sessionStorage.setItem('note.session.guest', payload(Date.now()))
+  it('restoreSession 恢复 activeNoteId / activeScopeId', () => {
+    sessionStorage.setItem(
+      'note.session.guest',
+      JSON.stringify({ activeNoteId: 42, activeScopeId: 'all' }),
+    )
     setActivePinia(createPinia())
     const fresh = useNoteStore()
     fresh.restoreSession()
-    expect(fresh.pendingCreatedNoteId?.id).toBe(123)
-
-    sessionStorage.setItem('note.session.guest', payload(Date.now() - 31 * 60 * 1000))
-    setActivePinia(createPinia())
-    const expired = useNoteStore()
-    expired.restoreSession()
-    expect(expired.pendingCreatedNoteId).toBeNull()
+    expect(fresh.activeNoteId).toBe(42)
+    expect(fresh.activeScopeId).toBe('all')
   })
 
   it('reset 清空缓存与内存态，并删除该账号的会话键', () => {
     const s = useNoteStore()
     s.cacheSet(s.cacheKey('mine', {} as never), page([1]))
-    s.setPending(789)
-    sessionStorage.setItem('note.session.1', '{"pendingCreatedNoteId":null}')
+    s.setActiveNote(7, 'mine')
     s.reset(1)
     expect(s.cache.size).toBe(0)
-    expect(s.pendingCreatedNoteId).toBeNull()
+    expect(s.activeNoteId).toBeNull()
+    expect(s.activeScopeId).toBeNull()
     expect(sessionStorage.getItem('note.session.1')).toBeNull()
   })
 })

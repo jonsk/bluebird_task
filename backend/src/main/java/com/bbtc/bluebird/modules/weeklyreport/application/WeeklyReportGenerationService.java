@@ -13,6 +13,7 @@ import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReport;
 import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReportPreference;
 import com.bbtc.bluebird.modules.weeklyreport.infrastructure.WeeklyReportMapper;
 import com.bbtc.bluebird.modules.weeklyreport.infrastructure.WeeklyReportPreferenceMapper;
+import com.bbtc.bluebird.common.util.RichTextGuard;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -85,6 +86,9 @@ public class WeeklyReportGenerationService {
             }
 
             // 生成即定稿：不再有「草稿 → 手动保存定稿」两步，用户后续修改走编辑器自动保存。
+            // AI 模型输出直接落库，落库前用 RichTextGuard 拒掉明确危险的 XSS 载荷（与 update() 一致）；
+            // 触发时由下方 catch 标为生成失败，不会污染已定稿内容。
+            RichTextGuard.assertSafe(rendered.html());
             report.setStatus("DONE");
             report.setContentHtml(rendered.html());
             report.setAiResultJson(root == null ? result.content() : root.toString());

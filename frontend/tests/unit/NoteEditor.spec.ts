@@ -103,6 +103,8 @@ vi.mock('@/api/note', () => ({
 }))
 vi.mock('@/api/file', () => ({
   uploadFile: (...a: unknown[]) => uploadFile(...a),
+  // NoteEditor 挂载时会加载附件配置（大小/扩展名上限），桩里必须提供。
+  fetchFileConfig: async () => ({ maxSize: 50 * 1024 * 1024, allowedExt: [] }),
 }))
 vi.mock('element-plus', () => ({
   ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
@@ -133,7 +135,11 @@ async function mountEdit(payload: Record<string, unknown>): Promise<VueWrapper> 
   getNote.mockResolvedValue(payload)
   const w = shallowMount(NoteEditor, {
     props: { noteId: 1001 },
-    global: { directives: { loading: { mounted: () => undefined } } },
+    global: {
+      directives: { loading: { mounted: () => undefined } },
+      // 状态行已抽成 BbSaveStatus，保持真实渲染以继续断言 data-test 与文案
+      stubs: { BbSaveStatus: false },
+    },
   })
   await settle()
   return w
@@ -141,7 +147,10 @@ async function mountEdit(payload: Record<string, unknown>): Promise<VueWrapper> 
 
 function mountNew(): VueWrapper {
   return shallowMount(NoteEditor, {
-    global: { directives: { loading: { mounted: () => undefined } } },
+    global: {
+      directives: { loading: { mounted: () => undefined } },
+      stubs: { BbSaveStatus: false },
+    },
   })
 }
 

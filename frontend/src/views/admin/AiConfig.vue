@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Connection, Delete, Edit, Plus, Select } from '@element-plus/icons-vue'
 import { getConfigGroup, type ConfigGroupVO } from '@/api/adminConfig'
 import ConfigGroupForm from '@/components/admin/ConfigGroupForm.vue'
+import BbFormDialog from '@/components/bb/BbFormDialog.vue'
 import {
   activateAiModel,
   createAiModel,
@@ -293,7 +294,7 @@ async function onDelete(row: AiModelVO): Promise<void> {
     <ConfigGroupForm v-if="weeklyGroup" :group="weeklyGroup" @saved="onWeeklySaved" />
 
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px" destroy-on-close>
+    <BbFormDialog v-model:open="dialogVisible" :title="dialogTitle" width="560px" destroy-on-close>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" maxlength="80" placeholder="例如：DeepSeek 生产" />
@@ -326,11 +327,12 @@ async function onDelete(row: AiModelVO): Promise<void> {
           <el-switch v-model="form.enabled" />
         </el-form-item>
       </el-form>
+      <!-- 保留原 footer：保存按钮的 data-test 与 :loading 绑定必须原样留在页面上 -->
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" data-test="ai-model-save" @click="submit">保存</el-button>
       </template>
-    </el-dialog>
+    </BbFormDialog>
 
     <el-dialog v-model="testDialogVisible" title="连接测试结果" width="520px">
       <div class="ai__test">

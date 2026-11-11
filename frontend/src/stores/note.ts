@@ -6,12 +6,10 @@ import type { NoteQuery, NoteScope, NoteListData } from '@/types/note'
 export const CACHE_TTL_MS = 60_000
 const CACHE_MAX_KEYS = 20
 const CACHE_PER_SCOPE_MAX = 3
-const PENDING_TTL_MS = 30 * 60 * 1000
 
 export interface NoteSessionState {
   activeNoteId: number | null
   activeScopeId: NoteScope | null
-  pendingCreatedNoteId: { id: number; ts: number } | null
 }
 
 interface CacheEntry {
@@ -32,7 +30,6 @@ export const useNoteStore = defineStore('note', () => {
   const cache = reactive(new Map<string, CacheEntry>())
   const activeNoteId = ref<number | null>(null)
   const activeScopeId = ref<NoteScope | null>(null)
-  const pendingCreatedNoteId = ref<{ id: number; ts: number } | null>(null)
 
   // ---- 查询状态（仅由 useNoteList 经此写入）----
   function getQuery(scope: NoteScope): NoteQuery {
@@ -45,7 +42,7 @@ export const useNoteStore = defineStore('note', () => {
     queryByScope[scope].page = page
   }
 
-  // ---- active / pending ----
+  // ---- active ----
   function setActiveNote(id: number | null, scope?: NoteScope): void {
     activeNoteId.value = id
     activeScopeId.value = id == null ? null : scope ?? activeScopeId.value
@@ -53,12 +50,6 @@ export const useNoteStore = defineStore('note', () => {
   function clearActive(): void {
     activeNoteId.value = null
     activeScopeId.value = null
-  }
-  function setPending(id: number): void {
-    pendingCreatedNoteId.value = { id, ts: Date.now() }
-  }
-  function clearPending(): void {
-    pendingCreatedNoteId.value = null
   }
 
   // ---- 缓存 ----
@@ -88,9 +79,6 @@ export const useNoteStore = defineStore('note', () => {
   function cacheSet(key: string, data: NoteListData): void {
     cache.set(key, { data, updatedAt: Date.now() })
     evictIfNeeded()
-  }
-  function cacheDelete(key: string): void {
-    cache.delete(key)
   }
   function cacheClear(): void {
     cache.clear()
@@ -146,7 +134,6 @@ export const useNoteStore = defineStore('note', () => {
     const payload: NoteSessionState = {
       activeNoteId: activeNoteId.value,
       activeScopeId: activeScopeId.value,
-      pendingCreatedNoteId: pendingCreatedNoteId.value,
     }
     sessionStorage.setItem(sessionKey(), JSON.stringify(payload))
   }
@@ -157,10 +144,6 @@ export const useNoteStore = defineStore('note', () => {
       const p = JSON.parse(raw) as NoteSessionState
       activeNoteId.value = p.activeNoteId
       activeScopeId.value = p.activeScopeId
-      pendingCreatedNoteId.value =
-        p.pendingCreatedNoteId && Date.now() - p.pendingCreatedNoteId.ts <= PENDING_TTL_MS
-          ? p.pendingCreatedNoteId
-          : null
     } catch {
       /* ignore */
     }
@@ -169,31 +152,26 @@ export const useNoteStore = defineStore('note', () => {
     cacheClear()
     activeNoteId.value = null
     activeScopeId.value = null
-    pendingCreatedNoteId.value = null
     sessionStorage.removeItem(`note.session.${userId}`)
     for (const s of scopes) Object.assign(queryByScope[s], defaultQuery())
   }
 
-  /** 会话持久化单一入口：三个字段任一变化即整存整取（多账号互不污染）。 */
-  watch([activeNoteId, activeScopeId, pendingCreatedNoteId], persistSession, { deep: true })
+  /** 会话持久化单一入口：两个字段任一变化即整存整取（多账号互不污染）。 */
+  watch([activeNoteId, activeScopeId], persistSession, { deep: true })
 
   return {
     queryByScope,
     cache,
     activeNoteId,
     activeScopeId,
-    pendingCreatedNoteId,
     getQuery,
     setQuery,
     setPage,
     setActiveNote,
     clearActive,
-    setPending,
-    clearPending,
     cacheKey,
     cacheGet,
     cacheSet,
-    cacheDelete,
     cacheClear,
     invalidate,
     persistSession,

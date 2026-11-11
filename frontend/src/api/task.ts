@@ -1,6 +1,7 @@
 import { get, post, put, del } from './http'
 import type { components } from '@/types/api'
 import type { Priority } from '@/utils/constants'
+import type { Page } from '@/types/page'
 
 export type TaskVO = components['schemas']['TaskVO']
 export type TaskDetailVO = components['schemas']['TaskDetailVO']
@@ -8,12 +9,8 @@ export type CountVO = components['schemas']['CountVO']
 export type Scope = components['schemas']['Scope']
 export type CycleRule = components['schemas']['CycleRule']
 
-export interface TaskListData {
-  list: TaskVO[]
-  total: number
-  page: number
-  size: number
-}
+/** 任务列表分页响应体，复用通用分页类型。 */
+export type TaskListData = Page<TaskVO>
 
 /** 新建/更新任务载荷（对齐 TaskCreateReq/TaskUpdateReq，更新时须带 version）。 */
 export interface TaskUpsertPayload {

@@ -11,7 +11,7 @@
         "priority": "MEDIUM", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },
         "assignees": [], "ccUsers": [], "participantIds": [1],
-        "category": { "id": 3, "name": "汇报" }, "tags": [],
+         "tags": [],
         "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
         "createdAt": "2026-09-24T10:00:00+08:00"
       },
@@ -22,7 +22,7 @@
         "priority": "MEDIUM", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },
         "assignees": [{ "id": 11, "name": "张三" }], "ccUsers": [], "participantIds": [1, 11],
-        "category": { "id": 3, "name": "汇报" }, "tags": [],
+         "tags": [],
         "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
         "createdAt": "2026-09-24T10:00:00+08:00"
       },
@@ -33,7 +33,7 @@
         "priority": "HIGH", "cycleRule": null, "cycleLastCompleted": null,
         "owner": { "id": 1, "name": "管理员" },
         "assignees": [], "ccUsers": [], "participantIds": [1],
-        "category": { "id": 3, "name": "汇报" }, "tags": [{ "id": 1, "name": "重要" }],
+         "tags": [{ "id": 1, "name": "重要" }],
         "subtaskCompleted": 0, "subtaskTotal": 0, "files": [],
         "createdAt": "2026-09-24T10:00:00+08:00"
       }

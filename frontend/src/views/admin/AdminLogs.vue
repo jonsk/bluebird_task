@@ -4,6 +4,8 @@ import { listLoginLogs, listOperateLogs, type LoginLogVO, type OperateLogVO } fr
 import { listJobLogs, listOrgSyncLogs, type JobLogVO, type OrgSyncLogVO } from '@/api/adminLog'
 import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/date'
+import { usePagedList } from '@/composables/usePagedList'
+import BbTablePage from '@/components/bb/BbTablePage.vue'
 
 /**
  * 日志页（ADMIN / AUDITOR）。
@@ -11,91 +13,34 @@ import { formatDateTime } from '@/utils/date'
  * 四类：操作日志、登录/退出日志（可筛认证来源与事件类型）、组织同步日志、调度任务日志。
  * 用户明确要求「系统运行日志不要，但要 Casdoor 的同步、登录、退出的日志」，
  * 因此这里只承载审计与同步两类业务日志，不接入 logback 输出。
+ *
+ * 四组列表共用 usePagedList（含竞态取消）与 BbTablePage（表格 + 分页器外壳），
+ * 列定义仍按各自业务写在插槽里，保持自定义单元格渲染不变。
  */
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.hasRole('ADMIN'))
 
 const tab = ref('login')
-const loading = ref(false)
+const size = 20
 
-// ── 操作日志 ──
-const operates = ref<OperateLogVO[]>([])
-const operateTotal = ref(0)
-const operatePage = ref(1)
-
-// ── 登录/退出日志 ──
-const logins = ref<LoginLogVO[]>([])
-const loginTotal = ref(0)
-const loginPage = ref(1)
 const loginFilter = reactive({ provider: '', eventType: '' })
 
-// ── 组织同步 ──
-const orgLogs = ref<OrgSyncLogVO[]>([])
-const orgTotal = ref(0)
-const orgPage = ref(1)
-
-// ── 调度任务 ──
-const jobLogs = ref<JobLogVO[]>([])
-const jobTotal = ref(0)
-const jobPage = ref(1)
-
-const size = 20
+const operates = usePagedList<OperateLogVO>((p, s) => listOperateLogs(p, s), { size })
+const logins = usePagedList<LoginLogVO>(
+  (p, s) => listLoginLogs(p, s, { provider: loginFilter.provider, eventType: loginFilter.eventType }),
+  { size },
+)
+const orgLogs = usePagedList<OrgSyncLogVO>((p, s) => listOrgSyncLogs(p, s), { size })
+const jobLogs = usePagedList<JobLogVO>((p, s) => listJobLogs(p, s), { size })
 
 const PROVIDER_LABEL: Record<string, string> = { LOCAL: '本地', CASDOOR: 'Casdoor' }
 const EVENT_LABEL: Record<string, string> = { LOGIN: '登录', LOGOUT: '退出' }
 
-async function loadOperates(): Promise<void> {
-  loading.value = true
-  try {
-    const data = await listOperateLogs(operatePage.value, size)
-    operates.value = data.list
-    operateTotal.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadLogins(): Promise<void> {
-  loading.value = true
-  try {
-    const data = await listLoginLogs(loginPage.value, size, {
-      provider: loginFilter.provider,
-      eventType: loginFilter.eventType,
-    })
-    logins.value = data.list
-    loginTotal.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadOrgLogs(): Promise<void> {
-  loading.value = true
-  try {
-    const data = await listOrgSyncLogs(orgPage.value, size)
-    orgLogs.value = data.list
-    orgTotal.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadJobLogs(): Promise<void> {
-  loading.value = true
-  try {
-    const data = await listJobLogs(jobPage.value, size)
-    jobLogs.value = data.list
-    jobTotal.value = data.total
-  } finally {
-    loading.value = false
-  }
-}
-
 function reload(): void {
-  if (tab.value === 'operate') void loadOperates()
-  else if (tab.value === 'login') void loadLogins()
-  else if (tab.value === 'orgsync') void loadOrgLogs()
-  else void loadJobLogs()
+  if (tab.value === 'operate') void operates.load()
+  else if (tab.value === 'login') void logins.load()
+  else if (tab.value === 'orgsync') void orgLogs.load()
+  else void jobLogs.load()
 }
 
 function onTabChange(): void {
@@ -105,8 +50,8 @@ function onTabChange(): void {
 function resetLoginFilter(): void {
   loginFilter.provider = ''
   loginFilter.eventType = ''
-  loginPage.value = 1
-  void loadLogins()
+  logins.page = 1
+  void logins.load()
 }
 
 function orgStatusType(status: string): 'success' | 'danger' | 'warning' {
@@ -115,7 +60,9 @@ function orgStatusType(status: string): 'success' | 'danger' | 'warning' {
   return 'warning'
 }
 
-onMounted(loadLogins)
+onMounted(() => {
+  void logins.load()
+})
 </script>
 
 <template>
@@ -130,7 +77,7 @@ onMounted(loadLogins)
             size="small"
             class="logs__filter"
             data-test="login-filter-provider"
-            @change="() => { loginPage = 1; loadLogins() }"
+            @change="() => { logins.page = 1; void logins.load() }"
           >
             <el-option label="本地" value="LOCAL" />
             <el-option label="Casdoor" value="CASDOOR" />
@@ -142,16 +89,23 @@ onMounted(loadLogins)
             size="small"
             class="logs__filter"
             data-test="login-filter-event"
-            @change="() => { loginPage = 1; loadLogins() }"
+            @change="() => { logins.page = 1; void logins.load() }"
           >
             <el-option label="登录" value="LOGIN" />
             <el-option label="退出" value="LOGOUT" />
           </el-select>
           <el-button size="small" @click="resetLoginFilter">重置</el-button>
-          <el-button size="small" @click="loadLogins">刷新</el-button>
+          <el-button size="small" @click="logins.load()">刷新</el-button>
         </div>
 
-        <el-table v-loading="loading" :data="logins" border stripe size="small">
+        <BbTablePage
+          :rows="logins.rows"
+          :total="logins.total"
+          :page="logins.page"
+          :size="logins.size"
+          :loading="logins.loading"
+          @update:page="(p: number) => void logins.setPage(p)"
+        >
           <el-table-column prop="createdAt" label="时间" width="150">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
@@ -181,20 +135,18 @@ onMounted(loadLogins)
             <template #default="{ row }">{{ row.externalId || '—' }}</template>
           </el-table-column>
           <el-table-column prop="userAgent" label="User-Agent" min-width="200" show-overflow-tooltip />
-        </el-table>
-        <div class="logs__pager">
-          <el-pagination
-            layout="total, prev, pager, next"
-            :total="loginTotal"
-            :page-size="size"
-            :current-page="loginPage"
-            @current-change="(p: number) => { loginPage = p; loadLogins() }"
-          />
-        </div>
+        </BbTablePage>
       </el-tab-pane>
 
       <el-tab-pane label="操作日志" name="operate">
-        <el-table v-loading="loading" :data="operates" border stripe size="small">
+        <BbTablePage
+          :rows="operates.rows"
+          :total="operates.total"
+          :page="operates.page"
+          :size="operates.size"
+          :loading="operates.loading"
+          @update:page="(p: number) => void operates.setPage(p)"
+        >
           <el-table-column prop="createdAt" label="时间" width="150">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
@@ -212,20 +164,18 @@ onMounted(loadLogins)
               <el-tag size="small" :type="row.status === 'SUCCESS' ? 'success' : 'danger'">{{ row.status }}</el-tag>
             </template>
           </el-table-column>
-        </el-table>
-        <div class="logs__pager">
-          <el-pagination
-            layout="total, prev, pager, next"
-            :total="operateTotal"
-            :page-size="size"
-            :current-page="operatePage"
-            @current-change="(p: number) => { operatePage = p; loadOperates() }"
-          />
-        </div>
+        </BbTablePage>
       </el-tab-pane>
 
       <el-tab-pane label="组织同步" name="orgsync">
-        <el-table v-loading="loading" :data="orgLogs" border stripe size="small">
+        <BbTablePage
+          :rows="orgLogs.rows"
+          :total="orgLogs.total"
+          :page="orgLogs.page"
+          :size="orgLogs.size"
+          :loading="orgLogs.loading"
+          @update:page="(p: number) => void orgLogs.setPage(p)"
+        >
           <el-table-column prop="startedAt" label="开始时间" width="150">
             <template #default="{ row }">{{ formatDateTime(row.startedAt) }}</template>
           </el-table-column>
@@ -246,20 +196,18 @@ onMounted(loadLogins)
           <el-table-column prop="errorMessage" label="错误" min-width="200" show-overflow-tooltip>
             <template #default="{ row }">{{ row.errorMessage || '—' }}</template>
           </el-table-column>
-        </el-table>
-        <div class="logs__pager">
-          <el-pagination
-            layout="total, prev, pager, next"
-            :total="orgTotal"
-            :page-size="size"
-            :current-page="orgPage"
-            @current-change="(p: number) => { orgPage = p; loadOrgLogs() }"
-          />
-        </div>
+        </BbTablePage>
       </el-tab-pane>
 
       <el-tab-pane v-if="isAdmin" label="调度任务" name="job">
-        <el-table v-loading="loading" :data="jobLogs" border stripe size="small">
+        <BbTablePage
+          :rows="jobLogs.rows"
+          :total="jobLogs.total"
+          :page="jobLogs.page"
+          :size="jobLogs.size"
+          :loading="jobLogs.loading"
+          @update:page="(p: number) => void jobLogs.setPage(p)"
+        >
           <el-table-column prop="startedAt" label="开始时间" width="150">
             <template #default="{ row }">{{ formatDateTime(row.startedAt) }}</template>
           </el-table-column>
@@ -273,16 +221,7 @@ onMounted(loadLogins)
           <el-table-column prop="message" label="信息" min-width="240" show-overflow-tooltip>
             <template #default="{ row }">{{ row.message || '—' }}</template>
           </el-table-column>
-        </el-table>
-        <div class="logs__pager">
-          <el-pagination
-            layout="total, prev, pager, next"
-            :total="jobTotal"
-            :page-size="size"
-            :current-page="jobPage"
-            @current-change="(p: number) => { jobPage = p; loadJobLogs() }"
-          />
-        </div>
+        </BbTablePage>
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -304,10 +243,5 @@ onMounted(loadLogins)
 }
 .logs__muted {
   color: var(--bb-text-muted);
-}
-.logs__pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
 }
 </style>

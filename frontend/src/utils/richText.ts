@@ -1,4 +1,5 @@
 import { marked } from 'marked'
+import { sanitizeRichTextHtml } from './sanitize'
 
 /**
  * 富文本格式兼容工具。
@@ -49,11 +50,18 @@ function normalizeTaskLists(html: string): string {
     .replace(/<ul>\s*(<li data-type="taskItem")/g, '<ul data-type="taskList">$1')
 }
 
-/** 任意日志正文（HTML 或 Markdown）转成编辑器可解析的 HTML。 */
+/**
+ * 任意日志正文（HTML 或 Markdown）转成编辑器可解析的 HTML。
+ *
+ * `isHtmlContent` 只是**格式判别**，不是安全边界：数据库里的 HTML 可能来自历史导入、
+ * AI 生成或直接调 API 写入。因此两条分支的产物统一过一次 `sanitizeRichTextHtml`，
+ * 与后端写入时的 RichTextGuard 组成双防线；后续即使更换渲染器也不会退化成存储型 XSS。
+ */
 export function toEditorHtml(content: string | null | undefined): string {
   const src = content ?? ''
   if (!src.trim()) return '<p></p>'
-  return isHtmlContent(src) ? src : markdownToHtml(src)
+  const html = isHtmlContent(src) ? src : markdownToHtml(src)
+  return sanitizeRichTextHtml(html)
 }
 
 /**

@@ -11,7 +11,7 @@ withDefaults(
     clearable?: boolean
     showPassword?: boolean
   }>(),
-  { modelValue: '', type: 'text', clearable: true },
+  { modelValue: '', type: 'text', clearable: true, placeholder: '' },
 )
 
 const emit = defineEmits<{ 'update:modelValue': [string] }>()

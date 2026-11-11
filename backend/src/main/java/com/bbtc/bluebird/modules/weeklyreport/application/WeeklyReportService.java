@@ -7,6 +7,7 @@ import com.bbtc.bluebird.common.domain.PageResult;
 import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.model.UserContext;
+import com.bbtc.bluebird.common.util.RichTextGuard;
 import com.bbtc.bluebird.modules.ai.application.AiModelService;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
@@ -181,6 +182,8 @@ public class WeeklyReportService {
         if (req.version() != null && !req.version().equals(report.getVersion())) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT, "周报已被修改，请刷新后重试");
         }
+        // 正文来自前端编辑器，也可被直接调 API 伪造；落库前拒绝明确的 XSS 载荷。
+        RichTextGuard.assertSafe(req.contentHtml());
         report.setContentHtml(req.contentHtml());
         report.setStatus("DONE");
         report.setUpdatedBy(me);

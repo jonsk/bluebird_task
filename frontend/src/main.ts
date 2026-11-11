@@ -44,4 +44,7 @@ async function bootstrap(): Promise<void> {
   app.mount('#app')
 }
 
-void bootstrap()
+void bootstrap().catch((e: unknown) => {
+  // 挂载失败时 Element Plus 尚未就绪，只能用控制台兜底，避免静默白屏。
+  console.error('[bluebird] 应用启动失败', e)
+})

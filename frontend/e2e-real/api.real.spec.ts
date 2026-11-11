@@ -10,7 +10,7 @@ import { expect, test, type APIRequestContext, type APIResponse } from '@playwri
  *
  * 为什么需要它：默认 `pnpm test:e2e` 全部走 MSW fixtures（小 id、内存态），
  * 曾因此漏掉 4 个阻断级缺陷——snowflake id 超 2^53 导致按 id 操作全废、
- * 分类树 NPE、附件上传 10000、连续上传被误判重复提交。这些只有在真实后端才暴露。
+ * 附件上传 10000、连续上传被误判重复提交。这些只有在真实后端才暴露。
  */
 
 const BASE = process.env.E2E_REAL_BASE_URL ?? 'http://127.0.0.1:8080'

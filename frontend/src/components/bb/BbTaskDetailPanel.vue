@@ -4,7 +4,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Bell,
   Calendar,
-  CircleClose,
   Flag,
   Notebook,
   Paperclip,
@@ -27,6 +26,7 @@ import {
   type TaskUpsertPayload,
 } from '@/api/task'
 import BbAttachmentList from './BbAttachmentList.vue'
+import BbDateReminderPicker from './BbDateReminderPicker.vue'
 import { useMetaStore } from '@/stores/meta'
 import { PRIORITY, PRIORITY_LABEL, type Priority, type RoleCode } from '@/utils/constants'
 import { formatDateTime, toOffsetIso } from '@/utils/date'
@@ -99,17 +99,35 @@ function payloadOf(over: Partial<TaskUpsertPayload> = {}): (TaskUpsertPayload & 
   }
 }
 
-async function save(over: Partial<TaskUpsertPayload>): Promise<void> {
+async function save(over: Partial<TaskUpsertPayload>): Promise<boolean> {
   const t = detail.value
   const payload = payloadOf(over)
-  if (!t || !payload || !writable.value) return
+  if (!t || !payload || !writable.value) return false
   try {
     await updateTask(Number(t.id), payload)
     detail.value = await fetchDetail(Number(t.id))
     emit('changed')
+    return true
   } catch (e) {
     ElMessage.error((e as Error)?.message || '保存失败')
+    return false
   }
+}
+
+/**
+ * 到期/提醒选择器变更：乐观更新本地值（选中即见反馈），保存失败再回滚到旧值。
+ * 保留「服务端为唯一事实来源」——保存成功后会由 fetchDetail 回填，覆盖乐观值。
+ */
+async function onPickDate(field: 'due' | 'remind', v: string | null): Promise<void> {
+  const local = field === 'due' ? dueLocal : remindLocal
+  const prev = local.value
+  local.value = v ?? ''
+  const payload =
+    field === 'due'
+      ? { dueAt: v ? toOffsetIso(v) : null }
+      : { remindAt: v ? toOffsetIso(v) : null }
+  const ok = await save(payload)
+  if (!ok) local.value = prev
 }
 
 // ── 各字段本地态（保存后由 detail 回填） ──
@@ -313,40 +331,22 @@ async function onAddStep(): Promise<void> {
         </div>
 
         <!-- 截止 -->
-        <div class="drbb-item drbb-item-d drbb-shadow1 drbbi-two">
-          <el-icon class="drbbi-icon"><Calendar /></el-icon>
-          <el-date-picker
-            v-model="dueLocal"
-            type="datetime"
-            class="drbb-plainpicker"
-            placeholder="设置截止时间"
-            :disabled="!writable"
-            @change="(v: string) => save({ dueAt: v ? toOffsetIso(v) : null })"
-          />
-          <el-icon
-            v-if="detail.dueAt && writable"
-            class="drbb-clear"
-            @click="save({ dueAt: null })"
-          ><CircleClose /></el-icon>
-        </div>
+        <BbDateReminderPicker
+          :model-value="dueLocal"
+          :icon="Calendar"
+          placeholder="设置截止时间"
+          :disabled="!writable"
+          @change="(v: string | null) => onPickDate('due', v)"
+        />
 
         <!-- 提醒 -->
-        <div class="drbb-item drbb-item-d drbb-shadow1 drbbi-two">
-          <el-icon class="drbbi-icon"><Bell /></el-icon>
-          <el-date-picker
-            v-model="remindLocal"
-            type="datetime"
-            class="drbb-plainpicker"
-            placeholder="设置提醒时间"
-            :disabled="!writable"
-            @change="(v: string) => save({ remindAt: v ? toOffsetIso(v) : null })"
-          />
-          <el-icon
-            v-if="detail.remindAt && writable"
-            class="drbb-clear"
-            @click="save({ remindAt: null })"
-          ><CircleClose /></el-icon>
-        </div>
+        <BbDateReminderPicker
+          :model-value="remindLocal"
+          :icon="Bell"
+          placeholder="设置提醒时间"
+          :disabled="!writable"
+          @change="(v: string | null) => onPickDate('remind', v)"
+        />
 
         <!-- 重复 -->
         <div class="drbb-item drbb-item-d drbb-shadow1 drbbi-two">

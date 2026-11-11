@@ -8,6 +8,7 @@ import BbTaskComposer from '@/components/bb/BbTaskComposer.vue'
 import BbTaskDetailPanel from '@/components/bb/BbTaskDetailPanel.vue'
 import BbMiniCalendar from '@/components/bb/BbMiniCalendar.vue'
 import BbTagConfig from '@/components/bb/BbTagConfig.vue'
+import BbPageHeader from '@/components/bb/BbPageHeader.vue'
 import { useTaskStore } from '@/stores/task'
 import { useMetaStore } from '@/stores/meta'
 import { useMenuStore } from '@/stores/menu'
@@ -73,8 +74,15 @@ function clearAllFilters(): void {
 }
 
 onMounted(async () => {
-  await Promise.all([reload(), metaStore.loadTags(), menuStore.load()])
-  await metaStore.searchUsers('')
+  // 任一初始化失败都不能阻断人员选择器加载（此前 Promise.all 抛错会静默跳过 searchUsers）。
+  const results = await Promise.allSettled([reload(), metaStore.loadTags(), menuStore.load()])
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+  if (failed) ElMessage.error((failed.reason as Error)?.message || '初始化失败')
+  try {
+    await metaStore.searchUsers('')
+  } catch (e) {
+    ElMessage.error((e as Error).message || '人员列表加载失败')
+  }
 })
 
 function onEdit(task: TaskDetailVO | TaskVO): void {
@@ -120,32 +128,26 @@ async function onRemove(task: TaskVO): Promise<void> {
   <div class="right-box">
     <div class="right-box-div">
       <div class="right-main">
-        <section class="right-box-top">
-          <div class="r-b-t-left">
-            <div class="r-b-t-l-left">
-              <el-icon class="r-b-t-l-l-icon" :size="28"><component :is="scopeIcon" /></el-icon>
-              <div class="r-b-t-l-l-text">
-                <div class="r-b-t-l-l-t-top">{{ title }}</div>
-                <div class="r-b-t-l-l-t-bottom">{{ headerDate }}</div>
-              </div>
-            </div>
-
-            <div class="r-b-t-l-right">
-              <el-input
-                v-model="keyword"
-                class="r-b-t-l-r-search"
-                placeholder="请输入"
-                clearable
-                @keyup.enter="reload"
-                @clear="reload"
-              />
-            </div>
-
-            <div class="r-b-t-right">
-              <BbTagConfig />
-            </div>
-          </div>
-        </section>
+        <BbPageHeader
+          class="page-shell--task"
+          :title="title"
+          :icon="scopeIcon"
+          :date="headerDate"
+        >
+          <template #search>
+            <el-input
+              v-model="keyword"
+              class="r-b-t-l-r-search"
+              placeholder="请输入"
+              clearable
+              @keyup.enter="reload"
+              @clear="reload"
+            />
+          </template>
+          <template #actions>
+            <BbTagConfig />
+          </template>
+        </BbPageHeader>
 
         <section class="right-box-bottom">
           <div class="todo-box">
@@ -232,59 +234,6 @@ async function onRemove(task: TaskVO): Promise<void> {
   flex: 1;
   min-width: 0;
 }
-.right-box-top {
-  height: 50px;
-  margin-bottom: 20px;
-  padding-top: 15px;
-  box-sizing: border-box;
-  user-select: none;
-}
-.r-b-t-left {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
-  min-width: 0;
-  padding-left: 20px;
-}
-/* 标题块永不压缩：窄窗口下曾被挤成「一列一个字」 */
-.r-b-t-l-left {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-}
-.r-b-t-l-l-icon {
-  color: var(--bb-text-secondary);
-}
-.r-b-t-l-l-text {
-  margin-left: 10px;
-  white-space: nowrap;
-}
-.r-b-t-l-l-t-top {
-  font-size: 16px;
-}
-.r-b-t-l-l-t-bottom {
-  font-size: 12px;
-  color: var(--bb-text-muted);
-}
-/* 搜索框：宽屏顶到 500px 维持原样，窄屏按比例收（原来死宽 500px 会把标题、标签挤出屏幕） */
-.r-b-t-l-right {
-  flex: 1 1 auto;
-  min-width: 120px;
-  max-width: 500px;
-  margin-left: 24px;
-}
-/* 注意：模板上的类是 r-b-t-l-r-search（这里原来写成 r-b-t-r-search，选择器一直没匹配上） */
-.r-b-t-l-r-search {
-  width: 100%;
-}
-.r-b-t-right {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  margin-left: 12px;
-  padding-right: 12px;
-}
 .right-box-bottom {
   height: calc(100vh - 80px);
 }
@@ -330,4 +279,9 @@ async function onRemove(task: TaskVO): Promise<void> {
   /* 详情面板里的表单/长标题比栏宽时左右滚动，而不是溢出压到中间的列表上 */
   overflow: auto;
 }
+</style>
+
+<!-- 页头共享样式：非 scoped，保证规则能作用到 BbPageHeader 组件内部的节点 -->
+<style>
+@import '../../styles/page-shell.css';
 </style>

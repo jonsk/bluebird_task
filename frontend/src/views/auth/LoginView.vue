@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { externalConfig, type ExternalConfig } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { BizError } from '@/api/http'
+import { safeRedirect } from '@/utils/format'
 
 /**
  * 登录页（旧 `.login` / `.login-box`）：全屏背景 + 400px 白卡（padding 40 40 20 / radius 6），
@@ -48,7 +49,7 @@ async function onSubmit(): Promise<void> {
   try {
     await auth.login({ username: form.username, password: form.password })
     if (auth.mustChangePassword) ElMessage.warning('首次登录，请尽快修改密码')
-    const redirect = (route.query.redirect as string) || '/index'
+    const redirect = safeRedirect(route.query.redirect)
     await router.replace(redirect)
   } catch (e) {
     ElMessage.error(e instanceof BizError ? e.message : '登录失败，请稍后重试')
@@ -60,7 +61,7 @@ async function onSubmit(): Promise<void> {
 /** 整页跳转到后端 OIDC 入口；`redirect` 让登录成功后回到用户原本想去的页面。 */
 function loginOidc(): void {
   const base = externalCfg.value?.authorizeUrl || '/api/v1/auth/oidc/redirect'
-  const redirect = (route.query.redirect as string) || '/index'
+  const redirect = safeRedirect(route.query.redirect)
   const sep = base.includes('?') ? '&' : '?'
   window.location.assign(`${base}${sep}redirect=${encodeURIComponent(redirect)}`)
 }

@@ -135,7 +135,7 @@ function mergeFiles(base: unknown[]): FileLike[] {
   return [...(base as FileLike[]), ...fileStore.filter((f) => !seen.has(Number(f.id)))]
 }
 
-/* ---------- 分类树：内存 CRUD + 子树/范围 ---------- */
+/* ---------- 收藏集与内存序号（分类能力已在后端 V4 下线） ---------- */
 
 /** 收藏集：与计数 fixture（collect=1）一致，预置首个任务。 */
 const collected = new Set<number>(tasks.length ? [tasks[0].id] : [])
@@ -624,12 +624,13 @@ export const handlers = [
   http.get(`${AUTH}/admin/config`, () => ok(configGroups())),
   http.get(`${AUTH}/admin/config/:group`, ({ params }) => {
     const g = configGroups().find((x) => x.group === params.group)
-    return g ? ok(g) : fail(10004, '配置分组不存在')
+    // fail 的第二参是 fixture 文件名片段（_errors/10004.<name>.json），不是错误文案。
+    return g ? ok(g) : fail(10004, 'notfound')
   }),
   http.put(`${AUTH}/admin/config/:group`, async ({ request, params }) => {
     const body = (await request.json()) as { values?: Record<string, string | null> }
     const group = configGroups().find((x) => x.group === params.group)
-    if (!group) return fail(10004, '配置分组不存在')
+    if (!group) return fail(10004, 'notfound')
     for (const item of group.items) {
       const v = body.values?.[item.key]
       if (v === undefined || v === null || v === '******') continue

@@ -11,6 +11,7 @@ import {
   type UserVO,
   type UserCreateReq,
 } from '@/api/user'
+import BbFormDialog from '@/components/bb/BbFormDialog.vue'
 import { useMetaStore } from '@/stores/meta'
 import { ROLE_CODE, ROLE_DESC } from '@/utils/constants'
 
@@ -317,13 +318,13 @@ async function savePwd(): Promise<void> {
       <header class="org-manage__left-head">
         <h2>部门</h2>
         <div class="org-manage__left-actions">
-          <el-button size="small" @click="openImport" data-test="dept-import-open">导入</el-button>
+          <el-button size="small" data-test="dept-import-open" @click="openImport">导入</el-button>
           <el-button size="small" type="primary" :loading="exporting" data-test="dept-export" @click="onExport">
             导出
           </el-button>
         </div>
       </header>
-      <div class="org-manage__tree" v-loading="treeLoading">
+      <div v-loading="treeLoading" class="org-manage__tree">
         <el-tree
           :data="tree"
           node-key="id"
@@ -397,7 +398,12 @@ async function savePwd(): Promise<void> {
       </div>
     </div>
 
-    <el-dialog v-model="deptDialogOpen" :title="deptEditingId == null ? '新建部门' : '编辑部门'" width="420px">
+    <BbFormDialog
+      v-model:open="deptDialogOpen"
+      :title="deptEditingId == null ? '新建部门' : '编辑部门'"
+      width="420px"
+      @submit="saveDept"
+    >
       <el-form label-width="80px">
         <el-form-item label="名称"><el-input v-model="deptForm.name" /></el-form-item>
         <el-form-item label="负责人">
@@ -406,11 +412,7 @@ async function savePwd(): Promise<void> {
           </el-select>
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="deptDialogOpen = false">取消</el-button>
-        <el-button type="primary" @click="saveDept">保存</el-button>
-      </template>
-    </el-dialog>
+    </BbFormDialog>
 
     <el-dialog v-model="importOpen" title="导入部门" width="600px" data-test="dept-import-dialog">
       <div class="dept-import">
@@ -460,7 +462,12 @@ async function savePwd(): Promise<void> {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="userDialogOpen" :title="editingId == null ? '新建用户' : '编辑用户'" width="500px">
+    <BbFormDialog
+      v-model:open="userDialogOpen"
+      :title="editingId == null ? '新建用户' : '编辑用户'"
+      width="500px"
+      @submit="saveUser"
+    >
       <el-form label-width="80px">
         <el-form-item label="用户名">
           <el-input v-model="userForm.username" :disabled="editingId != null" />
@@ -497,23 +504,20 @@ async function savePwd(): Promise<void> {
           <el-input v-model="userForm.password" type="password" placeholder="留空则首登强制改密" show-password />
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="userDialogOpen = false">取消</el-button>
-        <el-button type="primary" @click="saveUser">保存</el-button>
-      </template>
-    </el-dialog>
+    </BbFormDialog>
 
-    <el-dialog v-model="pwdOpen" title="重置密码" width="380px">
+    <BbFormDialog v-model:open="pwdOpen" title="重置密码" width="380px">
       <el-form label-width="80px">
         <el-form-item label="新密码">
           <el-input v-model="pwdForm.newPassword" type="password" show-password />
         </el-form-item>
       </el-form>
+      <!-- 保留原 footer：确认按钮文案是「确定」，不是内置 footer 的「保存」 -->
       <template #footer>
         <el-button @click="pwdOpen = false">取消</el-button>
         <el-button type="primary" @click="savePwd">确定</el-button>
       </template>
-    </el-dialog>
+    </BbFormDialog>
   </div>
 </template>
 

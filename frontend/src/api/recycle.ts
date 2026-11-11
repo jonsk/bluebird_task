@@ -9,7 +9,7 @@ import { del, get, post } from './http'
  */
 export type RecycleType = 'TASK' | 'NOTE'
 
-export interface RecycleItem {
+export type RecycleItem = {
   type: RecycleType
   id: number
   title: string

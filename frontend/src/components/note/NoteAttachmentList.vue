@@ -5,6 +5,8 @@ import { Delete, Download, Paperclip, View } from '@element-plus/icons-vue'
 import { bindAttachment, removeAttachment } from '@/api/note'
 import { openAttachment, uploadFile } from '@/api/file'
 import { useFileConfig } from '@/composables/useFileConfig'
+import { formatFileSize, toErrorMessage } from '@/utils/format'
+import { validateUploadFile } from '@/utils/upload'
 import type { NoteAttachmentVO } from '@/types/note'
 
 /**
@@ -46,33 +48,17 @@ onMounted(() => {
   void loadConfig()
 })
 
-function sizeText(size?: number): string {
-  if (!size) return ''
-  if (size < 1024) return `${size} B`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
-  return `${(size / 1024 / 1024).toFixed(1)} MB`
-}
-
-function extOf(name?: string): string {
-  const i = (name ?? '').lastIndexOf('.')
-  return i >= 0 ? name!.slice(i + 1).toLowerCase() : ''
-}
-
 async function onPick(e: Event): Promise<void> {
   const input = e.target as HTMLInputElement
   const picked = Array.from(input.files ?? [])
   input.value = ''
   if (!picked.length) return
 
-  const allowedExt = (config.value.allowedExt ?? []).map((x) => x.toLowerCase())
   const accepted: File[] = []
   for (const file of picked) {
-    if (config.value.maxSize && file.size > config.value.maxSize) {
-      ElMessage.error(`${file.name} 超过上限 ${sizeText(config.value.maxSize)}`)
-      continue
-    }
-    if (allowedExt.length && !allowedExt.includes(extOf(file.name))) {
-      ElMessage.error(`${file.name} 类型不支持，仅允许 ${config.value.allowedExt.join(' / ')}`)
+    const error = validateUploadFile(file, config.value)
+    if (error) {
+      ElMessage.error(error)
       continue
     }
     accepted.push(file)
@@ -103,7 +89,7 @@ async function onPick(e: Event): Promise<void> {
         } catch (err) {
           const name = (err as Error)?.name
           if (name !== 'CanceledError' && name !== 'AbortError') {
-            ElMessage.error(`${file.name}：${(err as Error)?.message || '上传失败'}`)
+            ElMessage.error(`${file.name}：${toErrorMessage(err, '上传失败')}`)
           }
         }
       }),
@@ -132,7 +118,7 @@ async function open(mode: 'download' | 'preview', row: NoteAttachmentVO): Promis
   try {
     await openAttachment({ mode, url: row.downloadUrl, fileName: row.fileName, contentType: row.contentType ?? undefined })
   } catch (err) {
-    ElMessage.error((err as Error)?.message || '下载失败')
+    ElMessage.error(toErrorMessage(err, '下载失败'))
   }
 }
 
@@ -143,7 +129,7 @@ async function remove(row: NoteAttachmentVO): Promise<void> {
     emit('refresh')
     emit('changed')
   } catch (err) {
-    ElMessage.error((err as Error)?.message || '移除失败')
+    ElMessage.error(toErrorMessage(err, '移除失败'))
   }
 }
 </script>
@@ -154,7 +140,7 @@ async function remove(row: NoteAttachmentVO): Promise<void> {
       <li v-for="row in files" :key="row.attachmentId ?? row.fileName" class="note-attachments__item">
         <el-icon class="note-attachments__icon"><Paperclip /></el-icon>
         <span class="note-attachments__name" :title="row.fileName">{{ row.fileName }}</span>
-        <span class="note-attachments__size">{{ sizeText(row.size) }}</span>
+        <span class="note-attachments__size">{{ formatFileSize(row.size) }}</span>
         <span class="note-attachments__ops">
           <el-button text size="small" :icon="View" title="预览" @click="open('preview', row)" />
           <el-button text size="small" :icon="Download" title="下载" @click="open('download', row)" />

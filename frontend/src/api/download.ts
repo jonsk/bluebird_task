@@ -1,19 +1,6 @@
 import { http, BizError } from './http'
 import { messageOf } from '@/utils/errorCode'
-
-/** 从 Content-Disposition 解析文件名（优先 filename*=UTF-8''）。 */
-function fileNameOf(disposition: string, fallback: string): string {
-  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
-  if (utf8?.[1]) {
-    try {
-      return decodeURIComponent(utf8[1])
-    } catch {
-      return fallback
-    }
-  }
-  const plain = /filename="?([^";]+)"?/i.exec(disposition)
-  return plain?.[1] ?? fallback
-}
+import { parseContentDisposition } from '@/utils/format'
 
 /**
  * 带鉴权地下载文件（blob + 触发浏览器保存）。
@@ -31,7 +18,7 @@ export async function downloadFile(url: string, fallbackName: string): Promise<s
     const body = JSON.parse(await (resp.data as Blob).text()) as { code: number; message?: string; traceId?: string }
     throw new BizError(body.code, body.message || messageOf(body.code), body.traceId)
   }
-  const name = fileNameOf(String(resp.headers['content-disposition'] ?? ''), fallbackName)
+  const name = parseContentDisposition(String(resp.headers['content-disposition'] ?? ''), fallbackName)
   const objectUrl = URL.createObjectURL(resp.data as Blob)
   const a = document.createElement('a')
   a.href = objectUrl

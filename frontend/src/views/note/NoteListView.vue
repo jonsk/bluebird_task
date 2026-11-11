@@ -11,6 +11,7 @@ import {
 import NoteList from '@/components/note/NoteList.vue'
 import NoteFilterBar from '@/components/note/NoteFilterBar.vue'
 import NoteSearchInput from '@/components/note/NoteSearchInput.vue'
+import BbPageHeader from '@/components/bb/BbPageHeader.vue'
 import type { NoteBrief, NoteQuery, NoteQueryPatch, NoteScope } from '@/types/note'
 import { formatHeaderDate } from '@/utils/date'
 
@@ -78,26 +79,21 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
   <div class="right-box">
     <div class="right-box-div">
       <div class="right-main">
-        <section class="right-box-top">
-          <div class="r-b-t-left">
-            <div class="r-b-t-l-left">
-              <el-icon class="r-b-t-l-l-icon" :size="28"><component :is="scopeIcon" /></el-icon>
-              <div class="r-b-t-l-l-text">
-                <div class="r-b-t-l-l-t-top">{{ title }}</div>
-                <div class="r-b-t-l-l-t-bottom">{{ headerDate }}</div>
-              </div>
-            </div>
-
-            <!-- 搜索框与「我的一天」同位置：标题栏右侧，不随列表滚动 -->
-            <div class="r-b-t-l-right">
-              <NoteSearchInput
-                :query="query"
-                :loading="loading"
-                @change="(patch) => emit('change', patch)"
-              />
-            </div>
-          </div>
-        </section>
+        <BbPageHeader
+          class="page-shell--note"
+          :title="title"
+          :icon="scopeIcon"
+          :date="headerDate"
+        >
+          <!-- 搜索框与「我的一天」同位置：标题栏右侧，不随列表滚动 -->
+          <template #search>
+            <NoteSearchInput
+              :query="query"
+              :loading="loading"
+              @change="(patch) => emit('change', patch)"
+            />
+          </template>
+        </BbPageHeader>
 
         <section class="right-box-bottom">
           <div class="note-page">
@@ -160,48 +156,6 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
   flex: 1;
   min-width: 0;
 }
-.right-box-top {
-  height: 50px;
-  margin-bottom: 20px;
-  padding-top: 15px;
-  box-sizing: border-box;
-  user-select: none;
-}
-.r-b-t-left {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
-  min-width: 0;
-  /* 左右各让出与列表一致的页面栅格，搜索框右边缘和卡片右边缘对齐 */
-  padding: 0 var(--bb-page-padding);
-  box-sizing: border-box;
-}
-.r-b-t-l-right {
-  flex: 0 1 360px;
-  min-width: 120px;
-  margin-left: 24px;
-}
-/* 标题块永不压缩：窄窗口下曾被挤成「一列一个字」 */
-.r-b-t-l-left {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-}
-.r-b-t-l-l-icon {
-  color: var(--bb-text-secondary);
-}
-.r-b-t-l-l-text {
-  margin-left: 10px;
-  white-space: nowrap;
-}
-.r-b-t-l-l-t-top {
-  font-size: 16px;
-}
-.r-b-t-l-l-t-bottom {
-  font-size: 12px;
-  color: var(--bb-text-muted);
-}
 .right-box-bottom {
   height: calc(100vh - 80px);
   overflow-y: auto;
@@ -216,4 +170,9 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
 .note-page__empty {
   padding: 40px 0;
 }
+</style>
+
+<!-- 页头共享样式：非 scoped，保证规则能作用到 BbPageHeader 组件内部的节点 -->
+<style>
+@import '../../styles/page-shell.css';
 </style>

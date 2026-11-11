@@ -35,6 +35,9 @@ const date = ref<string | null>(null)
 
   const isEmpty = computed(() => !loading.value && list.value.length === 0)
 
+  /** 列表请求序号：只让最后一次请求写回，避免快速切筛选时旧结果覆盖新条件。 */
+  let listSeq = 0
+
   async function fetchList(
     scope: Scope,
     opts: {
@@ -46,6 +49,7 @@ const date = ref<string | null>(null)
       size?: number
     } = {},
   ): Promise<void> {
+    const seq = ++listSeq
     currentScope.value = scope
     loading.value = true
     try {
@@ -58,13 +62,14 @@ const date = ref<string | null>(null)
         page: opts.page ?? 1,
         size: opts.size ?? 100,
       })
+      if (seq !== listSeq) return
       list.value = data.list
       total.value = data.total
       if (scope === 'collect') {
         collectedIds.value = new Set(data.list.map((t) => Number(t.id)))
       }
     } finally {
-      loading.value = false
+      if (seq === listSeq) loading.value = false
     }
   }
 

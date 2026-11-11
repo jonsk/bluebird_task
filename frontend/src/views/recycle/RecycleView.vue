@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/date'
 import BbEmpty from '@/components/bb/BbEmpty.vue'
+import BbTablePage from '@/components/bb/BbTablePage.vue'
 
 /**
  * 回收站（2026-10-30）。左栏底部垃圾桶入口。
@@ -67,6 +68,11 @@ function onSearch(): void {
 
 function onSelectionChange(items: RecycleItem[]): void {
   selected.value = items
+}
+
+function onPageChange(pageNum: number): void {
+  page.value = pageNum
+  void load()
 }
 
 function refOf(item: RecycleItem): RecycleRef {
@@ -241,13 +247,17 @@ onMounted(load)
       </div>
     </div>
 
-    <div class="recycle-view__body" v-loading="loading">
-      <el-table
+    <div v-loading="loading" class="recycle-view__body">
+      <BbTablePage
         v-if="rows.length"
-        :data="rows"
-        size="small"
-        row-key="id"
         data-test="recycle-table"
+        :rows="rows"
+        :total="total"
+        :page="page"
+        :size="size"
+        :loading="loading"
+        row-key="id"
+        @update:page="onPageChange"
         @selection-change="onSelectionChange"
       >
         <el-table-column type="selection" width="42" />
@@ -293,21 +303,9 @@ onMounted(load)
             </el-button>
           </template>
         </el-table-column>
-      </el-table>
-
+      </BbTablePage>
       <BbEmpty v-else-if="!loading" description="回收站是空的" />
     </div>
-
-    <footer v-if="total > size" class="recycle-view__pager">
-      <el-pagination
-        v-model:current-page="page"
-        :page-size="size"
-        :total="total"
-        layout="prev, pager, next, total"
-        background
-        @current-change="load"
-      />
-    </footer>
   </div>
 </template>
 
@@ -365,10 +363,5 @@ onMounted(load)
 }
 .recycle-view__item-title {
   color: var(--bb-text-secondary);
-}
-.recycle-view__pager {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 10px;
 }
 </style>

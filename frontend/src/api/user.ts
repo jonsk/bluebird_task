@@ -1,17 +1,14 @@
 import { get, post, put, del } from './http'
 import type { components } from '@/types/api'
+import type { Page } from '@/types/page'
 
 export type UserVO = components['schemas']['UserVO']
 export type UserCreateReq = components['schemas']['UserCreateReq']
 export type UserUpdateReq = components['schemas']['UserUpdateReq']
 export type PasswordUpdateReq = components['schemas']['PasswordUpdateReq']
 
-export interface UserPage {
-  list: UserVO[]
-  total: number
-  page: number
-  size: number
-}
+/** 用户分页响应体，复用通用分页类型。 */
+export type UserPage = Page<UserVO>
 
 export function me(): Promise<UserVO> {
   return get<UserVO>('/users/me')

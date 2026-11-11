@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, MagicStick, Setting } from '@element-plus/icons-vue'
 import WeeklyReportEditor from '@/components/weekly/WeeklyReportEditor.vue'
+import BbFormDialog from '@/components/bb/BbFormDialog.vue'
+import { formatClock } from '@/utils/format'
 import {
   deleteWeeklyReport,
   generateWeeklyReport,
@@ -88,12 +90,6 @@ function mondayOf(date: Date): string {
   return toDateString(d)
 }
 
-function formatClock(input?: string | null): string {
-  const date = input ? new Date(input) : new Date()
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })
-}
-
 function statusOf(status?: WeeklyReportStatus | null): { label: string; type: 'success' | 'warning' | 'info' | 'danger' } | null {
   if (!status) return null
   return statusMeta[status] ?? { label: status, type: 'info' }
@@ -126,8 +122,15 @@ async function loadWeeks(): Promise<void> {
   }
 }
 
+/** 取消在途轮询：切周/切换报告前必须停掉，否则旧轮询会把 A 周内容写进 B 周编辑器。 */
+function stopPoll(): void {
+  if (pollTimer) clearTimeout(pollTimer)
+  pollTimer = null
+}
+
 /** 按当前选中周加载已有周报（没有周报则清空编辑器）。 */
 async function openSelectedWeek(): Promise<void> {
+  stopPoll()
   const row = selected.value
   saveStatus.value = 'idle'
   savedAt.value = ''
@@ -144,19 +147,26 @@ async function openSelectedWeek(): Promise<void> {
 async function selectWeek(row: WeeklyReportWeek): Promise<void> {
   if (row.weekStart === selectedWeek.value) return
   await saveNow()
+  stopPoll()
   selectedWeek.value = row.weekStart
   await openSelectedWeek()
 }
 
+/** 详情请求序号：连续切周时只让最后一次响应写回。 */
+let detailSeq = 0
+
 async function loadDetail(id: number): Promise<void> {
+  const seq = ++detailSeq
   loadingDetail.value = true
   try {
     const d = await getWeeklyReport(id)
+    if (seq !== detailSeq) return
     applyDetail(d)
   } catch (e) {
+    if (seq !== detailSeq) return
     ElMessage.error((e as Error).message || '周报加载失败')
   } finally {
-    loadingDetail.value = false
+    if (seq === detailSeq) loadingDetail.value = false
   }
 }
 
@@ -183,13 +193,18 @@ function refreshWeekRow(d: WeeklyReportVO): void {
 /* ==================== 生成 ==================== */
 
 function schedulePoll(): void {
-  if (pollTimer) clearTimeout(pollTimer)
+  stopPoll()
   const id = detail.value?.id
+  const weekStart = detail.value?.weekStart ?? selectedWeek.value
   if (id == null) return
+  /** 轮询是否仍属于当前周与当前报告（切周后一律丢弃旧结果）。 */
+  const isCurrent = (): boolean => selectedWeek.value === weekStart && detail.value?.id === id
   pollTimer = setTimeout(async () => {
     pollTimer = null
+    if (!isCurrent()) return
     try {
       const d = await getWeeklyReport(id)
+      if (!isCurrent()) return
       const wasGenerating = detail.value?.status === 'GENERATING'
       applyDetail(d)
       refreshWeekRow(d)
@@ -201,7 +216,7 @@ function schedulePoll(): void {
         }
       }
     } catch {
-      schedulePoll()
+      if (isCurrent()) schedulePoll()
     }
   }, 3000)
 }
@@ -229,8 +244,10 @@ async function startGenerate(): Promise<void> {
   generating.value = true
   try {
     const d = await generateWeeklyReport({ weekStart, overwrite: Boolean(existing?.reportId) })
-    applyDetail(d)
     refreshWeekRow(d)
+    // 生成期间用户可能切到别的周：只刷新周列表，不把 A 周内容写进 B 周编辑器。
+    if (selectedWeek.value !== weekStart) return
+    applyDetail(d)
     if (d.status === 'GENERATING') {
       ElMessage.info('已开始生成，请稍候…')
     } else if (d.status !== 'FAILED') {
@@ -469,7 +486,13 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <el-dialog v-model="prefVisible" title="周报个人规则" width="520px">
+    <BbFormDialog
+      v-model:open="prefVisible"
+      title="周报个人规则"
+      width="520px"
+      :loading="prefSaving"
+      @submit="savePreference"
+    >
       <el-form label-width="90px">
         <el-form-item label="行文风格">
           <el-select v-model="preference.style" class="weekly__pref-control">
@@ -490,11 +513,7 @@ onBeforeUnmount(() => {
           />
         </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="prefVisible = false">取消</el-button>
-        <el-button type="primary" :loading="prefSaving" @click="savePreference">保存</el-button>
-      </template>
-    </el-dialog>
+    </BbFormDialog>
   </div>
 </template>
 

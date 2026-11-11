@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { setAccessToken, setRefreshToken } from '@/api/token'
+import { safeRedirect } from '@/utils/format'
 
 /**
  * OIDC 整页回调落点（03 §5.1）：token 经 hash fragment 传入（防落历史/Referer/日志），
@@ -17,8 +18,8 @@ onMounted(async () => {
   const access = params.get('access_token')
   const refresh = params.get('refresh_token')
   const error = params.get('error')
-  // 后端在 state 中携带了用户原本要去的页面，登录后原路返回
-  const redirect = params.get('redirect') || '/index'
+  // 后端在 state 中携带了用户原本要去的页面，登录后原路返回；只接受站内单个 / 开头的路径。
+  const redirect = safeRedirect(params.get('redirect'))
 
   history.replaceState(null, '', window.location.pathname)
 
@@ -36,7 +37,7 @@ onMounted(async () => {
   if (refresh) setRefreshToken(refresh)
   try {
     await auth.fetchMe()
-    await router.replace(redirect.startsWith('/') ? redirect : '/index')
+    await router.replace(redirect)
   } catch {
     await router.replace('/login')
   }

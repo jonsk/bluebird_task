@@ -37,7 +37,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="calendar-view" v-loading="loading">
+  <div v-loading="loading" class="calendar-view">
     <header class="calendar-view__header">
       <h2>日历 · {{ monthLabel }}</h2>
     </header>

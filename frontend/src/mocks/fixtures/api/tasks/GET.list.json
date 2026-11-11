@@ -41,10 +41,6 @@
           11,
           8
         ],
-        "category": {
-          "id": 3,
-          "name": "汇报"
-        },
         "tags": [
           {
             "id": 1,
@@ -76,9 +72,7 @@
         "ccUsers": [],
         "participantIds": [
           1
-        ],
-        "category": null,
-        "tags": [
+        ],        "tags": [
           {
             "id": 2,
             "name": "紧急"
@@ -115,9 +109,7 @@
         "participantIds": [
           11,
           1
-        ],
-        "category": null,
-        "tags": [],
+        ],        "tags": [],
         "subtaskCompleted": 0,
         "subtaskTotal": 0,
         "files": [],
@@ -143,9 +135,7 @@
         "ccUsers": [],
         "participantIds": [
           1
-        ],
-        "category": null,
-        "tags": [],
+        ],        "tags": [],
         "subtaskCompleted": 0,
         "subtaskTotal": 0,
         "files": [],
@@ -189,9 +179,7 @@
         "participantIds": [
           1,
           11
-        ],
-        "category": null,
-        "tags": [
+        ],        "tags": [
           {
             "id": 3,
             "name": "日常"
@@ -240,9 +228,7 @@
         "participantIds": [
           11,
           1
-        ],
-        "category": null,
-        "tags": [],
+        ],        "tags": [],
         "subtaskCompleted": 0,
         "subtaskTotal": 0,
         "files": [],
@@ -281,9 +267,7 @@
         "ccUsers": [],
         "participantIds": [
           1
-        ],
-        "category": null,
-        "tags": [],
+        ],        "tags": [],
         "subtaskCompleted": 0,
         "subtaskTotal": 0,
         "files": [],

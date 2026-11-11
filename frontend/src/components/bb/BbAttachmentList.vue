@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { uploadTaskFile, deleteFile, fileDownloadUrl, type FileVO } from '@/api/file'
+import { useFileConfig } from '@/composables/useFileConfig'
+import { formatFileSize, toErrorMessage } from '@/utils/format'
+import { validateUploadFile } from '@/utils/upload'
 
 /**
  * 附件列表（03 §5.3.4）。上传/下载/删除；预览按 id 由后端代理（02 §5.6，修 SSRF）。
@@ -13,6 +16,11 @@ const props = withDefaults(defineProps<{ taskId?: number | null; files?: FileVO[
 })
 
 const emit = defineEmits<{ (e: 'changed'): void }>()
+
+const { config, load: loadConfig } = useFileConfig()
+onMounted(() => {
+  void loadConfig()
+})
 
 const uploading = ref(false)
 const items = reactive<FileVO[]>([])
@@ -33,6 +41,11 @@ async function onPick(event: Event): Promise<void> {
   const file = input.files?.[0]
   input.value = ''
   if (!file || props.taskId == null) return
+  const error = validateUploadFile(file, config.value)
+  if (error) {
+    ElMessage.error(error)
+    return
+  }
   uploading.value = true
   try {
     const stored = await uploadTaskFile(props.taskId, file)
@@ -40,7 +53,7 @@ async function onPick(event: Event): Promise<void> {
     ElMessage.success('上传成功')
     emit('changed')
   } catch (e) {
-    ElMessage.error((e as Error).message || '上传失败')
+    ElMessage.error(toErrorMessage(e, '上传失败'))
   } finally {
     uploading.value = false
   }
@@ -54,7 +67,7 @@ async function onDelete(file: FileVO): Promise<void> {
     ElMessage.success('已删除')
     emit('changed')
   } catch (e) {
-    ElMessage.error((e as Error).message || '删除失败')
+    ElMessage.error(toErrorMessage(e, '删除失败'))
   }
 }
 </script>
@@ -69,7 +82,7 @@ async function onDelete(file: FileVO): Promise<void> {
     <ul class="bb-attachments__list">
       <li v-for="file in items" :key="file.id" class="bb-attachments__item">
         <a :href="fileDownloadUrl(Number(file.id))" target="_blank" rel="noopener">{{ file.fileName }}</a>
-        <span class="bb-attachments__size">{{ Math.ceil(Number(file.size ?? 0) / 1024) }} KB</span>
+        <span class="bb-attachments__size">{{ formatFileSize(Number(file.size ?? 0)) }}</span>
         <el-button v-if="!disabled" text size="small" @click="onDelete(file)">删除</el-button>
       </li>
       <li v-if="!items.length" class="bb-attachments__empty">暂无附件</li>

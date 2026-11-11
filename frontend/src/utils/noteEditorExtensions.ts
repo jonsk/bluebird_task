@@ -30,7 +30,12 @@ export interface NoteExtensionOptions {
   /** editor = 可编辑（带占位符）；render = 只读详情渲染。 */
   mode?: 'editor' | 'render'
   placeholder?: string
+  /** weekly = 周报编辑器：不注册依赖 noteId 的节点（附件/提及/图片/斜杠菜单/链接点击）。 */
+  variant?: 'note' | 'weekly'
 }
+
+export const NOTE_PLACEHOLDER = '记录今日工作…（Ctrl+Enter 保存）'
+export const WEEKLY_PLACEHOLDER = '点击「AI 生成」自动生成周报，或直接手动撰写…'
 
 /**
  * 日志编辑器 / 只读渲染共用的 Tiptap 扩展集合。
@@ -42,6 +47,7 @@ export interface NoteExtensionOptions {
  */
 export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
   const mode = options.mode ?? 'editor'
+  const isWeekly = options.variant === 'weekly'
   const extensions = [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
@@ -49,7 +55,7 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
       code: false,
       codeBlock: false,
       link: {
-        openOnClick: mode === 'render',
+        openOnClick: mode === 'render' && !isWeekly,
         autolink: true,
         linkOnPaste: true,
       },
@@ -72,11 +78,15 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
     }),
     NoteDetailsSummary,
     DetailsContent,
-    Image.configure({
-      inline: false,
-      allowBase64: false,
-      HTMLAttributes: { class: 'note-image' },
-    }),
+    ...(isWeekly
+      ? []
+      : [
+          Image.configure({
+            inline: false,
+            allowBase64: false,
+            HTMLAttributes: { class: 'note-image' },
+          }),
+        ]),
     TableKit.configure({
       table: {
         resizable: true,
@@ -87,8 +97,7 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     NoteTypography,
     NoteIndent,
-    NoteAttachment,
-    NoteMention,
+    ...(isWeekly ? [] : [NoteAttachment, NoteMention]),
     NoteEmoji,
     TableOfContents.configure({
       anchorTypes: ['heading'],
@@ -106,10 +115,9 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
   if (mode === 'editor') {
     return [
       ...extensions,
-      NoteLinkClick,
-      SlashCommand,
+      ...(isWeekly ? [] : [NoteLinkClick, SlashCommand]),
       Placeholder.configure({
-        placeholder: options.placeholder ?? '记录今日工作…（Ctrl+Enter 保存）',
+        placeholder: options.placeholder ?? (isWeekly ? WEEKLY_PLACEHOLDER : NOTE_PLACEHOLDER),
       }),
     ]
   }

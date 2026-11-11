@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import DragHandle from '@tiptap/extension-drag-handle-vue-3'
 import { buildWeeklyReportExtensions } from '@/utils/weeklyReportExtensions'
+import { sanitizeRichTextHtml, containsDangerousRichText } from '@/utils/sanitize'
+import { useBlockDragHandle } from '@/composables/useBlockDragHandle'
+import BbSaveStatus from '@/components/bb/BbSaveStatus.vue'
 import { tableFromClipboard } from '@/utils/excelTablePaste'
 import { noteLinkHref } from '@/utils/noteLinkTarget'
 import NoteToolbar from '@/components/note/editor/NoteToolbar.vue'
@@ -38,6 +42,13 @@ const emit = defineEmits<{
 
 const tick = ref(0)
 let hydrating = false
+let warnedDanger = false
+const DANGER_WARN = '本文含已被过滤的嵌入式内容（视频/脚本等），编辑保存后将永久移除'
+// 载入即检查：含被过滤危险标签的历史周报，在用户不知情下编辑保存会静默丢失嵌入内容。
+if (containsDangerousRichText(props.modelValue || '')) {
+  warnedDanger = true
+  ElMessage.warning(DANGER_WARN)
+}
 
 const router = useRouter()
 
@@ -55,7 +66,7 @@ function openNoteLink(view: { dom: HTMLElement }, event: MouseEvent): boolean {
 }
 
 const editor = useEditor({
-  content: props.modelValue || '<p></p>',
+  content: sanitizeRichTextHtml(props.modelValue || '<p></p>'),
   editable: !props.readonly,
   extensions: buildWeeklyReportExtensions(),
   editorProps: {
@@ -85,11 +96,16 @@ watch(
   (html) => {
     const ed = editor.value
     if (!ed) return
-    const next = html || '<p></p>'
-    if (ed.getHTML() === next) return
+    const raw = html || '<p></p>'
+    if (!warnedDanger && containsDangerousRichText(raw)) {
+      warnedDanger = true
+      ElMessage.warning(DANGER_WARN)
+    }
+    if (ed.getHTML() === raw) return
     hydrating = true
     try {
-      ed.commands.setContent(next, { emitUpdate: false })
+      // 周报 contentHtml 可由 API 直接写入（绕过编辑器），回显前统一消毒。
+      ed.commands.setContent(sanitizeRichTextHtml(raw), { emitUpdate: false })
     } finally {
       hydrating = false
     }
@@ -101,27 +117,9 @@ watch(
   (readonly) => editor.value?.setEditable(!readonly),
 )
 
-/* ==================== 块拖拽手柄 ==================== */
+/* ==================== 块拖拽手柄（与日志编辑器共用同一套逻辑） ==================== */
 
-const hoveredBlock = ref<{ pos: number; size: number } | null>(null)
-
-function onNodeChange({ node, pos }: { node: { nodeSize: number } | null; pos: number }): void {
-  hoveredBlock.value = node ? { pos, size: node.nodeSize } : null
-}
-
-function insertBelow(): void {
-  const ed = editor.value
-  if (!ed) return
-  const insertPos = hoveredBlock.value
-    ? hoveredBlock.value.pos + hoveredBlock.value.size
-    : ed.state.selection.to
-
-  ed.chain()
-    .focus()
-    .insertContentAt(insertPos, { type: 'paragraph' })
-    .setTextSelection(insertPos + 1)
-    .run()
-}
+const { onNodeChange, insertBelow } = useBlockDragHandle(() => editor.value)
 </script>
 
 <template>
@@ -172,27 +170,15 @@ function insertBelow(): void {
       </div>
     </div>
 
-    <div
+    <BbSaveStatus
       v-if="!readonly"
-      class="note-editor__status"
-      :class="`is-${saveStatus}`"
-      data-test="weekly-editor-status"
-    >
-      <template v-if="saveStatus === 'saving'">
-        保存中…<span v-if="savedAt"> · 已保存 {{ savedAt }}</span>
-      </template>
-      <button
-        v-else-if="saveStatus === 'error'"
-        type="button"
-        class="note-editor__retry"
-        data-test="weekly-editor-retry"
-        @click="emit('retry')"
-      >
-        {{ errorMessage || '保存失败' }}，点击重试<span v-if="savedAt"> · 已保存 {{ savedAt }}</span>
-      </button>
-      <template v-else-if="savedAt">已保存 {{ savedAt }}</template>
-      <template v-else>修改后自动保存 · 无需手动定稿</template>
-    </div>
+      :status="saveStatus"
+      :saved-at="savedAt"
+      :error-message="errorMessage"
+      test-id="weekly-editor"
+      idle-text="修改后自动保存 · 无需手动定稿"
+      @retry="emit('retry')"
+    />
   </div>
 </template>
 
