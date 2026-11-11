@@ -8,6 +8,6 @@ import jakarta.validation.constraints.NotBlank;
  * <p>日志日期不可选：服务端固定记为创建当天（Asia/Shanghai），故不接受 {@code logDate}。
  */
 public record NoteCreateReq(
-        @NotBlank String content,
+        @NotBlank(message = "日志内容不能为空") String content,
         String visibility) {
 }

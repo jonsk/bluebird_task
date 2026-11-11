@@ -33,7 +33,7 @@ public class BootstrapController {
     private final SysUserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
 
-    public record BootstrapReq(String username, @NotBlank String password) {
+    public record BootstrapReq(String username, @NotBlank(message = "密码不能为空") String password) {
     }
 
     @Operation(summary = "一次性引导创建首 ADMIN（仅空库可用）")

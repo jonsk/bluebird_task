@@ -9,8 +9,8 @@ import jakarta.validation.constraints.NotNull;
  * <p>{@code deptId} 为必填（用户反馈 #5：新建用户必须选择一个部门）。
  */
 public record CreateUserCmd(
-        @NotBlank String username,
-        @NotBlank String name,
+        @NotBlank(message = "用户名不能为空") String username,
+        @NotBlank(message = "姓名不能为空") String name,
         String password,
         @NotNull(message = "请选择部门") Long deptId,
         String roleCode,

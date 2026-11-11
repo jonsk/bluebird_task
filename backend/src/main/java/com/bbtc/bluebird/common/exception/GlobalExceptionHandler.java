@@ -6,7 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.BindException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -14,12 +16,18 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * 全局异常处理（02 §1.5）。生产不向客户端暴露堆栈与内部细节。
  */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /** 提示里最多带几条字段错误：再多用户也读不完，其余由前端表单自己标红。 */
+    private static final int MAX_DETAIL_ITEMS = 3;
 
     @ExceptionHandler(BusinessException.class)
     public ApiResult<Void> biz(BusinessException e) {
@@ -44,7 +52,39 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiResult<Void>> valid(Exception e) {
         log.debug("参数校验失败: {}", e.getMessage());
-        return ResponseEntity.badRequest().body(ApiResult.fail(ErrorCode.PARAM_ERROR));
+        return ResponseEntity.badRequest().body(ApiResult.fail(ErrorCode.PARAM_ERROR.getCode(), detail(e)));
+    }
+
+    /**
+     * 字段级校验文案透传：不这样做，用户只能看到「参数校验失败」，不知道是哪一项不合规。
+     *
+     * <p>约束注解一律自带中文 {@code message}（枚举兜底文案仍是 PARAM_ERROR 的 msg），
+     * 多条错误按「；」合并并去重，最多 3 条，避免把整个 DTO 的错误一次性糊到提示框里。
+     */
+    private String detail(Exception e) {
+        List<FieldError> errors = switch (e) {
+            case MethodArgumentNotValidException m -> m.getBindingResult().getFieldErrors();
+            case BindException b -> b.getBindingResult().getFieldErrors();
+            default -> List.of();
+        };
+        if (!errors.isEmpty()) {
+            String joined = errors.stream()
+                    .map(FieldError::getDefaultMessage)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .limit(MAX_DETAIL_ITEMS)
+                    .collect(Collectors.joining("；"));
+            if (StringUtils.hasText(joined)) {
+                return joined;
+            }
+        }
+        if (e instanceof MethodArgumentTypeMismatchException mismatch) {
+            return "参数「" + mismatch.getName() + "」类型不正确";
+        }
+        if (e instanceof HttpMessageNotReadableException) {
+            return "请求体不是合法的 JSON，或字段类型不匹配";
+        }
+        return ErrorCode.PARAM_ERROR.getMsg();
     }
 
     @ExceptionHandler(AccessDeniedException.class)

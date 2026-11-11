@@ -7,5 +7,5 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record PasswordUpdateReq(
         String oldPassword,
-        @NotBlank String newPassword) {
+        @NotBlank(message = "新密码不能为空") String newPassword) {
 }

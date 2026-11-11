@@ -32,10 +32,10 @@ public class TaskMenuController {
 
     private final TaskMenuService menuService;
 
-    public record MenuReq(@NotBlank String name, Integer sort) {
+    public record MenuReq(@NotBlank(message = "菜单名称不能为空") String name, Integer sort) {
     }
 
-    public record MenuItemReq(@NotNull Long taskId) {
+    public record MenuItemReq(@NotNull(message = "缺少任务 ID") Long taskId) {
     }
 
     @Operation(summary = "我的自定义栏")

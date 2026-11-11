@@ -30,7 +30,7 @@ public class TagController {
     private final TagService tagService;
 
     /** 标签请求体。 */
-    public record TagReq(@NotBlank String name) {
+    public record TagReq(@NotBlank(message = "标签名称不能为空") String name) {
     }
 
     @Operation(summary = "我的标签")
