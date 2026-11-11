@@ -2,41 +2,21 @@ package com.bbtc.bluebird.modules.task.application;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.bbtc.bluebird.common.domain.PageResult;
-import com.bbtc.bluebird.common.exception.BusinessException;
-import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.common.util.JsonUtils;
-import com.bbtc.bluebird.modules.file.domain.Attachment;
-import com.bbtc.bluebird.modules.file.infrastructure.AttachmentMapper;
-import com.bbtc.bluebird.modules.org.application.DepartmentService;
 import com.bbtc.bluebird.modules.task.domain.CycleRule;
-import com.bbtc.bluebird.modules.task.domain.Tag;
 import com.bbtc.bluebird.modules.task.domain.Task;
-import com.bbtc.bluebird.modules.task.domain.TaskCollect;
-import com.bbtc.bluebird.modules.task.domain.TaskMenu;
-import com.bbtc.bluebird.modules.task.domain.TaskMenuItem;
 import com.bbtc.bluebird.modules.task.domain.TaskParticipant;
-import com.bbtc.bluebird.modules.task.domain.TaskTag;
 import com.bbtc.bluebird.modules.task.dto.CountVO;
-import com.bbtc.bluebird.modules.task.dto.FileRef;
-import com.bbtc.bluebird.modules.task.dto.TagVO;
 import com.bbtc.bluebird.modules.task.dto.TaskDetailVO;
 import com.bbtc.bluebird.modules.task.dto.TaskQuery;
 import com.bbtc.bluebird.modules.task.dto.TaskSearchItem;
 import com.bbtc.bluebird.modules.task.dto.TaskVO;
-import com.bbtc.bluebird.modules.task.dto.UserBrief;
-import com.bbtc.bluebird.modules.task.infrastructure.TagMapper;
-import com.bbtc.bluebird.modules.task.infrastructure.TaskCollectMapper;
 import com.bbtc.bluebird.modules.task.infrastructure.TaskMapper;
-import com.bbtc.bluebird.modules.task.infrastructure.TaskMenuItemMapper;
-import com.bbtc.bluebird.modules.task.infrastructure.TaskMenuMapper;
-import com.bbtc.bluebird.modules.task.infrastructure.TaskParticipantMapper;
-import com.bbtc.bluebird.modules.task.infrastructure.TaskTagMapper;
 import com.bbtc.bluebird.modules.task.util.CycleExpander;
 import com.bbtc.bluebird.modules.task.util.TaskSorter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -44,13 +24,16 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** 任务读查询（02 §4.4/§4.5）：六大视图、详情、计数、日历、子任务。 */
+/**
+ * 任务读查询（02 §4.4/§4.5）：六大视图、详情、计数、日历、子任务。
+ *
+ * <p>只做「取哪些 id → 加什么条件 → 排序分页」的编排；视图范围的 id 解析在
+ * {@link TaskScopeResolver}，实体到 VO 的组装在 {@link TaskVoAssembler}。
+ */
 @Service
 @RequiredArgsConstructor
 public class TaskQueryService {
@@ -59,19 +42,9 @@ public class TaskQueryService {
     private static final int CYCLE_MAX = 100;
 
     private final TaskMapper taskMapper;
-    private final TaskParticipantMapper participantMapper;
-    private final TaskTagMapper taskTagMapper;
-    private final TaskCollectMapper collectMapper;
-    private final TagMapper tagMapper;
-    private final TaskMenuMapper menuMapper;
-    private final TaskMenuItemMapper menuItemMapper;
-    private final AttachmentMapper attachmentMapper;
-    private final DepartmentService departmentService;
-    private final UserLookupService userLookup;
     private final TaskAuthService authService;
-
-    @Value("${app.security.manager-can-read-subordinate:false}")
-    private boolean managerCanReadSubordinate;
+    private final TaskScopeResolver scopeResolver;
+    private final TaskVoAssembler assembler;
 
     /* ==================== 列表 / 计数 ==================== */
 
@@ -97,7 +70,7 @@ public class TaskQueryService {
 
     public List<TaskVO> calendar(Instant start, Instant end) {
         Long me = UserContext.currentUserId();
-        Set<Long> candidate = candidateTaskIds(me, "all", false);
+        Set<Long> candidate = scopeResolver.candidateTaskIds(me, "all", false);
         if (candidate.isEmpty()) {
             return List.of();
         }
@@ -105,7 +78,7 @@ public class TaskQueryService {
                 .in(Task::getId, candidate).eq(Task::getStatus, "ACTIVE")
                 // 步骤/子任务不计入日历（只在父任务详情里展示）
                 .isNull(Task::getParentId));
-        Map<Long, List<TaskParticipant>> parts = participantsOf(tasks.stream().map(Task::getId).toList());
+        Map<Long, List<TaskParticipant>> parts = assembler.participantsOf(tasks.stream().map(Task::getId).toList());
         List<TaskVO> out = new ArrayList<>();
         List<Task> plain = new ArrayList<>();
         for (Task t : tasks) {
@@ -114,18 +87,19 @@ public class TaskQueryService {
             } else {
                 CycleRule rule = JsonUtils.parse(t.getCycleRule(), CycleRule.class);
                 for (Instant occ : CycleExpander.expand(rule, t.getCycleLastCompleted(), start, end, CYCLE_MAX)) {
-                    out.add(assembleInstance(t, occ, parts));
+                    out.add(assembler.assembleInstance(t, occ, parts));
                 }
             }
         }
-        out.addAll(assemble(plain, parts));
+        out.addAll(assembler.assemble(plain, parts));
         return out;
     }
 
-    public List<TaskVO> subtasks(Long parentId) {        authService.assertVisible(parentId, UserContext.currentUserId());
+    public List<TaskVO> subtasks(Long parentId) {
+        authService.assertVisible(parentId, UserContext.currentUserId());
         List<Task> list = taskMapper.selectList(Wrappers.<Task>lambdaQuery()
                 .eq(Task::getParentId, parentId).orderByAsc(Task::getId));
-        return assemble(list, participantsOf(list.stream().map(Task::getId).toList()));
+        return assembler.assemble(list, assembler.participantsOf(list.stream().map(Task::getId).toList()));
     }
 
     /**
@@ -167,12 +141,13 @@ public class TaskQueryService {
             throw HttpStatusException.notFound();
         }
         List<Task> list = List.of(t);
-        TaskVO vo = assemble(list, participantsOf(list.stream().map(Task::getId).toList())).get(0);
-        TaskDetailVO detail = copy(vo);
+        TaskVO vo = assembler.assemble(list, assembler.participantsOf(list.stream().map(Task::getId).toList())).get(0);
+        TaskDetailVO detail = assembler.copy(vo);
         // 子任务沿用「随父任务」口径：父任务可见即返回全部子任务（与旧行为一致，避免 CC/下属看不到步骤）
         List<Task> children = taskMapper.selectList(Wrappers.<Task>lambdaQuery()
                 .eq(Task::getParentId, id).orderByAsc(Task::getId));
-        detail.setSubtasks(assemble(children, participantsOf(children.stream().map(Task::getId).toList())));
+        detail.setSubtasks(assembler.assemble(children,
+                assembler.participantsOf(children.stream().map(Task::getId).toList())));
         return detail;
     }
 
@@ -180,9 +155,9 @@ public class TaskQueryService {
 
     private List<TaskVO> collect(String scope, String keyword, boolean subordinate, String date, Long menuId) {
         Long me = UserContext.currentUserId();
-        Set<Long> candidate = candidateTaskIds(me, scope, subordinate);
+        Set<Long> candidate = scopeResolver.candidateTaskIds(me, scope, subordinate);
         if (menuId != null) {
-            candidate.retainAll(menuTaskIds(menuId, me));
+            candidate.retainAll(scopeResolver.menuTaskIds(menuId, me));
         }
         if (candidate.isEmpty()) {
             return new ArrayList<>();
@@ -242,222 +217,17 @@ public class TaskQueryService {
         List<Long> allIds = new ArrayList<>();
         plainTasks.forEach(t -> allIds.add(t.getId()));
         cycleTasks.forEach(t -> allIds.add(t.getId()));
-        Map<Long, List<TaskParticipant>> parts = participantsOf(allIds);
+        Map<Long, List<TaskParticipant>> parts = assembler.participantsOf(allIds);
 
-        List<TaskVO> out = new ArrayList<>(assemble(plainTasks, parts));
+        List<TaskVO> out = new ArrayList<>(assembler.assemble(plainTasks, parts));
         for (Task t : cycleTasks) {
             CycleRule rule = JsonUtils.parse(t.getCycleRule(), CycleRule.class);
             Instant next = CycleExpander.firstNext(rule, t.getCycleLastCompleted(), now,
                     now.plusSeconds(3660L * 24 * 365));
             if (next != null) {
-                out.add(assembleInstance(t, next, parts));
+                out.add(assembler.assembleInstance(t, next, parts));
             }
         }
         return out;
-    }
-
-    private Set<Long> candidateTaskIds(Long me, String scope, boolean subordinate) {
-        Set<Long> ids = new HashSet<>();
-        if ("collect".equals(scope)) {
-            collectMapper.selectList(Wrappers.<TaskCollect>lambdaQuery().eq(TaskCollect::getUserId, me))
-                    .forEach(c -> ids.add(c.getTaskId()));
-            return ids;
-        }
-        if ("joined".equals(scope)) {
-            participantMapper.selectList(Wrappers.<TaskParticipant>lambdaQuery()
-                            .eq(TaskParticipant::getUserId, me).eq(TaskParticipant::getRole, TaskParticipant.CC))
-                    .forEach(p -> ids.add(p.getTaskId()));
-            return ids;
-        }
-        if ("assigned".equals(scope)) {
-            participantMapper.selectList(Wrappers.<TaskParticipant>lambdaQuery()
-                            .eq(TaskParticipant::getUserId, me).eq(TaskParticipant::getRole, TaskParticipant.ASSIGNEE))
-                    .forEach(p -> ids.add(p.getTaskId()));
-            return ids;
-        }
-        // day/all: owner=me 或 participant(me)
-        Set<Long> ownerTasks = new HashSet<>();
-        taskMapper.selectList(Wrappers.<Task>lambdaQuery().select(Task::getId).eq(Task::getOwnerId, me))
-                .forEach(t -> ownerTasks.add(t.getId()));
-        ids.addAll(ownerTasks);
-        participantMapper.selectList(Wrappers.<TaskParticipant>lambdaQuery().eq(TaskParticipant::getUserId, me))
-                .forEach(p -> ids.add(p.getTaskId()));
-
-        if (subordinate && "all".equals(scope) && managerCanReadSubordinate) {
-            Set<Long> subs = departmentService.subordinates(me);
-            if (!subs.isEmpty()) {
-                taskMapper.selectList(Wrappers.<Task>lambdaQuery().select(Task::getId).in(Task::getOwnerId, subs))
-                        .forEach(t -> ids.add(t.getId()));
-                participantMapper.selectList(Wrappers.<TaskParticipant>lambdaQuery().in(TaskParticipant::getUserId, subs))
-                        .forEach(p -> ids.add(p.getTaskId()));
-            }
-        }
-        return ids;
-    }
-
-    /* ==================== 自定义栏过滤 ==================== */
-
-    /** 自定义栏条目对应的任务 id（仅本人自定义栏，否则 404）。 */
-    private Set<Long> menuTaskIds(Long menuId, Long me) {
-        TaskMenu menu = menuMapper.selectById(menuId);
-        if (menu == null || !me.equals(menu.getUserId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "自定义栏不存在");
-        }
-        Set<Long> ids = new HashSet<>();
-        menuItemMapper.selectList(Wrappers.<TaskMenuItem>lambdaQuery().eq(TaskMenuItem::getMenuId, menuId))
-                .forEach(it -> ids.add(it.getTaskId()));
-        return ids;
-    }
-
-    /* ==================== VO 组装 ==================== */
-
-    private Map<Long, List<TaskParticipant>> participantsOf(List<Long> taskIds) {
-        Map<Long, List<TaskParticipant>> map = new HashMap<>();
-        if (taskIds == null || taskIds.isEmpty()) {
-            return map;
-        }
-        participantMapper.selectList(Wrappers.<TaskParticipant>lambdaQuery().in(TaskParticipant::getTaskId, taskIds))
-                .forEach(p -> map.computeIfAbsent(p.getTaskId(), k -> new ArrayList<>()).add(p));
-        return map;
-    }
-
-    private List<TaskVO> assemble(List<Task> tasks, Map<Long, List<TaskParticipant>> parts) {
-        if (tasks.isEmpty()) {
-            return new ArrayList<>();
-        }
-        List<Long> ids = tasks.stream().map(Task::getId).toList();
-
-        Map<Long, List<TagVO>> tags = new HashMap<>();
-        List<TaskTag> links = taskTagMapper.selectList(Wrappers.<TaskTag>lambdaQuery().in(TaskTag::getTaskId, ids));
-        Map<Long, String> tagNames = new HashMap<>();
-        Set<Long> tagIds = new HashSet<>();
-        links.forEach(l -> tagIds.add(l.getTagId()));
-        if (!tagIds.isEmpty()) {
-            tagMapper.selectList(Wrappers.<Tag>lambdaQuery().in(Tag::getId, tagIds))
-                    .forEach(t -> tagNames.put(t.getId(), t.getName()));
-        }
-        links.forEach(l -> {
-            String name = tagNames.get(l.getTagId());
-            if (name != null) {
-                tags.computeIfAbsent(l.getTaskId(), k -> new ArrayList<>()).add(new TagVO(l.getTagId(), name));
-            }
-        });
-
-        Map<Long, List<FileRef>> files = new HashMap<>();
-        Long me = UserContext.currentUserId();
-        boolean admin = UserContext.isAdmin();
-        Map<Long, Boolean> writable = new HashMap<>();
-        tasks.forEach(t -> writable.put(t.getId(), authService.isWritable(t, me)));
-        attachmentMapper.selectList(Wrappers.<Attachment>lambdaQuery().in(Attachment::getTaskId, ids))
-                .forEach(a -> {
-                    boolean mine = a.getCreatedBy() != null && a.getCreatedBy().equals(me);
-                    boolean taskWritable = Boolean.TRUE.equals(writable.get(a.getTaskId()));
-                    files.computeIfAbsent(a.getTaskId(), k -> new ArrayList<>())
-                            .add(new FileRef(a.getId(), a.getFileName(), a.getSize(),
-                                    com.bbtc.bluebird.modules.file.application.FileService
-                                            .taskDownloadUrl(a.getTaskId(), a.getId()),
-                                    a.getCreatedBy(), admin || mine,
-                                    taskWritable && (admin || mine)));
-                });
-
-        // 子任务统计
-        Map<Long, int[]> subCounts = new HashMap<>();
-        taskMapper.selectList(Wrappers.<Task>lambdaQuery().select(Task::getParentId, Task::getCompleted)
-                        .in(Task::getParentId, ids))
-                .forEach(c -> {
-                    int[] arr = subCounts.computeIfAbsent(c.getParentId(), k -> new int[2]);
-                    arr[0]++;
-                    if (c.getCompleted() != null && c.getCompleted() == 1) {
-                        arr[1]++;
-                    }
-                });
-
-        Set<Long> userIds = new HashSet<>();
-        tasks.forEach(t -> {
-            if (t.getOwnerId() != null) {
-                userIds.add(t.getOwnerId());
-            }
-        });
-        parts.values().forEach(ps -> ps.forEach(p -> userIds.add(p.getUserId())));
-        Map<Long, UserBrief> briefs = userLookup.briefs(userIds);
-
-        List<TaskVO> out = new ArrayList<>();
-        for (Task t : tasks) {
-            TaskVO vo = baseVO(t, briefs);
-            List<TaskParticipant> ps = parts.getOrDefault(t.getId(), List.of());
-            for (TaskParticipant p : ps) {
-                UserBrief b = briefs.get(p.getUserId());
-                if (b == null) {
-                    continue;
-                }
-                vo.getParticipantIds().add(p.getUserId());
-                if (TaskParticipant.ASSIGNEE.equals(p.getRole())) {
-                    vo.getAssignees().add(b);
-                } else if (TaskParticipant.CC.equals(p.getRole())) {
-                    vo.getCcUsers().add(b);
-                }
-            }
-            vo.setTags(tags.getOrDefault(t.getId(), new ArrayList<>()));
-            vo.setFiles(files.getOrDefault(t.getId(), new ArrayList<>()));
-            int[] sc = subCounts.get(t.getId());
-            if (sc != null) {
-                vo.setSubtaskTotal(sc[0]);
-                vo.setSubtaskCompleted(sc[1]);
-            }
-            out.add(vo);
-        }
-        return out;
-    }
-
-    private TaskVO baseVO(Task t, Map<Long, UserBrief> briefs) {
-        TaskVO vo = new TaskVO();
-        vo.setId(t.getId());
-        vo.setTitle(t.getTitle());
-        vo.setContent(t.getContent());
-        vo.setStatus(t.getStatus());
-        vo.setCompleted(t.getCompleted() != null && t.getCompleted() == 1);
-        vo.setDueAt(t.getDueAt());
-        vo.setRemindAt(t.getRemindAt());
-        vo.setPriority(t.getPriority());
-        if (t.getCycleRule() != null) {
-            vo.setCycleRule(JsonUtils.readTree(t.getCycleRule()));
-        }
-        vo.setCycleLastCompleted(t.getCycleLastCompleted());
-        vo.setOwner(briefs.get(t.getOwnerId()));
-        vo.setVersion(t.getVersion() == null ? null : t.getVersion().longValue());
-        vo.setCreatedAt(t.getCreatedAt());
-        return vo;
-    }
-
-    private TaskVO assembleInstance(Task t, Instant occurrence, Map<Long, List<TaskParticipant>> parts) {
-        TaskVO assembled = assemble(List.of(t), parts).get(0);
-        assembled.setDueAt(occurrence);
-        assembled.setCompleted(false);
-        return assembled;
-    }
-
-    private TaskDetailVO copy(TaskVO vo) {
-        TaskDetailVO d = new TaskDetailVO();
-        d.setId(vo.getId());
-        d.setTitle(vo.getTitle());
-        d.setContent(vo.getContent());
-        d.setStatus(vo.getStatus());
-        d.setCompleted(vo.getCompleted());
-        d.setDueAt(vo.getDueAt());
-        d.setRemindAt(vo.getRemindAt());
-        d.setPriority(vo.getPriority());
-        d.setCycleRule(vo.getCycleRule());
-        d.setCycleLastCompleted(vo.getCycleLastCompleted());
-        d.setOwner(vo.getOwner());
-        d.setAssignees(vo.getAssignees());
-        d.setCcUsers(vo.getCcUsers());
-        d.setParticipantIds(vo.getParticipantIds());
-        d.setVersion(vo.getVersion());
-        d.setTags(vo.getTags());
-        d.setSubtaskCompleted(vo.getSubtaskCompleted());
-        d.setSubtaskTotal(vo.getSubtaskTotal());
-        d.setFiles(vo.getFiles());
-        d.setCreatedAt(vo.getCreatedAt());
-        return d;
     }
 }

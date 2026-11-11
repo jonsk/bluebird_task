@@ -80,4 +80,6 @@ data/
 deploy/out/
 # ---- 部署运行目录（deploy/deploy.sh 默认 APP_DIR）----
 /runtime/
-Task/
+# 只忽略仓库根目录的 Task/（历史导出目录）；不写 / 前缀时 Windows 上会把
+# backend/.../modules/task/ 整个模块一起忽略，新增文件会静默丢失。
+/Task/

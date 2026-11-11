@@ -8,6 +8,8 @@ import com.bbtc.bluebird.modules.file.infrastructure.AttachmentMapper;
 import com.bbtc.bluebird.modules.org.application.DepartmentService;
 import com.bbtc.bluebird.modules.task.application.TaskAuthService;
 import com.bbtc.bluebird.modules.task.application.TaskQueryService;
+import com.bbtc.bluebird.modules.task.application.TaskScopeResolver;
+import com.bbtc.bluebird.modules.task.application.TaskVoAssembler;
 import com.bbtc.bluebird.modules.task.application.UserLookupService;
 import com.bbtc.bluebird.modules.task.domain.Task;
 import com.bbtc.bluebird.modules.task.domain.TaskCollect;
@@ -62,6 +64,8 @@ class TaskQueryServiceTest {
     private DepartmentService departmentService;
     private UserLookupService userLookup;
     private TaskAuthService authService;
+    private TaskScopeResolver scopeResolver;
+    private TaskVoAssembler assembler;
     private TaskQueryService service;
 
     /**
@@ -98,10 +102,12 @@ class TaskQueryServiceTest {
         userLookup = mock(UserLookupService.class);
         authService = mock(TaskAuthService.class);
 
-        service = new TaskQueryService(taskMapper, participantMapper, taskTagMapper, collectMapper,
-                tagMapper, menuMapper, menuItemMapper, attachmentMapper,
-                departmentService, userLookup, authService);
-        ReflectionTestUtils.setField(service, "managerCanReadSubordinate", false);
+        scopeResolver = new TaskScopeResolver(taskMapper, participantMapper, collectMapper,
+                menuMapper, menuItemMapper, departmentService);
+        ReflectionTestUtils.setField(scopeResolver, "managerCanReadSubordinate", false);
+        assembler = new TaskVoAssembler(taskMapper, participantMapper, taskTagMapper, tagMapper,
+                attachmentMapper, userLookup, authService);
+        service = new TaskQueryService(taskMapper, authService, scopeResolver, assembler);
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 new LoginUser(ME, "me", "我", 1L, "COMMON", List.of()), null, List.of()));
@@ -251,7 +257,7 @@ class TaskQueryServiceTest {
 
     @Test
     void 下属视图开启后纳入下属名下任务() {
-        ReflectionTestUtils.setField(service, "managerCanReadSubordinate", true);
+        ReflectionTestUtils.setField(scopeResolver, "managerCanReadSubordinate", true);
         when(departmentService.subordinates(ME)).thenReturn(Set.of(8L, 9L));
         when(taskMapper.selectList(any())).thenReturn(List.of());
 
