@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs 排除基线。
+
+  约定：每条 exclude 必须在注释里写清「为什么可以接受」。没有理由的排除等于关掉门禁，
+  下次 review 时无法判断该不该恢复。新增排除请贴出 SpotBugs 的 bug 类型与位置。
+
+  当前策略：只跑 High（pom 里 threshold=High），所以下面几条都是「框架/业务契约造成的误报」，
+  真正的缺陷（死存储、可变数组、单次 Random）已经修掉，没有靠排除掩盖。
+-->
+<FindBugsFilter>
+
+    <!--
+      EI_EXPOSE_REP / EI_EXPOSE_REP2：Spring Bean 之间传递的 Mapper / Service 是单例共享对象，
+      「暴露内部可变引用」对依赖注入容器来说就是设计本身，不构成缺陷。
+      数据对象（Domain / DTO）不排除，避免真的把可变集合漏给调用方。
+    -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+        <Class name="~com\.bbtc\.bluebird\..*\.(application|config|infrastructure)\..*"/>
+    </Match>
+
+    <!--
+      SPRING_CSRF_PROTECTION_DISABLED（SecurityConfig）：本系统是无状态 JWT 鉴权，
+      token 只从 Authorization 头读取，不使用 Cookie 承载会话（sessionCreationPolicy=STATELESS），
+      浏览器不会自动带上凭据，因此不存在可被跨站伪造的请求上下文。
+      若将来引入 Cookie 会话或表单登录，这条排除必须删掉并重新评估。
+    -->
+    <Match>
+        <Bug pattern="SPRING_CSRF_PROTECTION_DISABLED"/>
+        <Class name="com.bbtc.bluebird.config.security.SecurityConfig"/>
+    </Match>
+
+    <!--
+      WEAK_MESSAGE_DIGEST_MD5（LocalFileStorage）：MD5 在这里只作为文件内容指纹
+      （attachment.md5 字段，用于去重/完整性比对，对外以 FileVO.md5 暴露），
+      不参与任何签名、口令或信任判定，碰撞不产生权限或数据正确性影响。
+      若日后要用它做「相同内容即同一文件」的强一致判断，再换 SHA-256 并迁移历史值。
+    -->
+    <Match>
+        <Bug pattern="WEAK_MESSAGE_DIGEST_MD5"/>
+        <Class name="com.bbtc.bluebird.modules.file.infrastructure.LocalFileStorage"/>
+    </Match>
+
+</FindBugsFilter>

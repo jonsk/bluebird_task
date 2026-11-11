@@ -25,7 +25,43 @@
         <jjwt.version>0.11.5</jjwt.version>
         <springdoc.version>2.6.0</springdoc.version>
         <poi.version>5.5.1</poi.version>
+        <!-- 质量工具链（见 build/plugins）：三件套都锁版本，避免 CI 与本地跑出不同结果。 -->
+        <jacoco.version>0.8.12</jacoco.version>
+        <!-- 覆盖率门禁阈值（防回落用，不是质量目标），可用 -D 覆盖做验证 -->
+        <jacoco.line.minimum>0.60</jacoco.line.minimum>
+        <jacoco.branch.minimum>0.44</jacoco.branch.minimum>
+        <spotbugs.plugin.version>4.8.6.6</spotbugs.plugin.version>
+        <pmd.plugin.version>3.25.0</pmd.plugin.version>
     </properties>
+
+    <!-- 国内网络下 central 常被限速：把阿里云镜像放在仓储列表最前，
+         命中不了再回落到 central。插件也要单独声明，否则 quality 插件仍走 central。 -->
+    <repositories>
+        <repository>
+            <id>aliyun-public</id>
+            <name>Aliyun Public</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>aliyun-public</id>
+            <name>Aliyun Public</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
 
     <dependencies>
         <dependency>
@@ -128,6 +164,58 @@
     <build>
         <finalName>bluebird-task</finalName>
         <plugins>
+            <!-- 覆盖率度量（目标见 docs：先量基线，再上只防回落的门禁）。
+                 report 绑在 test 阶段：跑完单测即可在 target/site/jacoco/ 看到报告。 -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <!-- 门禁：只防「回落」，不是质量目标。
+                         2026-11 实测基线：行 63.6% / 分支 47.1%（含集成测试，136 用例）。
+                         阈值取略低于基线，避免正常重构（比如删掉一段没人用的代码）就把流水线卡住；
+                         要往上提的时候先补测试再把数字调上去。 -->
+                    <execution>
+                        <id>check-coverage</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.line.minimum}</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.branch.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -140,6 +228,63 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <!-- 静态分析（2/2）：SpotBugs 只看 Medium 以上，High 才允许阻断构建。
+                 规则基线见 config/spotbugs-exclude.xml（每条排除都必须写理由）。 -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${spotbugs.plugin.version}</version>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>High</threshold>
+                    <failOnError>true</failOnError>
+                    <excludeFilterFile>${project.basedir}/config/spotbugs-exclude.xml</excludeFilterFile>
+                    <plugins>
+                        <plugin>
+                            <groupId>com.h3xstream.findsecbugs</groupId>
+                            <artifactId>findsecbugs-plugin</artifactId>
+                            <version>1.13.0</version>
+                        </plugin>
+                    </plugins>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotbugs-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 静态分析（1/2）：PMD 只跑 curated 规则集（config/pmd-ruleset.xml），
+                 不用内置 quickstart，避免一上来几千条噪声把门禁变成摆设。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>${pmd.plugin.version}</version>
+                <configuration>
+                    <printFailingErrors>true</printFailingErrors>
+                    <failOnViolation>true</failOnViolation>
+                    <linkXRef>false</linkXRef>
+                    <includeTests>false</includeTests>
+                    <!-- 只产 XML：HTML 报表需要 site skin，离线/内网构建会因取不到皮肤而失败 -->
+                    <format>xml</format>
+                    <rulesets>
+                        <ruleset>${project.basedir}/config/pmd-ruleset.xml</ruleset>
+                    </rulesets>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>pmd-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- 先清空上一次内嵌的前端产物：maven-resources 只做覆盖拷贝，
                  增量构建（不带 clean）会残留旧 hash 的 chunk，导致 jar 里同时存在多份
                  旧前端资源（曾出现 7 个 LoginView-*.js，其中 6 个仍是改品牌前的旧文案）。

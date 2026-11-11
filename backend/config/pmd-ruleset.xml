@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PMD 门禁规则集。
+
+  只收录「命中即为真问题、且误报可控」的规则。刻意不引入整套 category/java/*.xml：
+  首次接入时一次性几百条告警只会被 skip 掉，反而失去门禁意义。后续按需增补，
+  新增规则前先在本仓跑一遍确认存量干净。
+
+  当前规则取向：
+  - 资源与异常：漏关流、吞异常、catch Throwable
+  - 死代码：无用私有字段/方法/局部变量、无用 import
+  - 可读性与一致性：空方法体、多余的 return、可合并的 if、布尔简化
+-->
+<ruleset name="bluebird-backend"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>BlueBird 后端门禁规则（误报可控优先）</description>
+
+    <!-- ========== 资源与异常 ========== -->
+    <rule ref="category/java/errorprone.xml/CloseResource"/>
+    <rule ref="category/java/errorprone.xml/EmptyCatchBlock"/>
+    <rule ref="category/java/errorprone.xml/AvoidCatchingThrowable"/>
+    <rule ref="category/java/errorprone.xml/DoNotThrowExceptionInFinally"/>
+    <rule ref="category/java/errorprone.xml/ProperLogger"/>
+
+    <!-- ========== 死代码 ========== -->
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateField"/>
+    <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod"/>
+    <rule ref="category/java/bestpractices.xml/UnusedLocalVariable"/>
+    <!-- 默认只查私有方法，接口回调/框架约定的形参不会被误报 -->
+    <rule ref="category/java/bestpractices.xml/UnusedFormalParameter"/>
+    <!-- PMD 7 起 UnusedImports 更名为 codestyle/UnnecessaryImport（含重复 import 检查） -->
+    <rule ref="category/java/codestyle.xml/UnnecessaryImport"/>
+
+    <!-- ========== 可读性 / 一致性 ========== -->
+    <rule ref="category/java/codestyle.xml/EmptyMethodInAbstractClassShouldBeAbstract"/>
+    <rule ref="category/java/codestyle.xml/UnnecessaryReturn"/>
+    <rule ref="category/java/design.xml/SimplifyBooleanReturns"/>
+    <rule ref="category/java/design.xml/CollapsibleIfStatements"/>
+    <rule ref="category/java/bestpractices.xml/SystemPrintln"/>
+    <rule ref="category/java/bestpractices.xml/AvoidUsingHardCodedIP"/>
+
+</ruleset>
