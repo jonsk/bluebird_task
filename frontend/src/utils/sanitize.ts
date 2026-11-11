@@ -78,7 +78,9 @@ function isSafeUrl(raw: string): boolean {
 export function containsDangerousRichText(html: string): boolean {
   if (!html || typeof DOMParser === 'undefined') return false
   const doc = new DOMParser().parseFromString(html, 'text/html')
-  return doc.body.querySelector(DANGEROUS_SELECTOR) !== null
+  // 必须从 documentElement 查：以 <style>/<link>/<meta> 开头的片段会被解析进 <head>，
+  // 只查 body 会漏检（这些标签恰恰在危险名单里，漏检就不提示、保存时静默丢失）。
+  return doc.documentElement.querySelector(DANGEROUS_SELECTOR) !== null
 }
 
 /** 消毒富文本片段；无 DOMParser 的环境（SSR）原样返回，由后端防线兜底。 */
