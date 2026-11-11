@@ -40,7 +40,8 @@ public class LogicDeleteGuard implements ApplicationRunner {
         var resources = resolver.getResources("classpath*:" + PACKAGE.replace('.', '/') + "/**/*.class");
         int checked = 0;
         for (var res : resources) {
-            try (var is = res.getInputStream()) {
+            // getMetadataReader 内部自行开关流，无需外面再 try-with-resources（否则会多一个未使用的流变量）
+            try {
                 MetadataReader mr = readerFactory.getMetadataReader(res);
                 String className = mr.getClassMetadata().getClassName();
                 Class<?> clazz = Class.forName(className);

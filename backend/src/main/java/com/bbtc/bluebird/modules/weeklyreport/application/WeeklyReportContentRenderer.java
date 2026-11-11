@@ -151,10 +151,6 @@ public class WeeklyReportContentRenderer {
         return "";
     }
 
-    private String citations(JsonNode item) {
-        return citations(noteIds(item));
-    }
-
     /** 条目引用的日志 ID：只接受纯数字，避免把模型输出直接拼进链接。 */
     private List<String> noteIds(JsonNode item) {
         if (item == null || !item.isObject()) {

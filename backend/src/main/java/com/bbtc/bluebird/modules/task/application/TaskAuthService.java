@@ -45,13 +45,9 @@ public class TaskAuthService {
     }
 
     public boolean isWritable(Task task, Long userId) {
-        if (isAdmin()) {
-            return true;
-        }
-        if (task.getOwnerId() != null && task.getOwnerId().equals(userId)) {
-            return true;
-        }
-        return isAssignee(task.getId(), userId);
+        return isAdmin()
+                || (task.getOwnerId() != null && task.getOwnerId().equals(userId))
+                || isAssignee(task.getId(), userId);
     }
 
     public void assertVisible(Long taskId, Long userId) {

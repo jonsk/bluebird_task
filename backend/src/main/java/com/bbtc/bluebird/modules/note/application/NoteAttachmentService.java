@@ -64,7 +64,8 @@ public class NoteAttachmentService {
 
     @Transactional
     public void remove(Long noteId, Long attachmentId) {
-        Note note = authService.requireManageable(noteId);
+        // 只为权限校验，返回值本来用不上（PMD UnusedLocalVariable）
+        authService.requireManageable(noteId);
         NoteAttachmentRef ref = refMapper.selectOne(Wrappers.<NoteAttachmentRef>lambdaQuery()
                 .eq(NoteAttachmentRef::getNoteId, noteId)
                 .eq(NoteAttachmentRef::getAttachmentId, attachmentId)
@@ -76,7 +77,8 @@ public class NoteAttachmentService {
     }
 
     public FileService.Download download(Long noteId, Long attachmentId) {
-        Note note = authService.requireVisible(noteId);
+        // 同上：只做可见性校验
+        authService.requireVisible(noteId);
         Long cnt = refMapper.selectCount(Wrappers.<NoteAttachmentRef>lambdaQuery()
                 .eq(NoteAttachmentRef::getNoteId, noteId)
                 .eq(NoteAttachmentRef::getAttachmentId, attachmentId));

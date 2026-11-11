@@ -16,8 +16,13 @@ import java.util.List;
  */
 public final class SpaRoutes {
 
-    /** 页面路径模式（可由 {@code @RequestMapping} 与 Spring Security 的 requestMatchers 共用）。 */
-    public static final String[] PAGE_PATTERNS = {
+    /**
+     * 页面路径模式（可由 {@code @RequestMapping} 与 Spring Security 的 requestMatchers 共用）。
+     *
+     * <p>对外只给副本（{@link #pagePatterns()}）：数组是可变对象，直接暴露 public static final
+     * 数组等于把「唯一事实来源」交给任何调用方随意改写（SpotBugs MS_MUTABLE_ARRAY）。
+     */
+    private static final List<String> PAGE_PATTERN_LIST = List.of(
             "/",
             "/login",
             "/oauth/success",
@@ -36,8 +41,12 @@ public final class SpaRoutes {
             "/notes/**",
             // 后台：/admin 本身 + 全部子页（* 只匹配一层，故必须用 **）
             "/admin",
-            "/admin/**",
-    };
+            "/admin/**");
+
+    /** 页面路径模式副本：每次返回新数组，调用方改动不会污染这里的清单。 */
+    public static String[] pagePatterns() {
+        return PAGE_PATTERN_LIST.toArray(String[]::new);
+    }
 
     /** 供测试遍历的固定页面（把 {@code /calendar/*} 之类的模式换成具体值）。 */
     public static final List<String> SAMPLE_PAGES = List.of(

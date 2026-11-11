@@ -46,7 +46,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -329,7 +328,6 @@ public class TaskQueryService {
         List<Long> ids = tasks.stream().map(Task::getId).toList();
 
         Map<Long, List<TagVO>> tags = new HashMap<>();
-        Map<Long, Long> tagIdByTask = new LinkedHashMap<>();
         List<TaskTag> links = taskTagMapper.selectList(Wrappers.<TaskTag>lambdaQuery().in(TaskTag::getTaskId, ids));
         Map<Long, String> tagNames = new HashMap<>();
         Set<Long> tagIds = new HashSet<>();

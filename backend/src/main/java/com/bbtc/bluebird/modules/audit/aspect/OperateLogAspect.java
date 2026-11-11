@@ -28,6 +28,8 @@ public class OperateLogAspect {
     private final OperateLogService operateLogService;
 
     @Around("@annotation(annotation)")
+    // 故意捕 Throwable：Error（如 OOM 之外的中断）也要记一条失败审计，然后原样抛出，不能只捕 Exception。
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public Object around(ProceedingJoinPoint pjp, OperateLog annotation) throws Throwable {
         long start = System.currentTimeMillis();
         boolean success = true;

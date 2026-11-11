@@ -108,10 +108,10 @@ public class AiClient {
 
     private JsonNode getModels(AiModelConfig model, String apiKey) {
         URI uri = URI.create(modelsEndpoint(model.getBaseUrl()));
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(TEST_TIMEOUT_SECONDS))
-                    .build();
+        // HttpClient 在 Java 21 是 AutoCloseable：每次探测新建一个就关一个，避免线程与连接累积。
+        try (HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(TEST_TIMEOUT_SECONDS))
+                .build()) {
             HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                     .timeout(Duration.ofSeconds(TEST_TIMEOUT_SECONDS))
                     .header("Accept", "application/json")
@@ -149,29 +149,31 @@ public class AiClient {
             String json = objectMapper.writeValueAsString(body);
             boolean hasKey = apiKey != null && !apiKey.isBlank();
 
-            HttpClient client = HttpClient.newBuilder()
+            // 同上：Java 21 的 HttpClient 可关闭，用完即闭。
+            try (HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(Math.min(timeout, 20)))
-                    .build();
-            HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
-                    .timeout(Duration.ofSeconds(timeout))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
-            if (hasKey) {
-                builder.header("Authorization", "Bearer " + apiKey);
-            }
-            HttpResponse<String> response = client.send(builder.build(),
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                    .build()) {
+                HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
+                        .timeout(Duration.ofSeconds(timeout))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
+                if (hasKey) {
+                    builder.header("Authorization", "Bearer " + apiKey);
+                }
+                HttpResponse<String> response = client.send(builder.build(),
+                        HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR,
-                        "AI 服务返回 HTTP " + response.statusCode() + ": " + abbreviate(response.body()));
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR,
+                            "AI 服务返回 HTTP " + response.statusCode() + ": " + abbreviate(response.body()));
+                }
+                JsonNode root = objectMapper.readTree(response.body());
+                if (root.has("error")) {
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR,
+                            "AI 服务错误：" + abbreviate(root.path("error").toString()));
+                }
+                return root;
             }
-            JsonNode root = objectMapper.readTree(response.body());
-            if (root.has("error")) {
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR,
-                        "AI 服务错误：" + abbreviate(root.path("error").toString()));
-            }
-            return root;
         } catch (BusinessException e) {
             throw e;
         } catch (InterruptedException e) {

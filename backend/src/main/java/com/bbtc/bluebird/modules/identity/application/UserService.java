@@ -198,11 +198,9 @@ public class UserService {
         boolean firstLogin = u.getMustChangePassword() != null && u.getMustChangePassword() == 1;
         // 本人改密：非首登须校验原口令。管理员代为重置：不校验原口令（无从得知），但强制下次登录改密。
         if (self) {
-            if (!firstLogin) {
-                if (!StringUtils.hasText(req.oldPassword())
-                        || !passwordEncoder.matches(req.oldPassword(), u.getPassword())) {
-                    throw new BusinessException(ErrorCode.BAD_CREDENTIALS);
-                }
+            if (!firstLogin && (!StringUtils.hasText(req.oldPassword())
+                    || !passwordEncoder.matches(req.oldPassword(), u.getPassword()))) {
+                throw new BusinessException(ErrorCode.BAD_CREDENTIALS);
             }
             u.setMustChangePassword(0);
         } else {

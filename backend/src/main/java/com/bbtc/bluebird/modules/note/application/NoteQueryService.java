@@ -12,7 +12,6 @@ import com.bbtc.bluebird.common.util.ContentTypes;
 import com.bbtc.bluebird.common.util.MarkdownText;
 import com.bbtc.bluebird.modules.file.domain.Attachment;
 import com.bbtc.bluebird.modules.file.infrastructure.AttachmentMapper;
-import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
@@ -132,7 +131,7 @@ public class NoteQueryService {
         Long me = UserContext.currentUserId();
         boolean admin = authService.isAdmin();
         NoteDetailVO vo = new NoteDetailVO();
-        fillBase(vo, note, me, admin);
+        fillBase(vo, note, me);
         vo.setContent(note.getContent());
         vo.setFieldPermissions(authService.fieldPermissions(note, me));
         vo.setAttachments(attachmentVOs(note, me, admin));
@@ -204,7 +203,7 @@ public class NoteQueryService {
         return out;
     }
 
-    private void fillBase(NoteVO vo, Note note, Long me, boolean admin) {
+    private void fillBase(NoteVO vo, Note note, Long me) {
         vo.setId(note.getId());
         vo.setContentSummary(summary(note.getContent()));
         vo.setLogDate(note.getLogDate());

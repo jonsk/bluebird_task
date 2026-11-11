@@ -32,12 +32,15 @@ public class JwtUtils {
     private final JwtProperties props;
     private SecretKey key;
 
+    /** 单例复用：每次 new SecureRandom() 都会重新搜集熵，且 SpotBugs 会报只用一次（DMI_RANDOM_USED_ONLY_ONCE）。 */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     @PostConstruct
     void init() {
         String secret = props.getSecret();
         if (secret == null || secret.isBlank()) {
             byte[] random = new byte[32];
-            new SecureRandom().nextBytes(random);
+            RANDOM.nextBytes(random);
             key = Keys.hmacShaKeyFor(random);
             log.warn("JWT_SECRET 未配置，已生成临时密钥（重启后 token 失效）。生产请通过 ADR-010 自动生成或环境变量注入。");
         } else {

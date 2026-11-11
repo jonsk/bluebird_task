@@ -33,7 +33,7 @@ public class WebConfig implements WebMvcConfigurer {
         // SPA history 路由回退（ADR-009，02 §1.7.1）：把页面路径转发到内嵌的 index.html。
         // 用运行时注册而非 @RequestMapping 注解——注解元素要求编译期常量，无法引用 SpaRoutes 数组，
         // 于是「页面清单」会分裂成两份；这里与 SecurityConfig 共用同一份 SpaRoutes。
-        for (String page : SpaRoutes.PAGE_PATTERNS) {
+        for (String page : SpaRoutes.pagePatterns()) {
             registry.addViewController(page).setViewName("forward:/index.html");
         }
     }
