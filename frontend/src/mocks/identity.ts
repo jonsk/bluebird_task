@@ -79,12 +79,26 @@ export const DEFAULT_ACCOUNT = MOCK_ACCOUNTS[0]
 export const ACCESS_PREFIX = 'mock.access.'
 export const REFRESH_PREFIX = 'mock.refresh.'
 
+let mockSession: MockAccount | undefined
+
 export function accessTokenOf(username: string): string {
   return `${ACCESS_PREFIX}${username}`
 }
 
 export function refreshTokenOf(username: string): string {
   return `${REFRESH_PREFIX}${username}`
+}
+
+/**
+ * 模拟「HttpOnly Cookie 里的会话」：MSW 的 fetch handler 看不到也写不了真正的 HttpOnly Cookie，
+ * 用一个模块内变量代替。登录时记住、登出时清掉，刷新时据此判断是否还能续签。
+ */
+export function setMockSession(account?: MockAccount): void {
+  mockSession = account
+}
+
+export function currentMockSession(): MockAccount | undefined {
+  return mockSession
 }
 
 function accountByName(username?: string | null): MockAccount | undefined {

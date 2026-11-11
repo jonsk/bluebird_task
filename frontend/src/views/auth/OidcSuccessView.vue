@@ -3,12 +3,12 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { setAccessToken, setRefreshToken } from '@/api/token'
+import { setAccessToken } from '@/api/token'
 import { safeRedirect } from '@/utils/format'
 
 /**
- * OIDC 整页回调落点（03 §5.1）：token 经 hash fragment 传入（防落历史/Referer/日志），
- * 读取后立即清除 fragment 再拉 /users/me。
+ * OIDC 整页回调落点（03 §5.1）：access token 经 hash fragment 传入（防落历史/Referer/日志），
+ * 读取后立即清除 fragment 再拉 /users/me。refresh token 已改由后端 HttpOnly Cookie 下发，不在 URL 中。
  */
 const router = useRouter()
 const auth = useAuthStore()
@@ -16,7 +16,6 @@ const auth = useAuthStore()
 onMounted(async () => {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
   const access = params.get('access_token')
-  const refresh = params.get('refresh_token')
   const error = params.get('error')
   // 后端在 state 中携带了用户原本要去的页面，登录后原路返回；只接受站内单个 / 开头的路径。
   const redirect = safeRedirect(params.get('redirect'))
@@ -34,7 +33,6 @@ onMounted(async () => {
     return
   }
   setAccessToken(access)
-  if (refresh) setRefreshToken(refresh)
   try {
     await auth.fetchMe()
     await router.replace(redirect)

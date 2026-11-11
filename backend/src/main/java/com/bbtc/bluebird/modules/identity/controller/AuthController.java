@@ -1,18 +1,21 @@
 package com.bbtc.bluebird.modules.identity.controller;
 
 import com.bbtc.bluebird.common.api.ApiResult;
+import com.bbtc.bluebird.common.exception.BusinessException;
+import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.common.util.IpUtils;
 import com.bbtc.bluebird.modules.config.application.ConfigService;
 import com.bbtc.bluebird.modules.identity.application.AuthService;
 import com.bbtc.bluebird.modules.identity.application.OidcSessionService;
+import com.bbtc.bluebird.modules.identity.application.RefreshCookieService;
 import com.bbtc.bluebird.modules.identity.dto.LoginReq;
-import com.bbtc.bluebird.modules.identity.dto.RefreshReq;
 import com.bbtc.bluebird.modules.identity.dto.TokenVO;
 import com.bbtc.bluebird.modules.identity.oidc.CasdoorClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,26 +43,41 @@ public class AuthController {
     private final ConfigService config;
     private final CasdoorClient casdoorClient;
     private final OidcSessionService oidcSessionService;
+    private final RefreshCookieService refreshCookie;
 
     @Operation(summary = "账号密码登录")
     @PostMapping("/login")
-    public ApiResult<TokenVO> login(@Valid @RequestBody LoginReq req, HttpServletRequest request) {
+    public ApiResult<TokenVO> login(@Valid @RequestBody LoginReq req, HttpServletRequest request,
+                                    HttpServletResponse response) {
         String ip = IpUtils.clientIp(request);
         String ua = request.getHeader("User-Agent");
-        return ApiResult.ok(authService.login(req, ip, ua));
+        TokenVO token = authService.login(req, ip, ua);
+        refreshCookie.write(request, response, token.refreshToken());
+        return ApiResult.ok(token.hideRefreshToken());
     }
 
     @Operation(summary = "登出")
     @PostMapping("/logout")
-    public ApiResult<Void> logout(HttpServletRequest request) {
+    public ApiResult<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         authService.logout(UserContext.currentUserId(), IpUtils.clientIp(request), request.getHeader("User-Agent"));
+        refreshCookie.clear(request, response);
         return ApiResult.ok();
     }
 
-    @Operation(summary = "刷新 token")
+    /**
+     * 刷新 token：refresh 只从 HttpOnly Cookie 读，不再接受请求体。
+     *
+     * <p>Cookie 缺失/过期一律按 TOKEN_INVALID 处理（前端据此跳登录页）。
+     * 这里顺带轮换 Cookie：每次刷新都下发新的 refresh，旧值在 {@code validateRefresh} 时被撤销。
+     */
+    @Operation(summary = "刷新 token（refresh 走 HttpOnly Cookie）")
     @PostMapping("/refresh")
-    public ApiResult<TokenVO> refresh(@Valid @RequestBody RefreshReq req) {
-        return ApiResult.ok(authService.refresh(req.refreshToken()));
+    public ApiResult<TokenVO> refresh(HttpServletRequest request, HttpServletResponse response) {
+        String refresh = refreshCookie.read(request)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_INVALID));
+        TokenVO token = authService.refresh(refresh);
+        refreshCookie.write(request, response, token.refreshToken());
+        return ApiResult.ok(token.hideRefreshToken());
     }
 
     @Operation(summary = "当前认证提供方配置")

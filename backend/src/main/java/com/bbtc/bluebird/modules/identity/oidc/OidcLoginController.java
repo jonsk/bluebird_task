@@ -4,6 +4,7 @@ import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.util.IpUtils;
 import com.bbtc.bluebird.modules.audit.application.LoginLogService;
 import com.bbtc.bluebird.modules.identity.application.OidcSessionService;
+import com.bbtc.bluebird.modules.identity.application.RefreshCookieService;
 import com.bbtc.bluebird.modules.identity.application.TokenService;
 import com.bbtc.bluebird.modules.identity.domain.SysUser;
 import com.bbtc.bluebird.modules.identity.dto.TokenVO;
@@ -33,7 +34,8 @@ import java.util.Map;
  *
  * <p>流程：{@code /redirect} 302 到 Casdoor 授权页 → Casdoor 回调 {@code /callback} →
  * 换 token → 拉 userinfo → 本地用户即时 upsert → 签发**自有 JWT** →
- * 302 到前端 {@code /oauth/success#access_token=..&refresh_token=..}（fragment 不进服务端日志）。
+ * 302 到前端 {@code /oauth/success#access_token=..&redirect=..}（fragment 不进服务端日志），
+ * refresh token 走 HttpOnly Cookie，不出现在 URL 里。
  *
  * <p>路径位于 {@code /api/v1/auth/**} 白名单内，无需登录态。
  */
@@ -51,6 +53,7 @@ public class OidcLoginController {
     private final TokenService tokenService;
     private final OidcSessionService oidcSessionService;
     private final LoginLogService loginLogService;
+    private final RefreshCookieService refreshCookie;
 
     @GetMapping("/redirect")
     public void redirect(@RequestParam(required = false) String redirect,
@@ -114,8 +117,9 @@ public class OidcLoginController {
             // 存下 id_token：登出时作为 id_token_hint 让 Casdoor 静默登出（不弹确认页）
             oidcSessionService.saveIdToken(user.getId(), rawIdToken == null ? null : String.valueOf(rawIdToken));
             loginLogService.record(user.getUsername(), true, ip, ua, "CASDOOR", "LOGIN", user.getExternalId());
+            // refresh 走 HttpOnly Cookie：URL fragment 里不再出现长期凭证
+            refreshCookie.write(request, response, issued.refreshToken());
             response.sendRedirect("/oauth/success#access_token=" + enc(issued.accessToken())
-                    + "&refresh_token=" + enc(issued.refreshToken())
                     + "&redirect=" + enc(target));
         } catch (BusinessException e) {
             log.warn("Casdoor 登录失败：{}", e.getMessage());

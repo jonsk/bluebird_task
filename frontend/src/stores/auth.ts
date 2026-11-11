@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { login as apiLogin, logout as apiLogout, refreshToken as apiRefresh, type LoginReq, type TokenVO } from '@/api/auth'
+import { login as apiLogin, logout as apiLogout, refresh as apiRefresh, type LoginReq, type TokenVO } from '@/api/auth'
 import { me as apiMe, type UserVO } from '@/api/user'
-import { clearTokens, getRefreshToken, setAccessToken, setRefreshToken } from '@/api/token'
+import { clearTokens, hasSessionMarker, setAccessToken } from '@/api/token'
 import type { RoleCode } from '@/utils/constants'
 
 /**
- * 认证 store（03 §4.2/§5.1）：access 内存 + refresh 持久化；启动时凭 refresh 静默续签。
+ * 认证 store（03 §4.2/§5.1）：access 内存 + refresh 由后端 HttpOnly Cookie 承载。
  */
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserVO | null>(null)
@@ -18,7 +18,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   function applyToken(token: TokenVO): void {
     setAccessToken(token.accessToken ?? null)
-    if (token.refreshToken) setRefreshToken(token.refreshToken)
     hasAccessToken.value = Boolean(token.accessToken)
     mustChangePassword.value = Boolean(token.mustChangePassword)
   }
@@ -32,12 +31,15 @@ export const useAuthStore = defineStore('auth', () => {
     await fetchMe()
   }
 
-  /** 应用启动：如持久化 refresh 存在则静默续签并拉取用户。 */
+  /**
+   * 应用启动：会话标记 Cookie 存在时静默续签（refresh 由浏览器自动带上），拉取用户。
+   *
+   * <p>先看标记再发请求：没登录过的用户不该在每次冷启动都打一次必然失败的 /auth/refresh。
+   */
   async function bootstrap(): Promise<boolean> {
-    const refresh = getRefreshToken()
-    if (!refresh) return false
+    if (!hasSessionMarker()) return false
     try {
-      applyToken(await apiRefresh(refresh))
+      applyToken(await apiRefresh())
       await fetchMe()
       return true
     } catch {

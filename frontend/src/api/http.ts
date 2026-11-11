@@ -1,7 +1,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios'
 import { ERROR_CODE, messageOf } from '@/utils/errorCode'
 import type { components } from '@/types/api'
-import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, clearTokens } from './token'
+import { getAccessToken, setAccessToken, clearTokens } from './token'
 
 /** 后端统一响应体（02 §1.3）。 */
 export interface ApiResult<T> {
@@ -70,16 +70,15 @@ http.interceptors.request.use((config) => {
 let refreshing: Promise<string | null> | null = null
 
 async function doRefresh(): Promise<string | null> {
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) return null
+  // 不传 body：refresh 在 HttpOnly Cookie 里，浏览器自动携带（同源默认带 Cookie）
   try {
-    const resp = await axios.post<ApiResult<{ accessToken: string; refreshToken: string }>>(
+    const resp = await axios.post<ApiResult<{ accessToken: string }>>(
       `${baseURL}/auth/refresh`,
-      { refreshToken },
+      undefined,
+      { withCredentials: true },
     )
-    if (resp.data.code === ERROR_CODE.OK) {
+    if (resp.data.code === ERROR_CODE.OK && resp.data.data?.accessToken) {
       setAccessToken(resp.data.data.accessToken)
-      setRefreshToken(resp.data.data.refreshToken)
       return resp.data.data.accessToken
     }
     return null

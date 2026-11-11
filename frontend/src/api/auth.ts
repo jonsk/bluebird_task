@@ -29,8 +29,12 @@ export function logout(): Promise<void> {
   return post<void>('/auth/logout')
 }
 
-export function refreshToken(refreshToken: string): Promise<TokenVO> {
-  return post<TokenVO>('/auth/refresh', { refreshToken })
+/**
+ * 刷新 access token：refresh 由浏览器自动携带的 HttpOnly Cookie 提供，前端不接触它。
+ * 空 body 是有意的——后端不再接受请求体里的 refresh。
+ */
+export function refresh(): Promise<TokenVO> {
+  return post<TokenVO>('/auth/refresh')
 }
 
 export function externalConfig(): Promise<ExternalConfig> {

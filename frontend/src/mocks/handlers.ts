@@ -4,10 +4,10 @@ import { noteHandlers } from './noteHandlers'
 import {
   MOCK_ACCOUNTS,
   accessTokenOf,
-  accountFromRefreshToken,
   accountFromRequest,
+  currentMockSession,
   meOf,
-  refreshTokenOf,
+  setMockSession,
 } from './identity'
 
 /**
@@ -338,25 +338,28 @@ export const handlers = [
     const body = (await request.json()) as { username?: string; password?: string }
     const account = MOCK_ACCOUNTS.find((a) => a.username === body.username && a.password === body.password)
     if (!account) return fail(20003, 'bad-credentials')
-    // admin 保持基线 token（视觉/既有用例不变），其余账号返回可反解的身份 token
+    setMockSession(account)
+    // admin 保持基线 token（视图既有用例不变），其余账号返回可反解的身份 token
     if (account.username === 'admin') return raw('auth/POST.login')
     return ok({
       accessToken: accessTokenOf(account.username),
-      refreshToken: refreshTokenOf(account.username),
       mustChangePassword: false,
     })
   }),
-  http.post(`${AUTH}/auth/refresh`, async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { refreshToken?: string }
-    const account = accountFromRefreshToken(body.refreshToken)
-    if (!account || account.username === 'admin') return raw('auth/POST.refresh')
+  http.post(`${AUTH}/auth/refresh`, () => {
+    // refresh 走 HttpOnly Cookie：前端不再传 body，这里用模拟会话代替
+    const account = currentMockSession()
+    if (!account) return fail(20005, 'token-invalid')
+    if (account.username === 'admin') return raw('auth/POST.refresh')
     return ok({
       accessToken: accessTokenOf(account.username),
-      refreshToken: refreshTokenOf(account.username),
       mustChangePassword: false,
     })
   }),
-  http.post(`${AUTH}/auth/logout`, () => raw('auth/POST.logout')),
+  http.post(`${AUTH}/auth/logout`, () => {
+    setMockSession(undefined)
+    return raw('auth/POST.logout')
+  }),
   http.get(`${AUTH}/auth/external/config`, () => raw('auth/GET.external-config')),
 
   // ---- users ----
