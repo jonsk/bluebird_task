@@ -32,6 +32,7 @@
         <jacoco.branch.minimum>0.44</jacoco.branch.minimum>
         <spotbugs.plugin.version>4.8.6.6</spotbugs.plugin.version>
         <pmd.plugin.version>3.25.0</pmd.plugin.version>
+        <checkstyle.plugin.version>3.6.0</checkstyle.plugin.version>
     </properties>
 
     <!-- 国内网络下 central 常被限速：把阿里云镜像放在仓储列表最前，
@@ -277,6 +278,32 @@
                 <executions>
                     <execution>
                         <id>pmd-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 静态分析（2/2）：Checkstyle 只做「纯格式/书写规范」，
+                 与 PMD 的规则集刻意不重叠（见 config/checkstyle.xml 顶部说明）。
+                 不扫测试代码：测试里长中文断言与紧凑写法是刻意的。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>${checkstyle.plugin.version}</version>
+                <configuration>
+                    <configLocation>${project.basedir}/config/checkstyle.xml</configLocation>
+                    <consoleOutput>true</consoleOutput>
+                    <failOnViolation>true</failOnViolation>
+                    <violationSeverity>warning</violationSeverity>
+                    <includeTestSourceDirectory>false</includeTestSourceDirectory>
+                    <linkXRef>false</linkXRef>
+                    <inputEncoding>UTF-8</inputEncoding>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>checkstyle-check</id>
                         <phase>verify</phase>
                         <goals>
                             <goal>check</goal>
