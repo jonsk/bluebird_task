@@ -11,9 +11,7 @@ import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -22,18 +20,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static com.bbtc.bluebird.modules.org.application.DepartmentExcelWriter.C_NAME;
+import static com.bbtc.bluebird.modules.org.application.DepartmentExcelWriter.C_SORT;
 
 /**
  * 部门 Excel 导入 / 导出 / 模板（.xlsx）。
@@ -44,17 +42,12 @@ import java.util.Set;
  * 简单名称，方便小组织手填。导出写全路径，因此**导出→改→导入**可闭环。
  *
  * <p>导入为**先全量校验、有任一错误则整份不落库**（在一个事务内），避免半份组织树。
+ * 写 Excel 的部分在 {@link DepartmentExcelWriter}，树路径派生在 {@link DepartmentTree}。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DepartmentExcelService {
-
-    static final String C_NAME = "部门名称";
-    static final String C_PARENT = "上级部门（全路径）";
-    static final String C_SORT = "排序";
-    static final String C_LEADER = "负责人账号";
-    private static final String[] HEADERS = {C_NAME, C_PARENT, C_SORT, C_LEADER};
 
     private static final int MAX_ROWS = 5000;
     private static final int MAX_NAME_LEN = 64;
@@ -70,136 +63,29 @@ public class DepartmentExcelService {
     @Transactional(readOnly = true)
     public byte[] export() {
         List<Department> all = departmentMapper.selectList(Wrappers.<Department>lambdaQuery());
-        return writeWorkbook(ordered(all), paths(all), usernameById(), "部门");
+        return DepartmentExcelWriter.export(DepartmentTree.ordered(all), usernameById());
     }
 
     @Transactional(readOnly = true)
     public byte[] template() {
-        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet sheet = wb.createSheet("部门");
-            writeHeader(wb, sheet);
-            // 示例行（导入前删除或改写）
-            String[][] samples = {
-                    {"XX公司", "", "0", ""},
-                    {"研发中心", "XX公司", "1", ""},
-                    {"平台组", "XX公司/研发中心", "1", ""},
-            };
-            for (int i = 0; i < samples.length; i++) {
-                Row row = sheet.createRow(i + 1);
-                for (int c = 0; c < samples[i].length; c++) {
-                    row.createCell(c).setCellValue(samples[i][c]);
-                }
-            }
-            for (int c = 0; c < HEADERS.length; c++) {
-                sheet.setColumnWidth(c, c == 1 ? 32 * 256 : 18 * 256);
-            }
-            writeHelpSheet(wb);
-            wb.write(out);
-            return out.toByteArray();
-        } catch (IOException e) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成导入模板失败：" + e.getMessage());
-        }
-    }
-
-    private byte[] writeWorkbook(List<Department> ordered, Map<Long, String> paths,
-                                 Map<Long, String> userNames, String sheetName) {
-        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet sheet = wb.createSheet(sheetName);
-            writeHeader(wb, sheet);
-            int r = 1;
-            for (Department d : ordered) {
-                Row row = sheet.createRow(r++);
-                row.createCell(0).setCellValue(d.getName() == null ? "" : d.getName());
-                String parentPath = parentPathOf(d, paths);
-                row.createCell(1).setCellValue(parentPath);
-                row.createCell(2).setCellValue(d.getSort() == null ? DEFAULT_SORT : d.getSort());
-                row.createCell(3).setCellValue(d.getLeaderUserId() == null ? ""
-                        : userNames.getOrDefault(d.getLeaderUserId(), ""));
-            }
-            for (int c = 0; c < HEADERS.length; c++) {
-                sheet.setColumnWidth(c, c == 1 ? 32 * 256 : 18 * 256);
-            }
-            wb.write(out);
-            return out.toByteArray();
-        } catch (IOException e) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成 Excel 失败：" + e.getMessage());
-        }
-    }
-
-    private void writeHeader(Workbook wb, Sheet sheet) {
-        CellStyle style = wb.createCellStyle();
-        Font font = wb.createFont();
-        font.setBold(true);
-        style.setFont(font);
-        Row head = sheet.createRow(0);
-        for (int c = 0; c < HEADERS.length; c++) {
-            Cell cell = head.createCell(c);
-            cell.setCellValue(HEADERS[c]);
-            cell.setCellStyle(style);
-        }
-    }
-
-    private void writeHelpSheet(Workbook wb) {
-        Sheet help = wb.createSheet("填写说明");
-        String[][] lines = {
-                {"部门导入说明", ""},
-                {"", ""},
-                {"列", "说明"},
-                {C_NAME, "必填，最长 " + MAX_NAME_LEN + " 字；同一上级下不可重名"},
-                {C_PARENT, "可空。留空＝顶级部门；填上级的**全路径**（如 XX公司/研发中心）"},
-                {C_PARENT, "也支持全组织唯一的简单名称（如只有一个「研发中心」时可只写「研发中心」）"},
-                {C_SORT, "可空，非负整数，越小越靠前；留空按 0"},
-                {C_LEADER, "可空，须是系统内已存在的**用户名**（不是姓名）"},
-                {"", ""},
-                {"导入规则", ""},
-                {"1", "仅支持 .xlsx；单次最多 " + MAX_ROWS + " 行"},
-                {"2", "**先父后子**：父部门必须已存在，或在本文件中排在子部门之前"},
-                {"3", "同一上级下同名的部门视为**更新**（改排序/负责人），不会重复创建"},
-                {"4", "只要有一行校验不通过，**整份都不会导入**，请按错误提示修正后重传"},
-                {"5", "系统默认部门可以改排序/负责人，但不会被本导入改名"},
-        };
-        for (int i = 0; i < lines.length; i++) {
-            Row row = help.createRow(i);
-            row.createCell(0).setCellValue(lines[i][0]);
-            row.createCell(1).setCellValue(lines[i][1]);
-        }
-        help.setColumnWidth(0, 24 * 256);
-        help.setColumnWidth(1, 80 * 256);
+        return DepartmentExcelWriter.template();
     }
 
     /* ==================== 导入 ==================== */
 
     @Transactional
     public DeptImportResult importFrom(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "请选择要导入的 Excel 文件");
-        }
-        String fileName = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
-        if (!fileName.endsWith(".xlsx")) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "仅支持 .xlsx 格式，请使用「下载导入模板」");
-        }
-
-        List<ParsedRow> rows;
-        try (InputStream in = file.getInputStream(); Workbook wb = new XSSFWorkbook(in)) {
-            rows = parse(wb);
-        } catch (IOException | RuntimeException e) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "Excel 解析失败，请确认使用导入模板：" + e.getMessage());
-        }
-        if (rows.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "未读到任何数据行（第 1 行应为表头）");
-        }
+        List<ParsedRow> rows = readRows(file);
 
         // ── 现有数据索引 ──
         List<Department> existing = departmentMapper.selectList(Wrappers.<Department>lambdaQuery());
-        Map<Long, Department> byId = new HashMap<>();
         Map<String, Department> byKey = new HashMap<>();
         Map<String, List<Long>> idsByName = new HashMap<>();
         for (Department d : existing) {
-            byId.put(d.getId(), d);
             byKey.put(key(d.getParentId(), d.getName()), d);
             idsByName.computeIfAbsent(d.getName(), k -> new ArrayList<>()).add(d.getId());
         }
-        Map<Long, String> paths = paths(existing);
+        Map<Long, String> paths = DepartmentTree.paths(existing);
         // 全路径 → id（含本文件内新建的行，值先占位、落库时替换）
         Map<String, Long> idByPath = new HashMap<>();
         paths.forEach((id, p) -> idByPath.put(p, id));
@@ -229,7 +115,8 @@ public class DepartmentExcelService {
                         continue;
                     }
                 } catch (NumberFormatException e) {
-                    errors.add(new DeptImportResult.RowError(row.excelRow(), C_SORT + "必须是整数，实际为「" + row.sort() + "」"));
+                    errors.add(new DeptImportResult.RowError(row.excelRow(),
+                            C_SORT + "必须是整数，实际为「" + row.sort() + "」"));
                     continue;
                 }
             }
@@ -241,33 +128,12 @@ public class DepartmentExcelService {
                     continue;
                 }
             }
-            // 解析上级（全路径优先，其次全组织唯一名称）
-            String parentRaw = row.parent().replaceAll("/+", PATH_SEP).replaceAll("^/|/$", "");
-            Long parentId = null;
-            String parentPath = null;
-            if (!parentRaw.isEmpty()) {
-                Long byPathId = idByPath.get(parentRaw);
-                if (byPathId != null) {
-                    parentId = byPathId;
-                    parentPath = parentRaw;
-                } else {
-                    List<Long> sameName = idsByName.get(row.parent().trim());
-                    if (sameName != null && sameName.size() == 1) {
-                        parentId = sameName.get(0);
-                        parentPath = paths.get(parentId);
-                    } else if (sameName != null && sameName.size() > 1) {
-                        errors.add(new DeptImportResult.RowError(row.excelRow(),
-                                "上级部门名称「" + row.parent().trim() + "」不唯一，请改填全路径"));
-                        continue;
-                    } else {
-                        errors.add(new DeptImportResult.RowError(row.excelRow(),
-                                "上级部门「" + row.parent().trim() + "」不存在（父部门须已存在或在本文件中排在前面）"));
-                        continue;
-                    }
-                }
+            ParentRef parent = resolveParent(row, idByPath, idsByName, paths, errors);
+            if (parent == null) {
+                continue;
             }
 
-            String fileKey = key(parentId, name);
+            String fileKey = key(parent.id(), name);
             if (!seenInFile.add(fileKey)) {
                 errors.add(new DeptImportResult.RowError(row.excelRow(), "同一上级下「" + name + "」在文件中重复出现"));
                 continue;
@@ -277,14 +143,15 @@ public class DepartmentExcelService {
             if (matched == null) {
                 // 新建：登记全路径与名称索引，供后续行作为上级引用（占位 id 落库时替换）
                 long stub = placeholder--;
-                String fullPath = parentPath == null || parentPath.isEmpty() ? name : parentPath + PATH_SEP + name;
+                String fullPath = parent.path() == null || parent.path().isEmpty()
+                        ? name : parent.path() + PATH_SEP + name;
                 idByPath.putIfAbsent(fullPath, stub);
                 idsByName.computeIfAbsent(name, k -> new ArrayList<>()).add(stub);
             } else if (matched.getIsSystem() != null && matched.getIsSystem() == 1) {
                 // 系统默认部门允许改排序/负责人，但不允许被本导入改名（名称即匹配键，天然不会改）
                 log.debug("导入命中系统默认部门 id={}", matched.getId());
             }
-            plan.add(new Validated(row.excelRow(), name, parentPath, sort, leaderId, matched));
+            plan.add(new Validated(row.excelRow(), name, parent.path(), sort, leaderId, matched));
         }
 
         if (!errors.isEmpty()) {
@@ -292,14 +159,72 @@ public class DepartmentExcelService {
             return DeptImportResult.rejected(rows.size(), errors);
         }
 
-        // ── 校验通过，按文件顺序落库（父先子后） ──
+        return persist(plan, paths);
+    }
+
+    /** 读文件 + 解析表头以下的数据行（不做业务校验）。 */
+    private List<ParsedRow> readRows(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "请选择要导入的 Excel 文件");
+        }
+        String fileName = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+        if (!fileName.endsWith(".xlsx")) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "仅支持 .xlsx 格式，请使用「下载导入模板」");
+        }
+        List<ParsedRow> rows;
+        try (InputStream in = file.getInputStream(); Workbook wb = new XSSFWorkbook(in)) {
+            rows = parse(wb);
+        } catch (IOException | RuntimeException e) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "Excel 解析失败，请确认使用导入模板：" + e.getMessage());
+        }
+        if (rows.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "未读到任何数据行（第 1 行应为表头）");
+        }
+        return rows;
+    }
+
+    /**
+     * 解析「上级部门」列：全路径优先，其次全组织唯一名称。
+     *
+     * @return null 表示已登记错误、本行应跳过
+     */
+    private ParentRef resolveParent(ParsedRow row, Map<String, Long> idByPath,
+                                    Map<String, List<Long>> idsByName, Map<Long, String> paths,
+                                    List<DeptImportResult.RowError> errors) {
+        String parentRaw = row.parent().replaceAll("/+", PATH_SEP).replaceAll("^/|/$", "");
+        if (parentRaw.isEmpty()) {
+            return new ParentRef(null, null);
+        }
+        Long byPathId = idByPath.get(parentRaw);
+        if (byPathId != null) {
+            return new ParentRef(byPathId, parentRaw);
+        }
+        String simpleName = row.parent().trim();
+        List<Long> sameName = idsByName.get(simpleName);
+        if (sameName == null || sameName.isEmpty()) {
+            errors.add(new DeptImportResult.RowError(row.excelRow(),
+                    "上级部门「" + simpleName + "」不存在（父部门须已存在或在本文件中排在前面）"));
+            return null;
+        }
+        if (sameName.size() > 1) {
+            errors.add(new DeptImportResult.RowError(row.excelRow(),
+                    "上级部门名称「" + simpleName + "」不唯一，请改填全路径"));
+            return null;
+        }
+        Long only = sameName.get(0);
+        return new ParentRef(only, paths.get(only));
+    }
+
+    /** 校验全部通过后按文件顺序落库（父先子后）。 */
+    private DeptImportResult persist(List<Validated> plan, Map<Long, String> paths) {
         int created = 0;
         int updated = 0;
         Map<String, Long> realIdByPath = new HashMap<>();
         paths.forEach((id, p) -> realIdByPath.put(p, id));
         for (Validated v : plan) {
             Long parentId = v.parentPath() == null ? null : realIdByPath.get(v.parentPath());
-            String fullPath = v.parentPath() == null || v.parentPath().isEmpty() ? v.name() : v.parentPath() + PATH_SEP + v.name();
+            String fullPath = v.parentPath() == null || v.parentPath().isEmpty()
+                    ? v.name() : v.parentPath() + PATH_SEP + v.name();
             if (v.matched() == null) {
                 Department d = new Department();
                 d.setName(v.name());
@@ -313,7 +238,8 @@ public class DepartmentExcelService {
             } else {
                 Department patch = new Department();
                 patch.setId(v.matched().getId());
-                patch.setSort(v.sort() == null ? (v.matched().getSort() == null ? DEFAULT_SORT : v.matched().getSort()) : v.sort());
+                patch.setSort(v.sort() == null
+                        ? (v.matched().getSort() == null ? DEFAULT_SORT : v.matched().getSort()) : v.sort());
                 if (v.leaderId() != null) {
                     patch.setLeaderUserId(v.leaderId());
                 }
@@ -362,71 +288,6 @@ public class DepartmentExcelService {
         return (parentId == null ? "0" : String.valueOf(parentId)) + "\u0000" + name;
     }
 
-    /** 部门全路径（顶级即名称本身）。 */
-    private Map<Long, String> paths(List<Department> all) {
-        Map<Long, Department> byId = new HashMap<>();
-        all.forEach(d -> byId.put(d.getId(), d));
-        Map<Long, String> out = new HashMap<>();
-        for (Department d : all) {
-            StringBuilder sb = new StringBuilder(d.getName());
-            Department cur = d;
-            Set<Long> guard = new HashSet<>();
-            guard.add(d.getId());
-            while (cur.getParentId() != null) {
-                Department parent = byId.get(cur.getParentId());
-                if (parent == null || !guard.add(parent.getId())) {
-                    break;
-                }
-                sb.insert(0, parent.getName() + PATH_SEP);
-                cur = parent;
-            }
-            out.put(d.getId(), sb.toString());
-        }
-        return out;
-    }
-
-    private String parentPathOf(Department d, Map<Long, String> paths) {
-        if (d.getParentId() == null) {
-            return "";
-        }
-        String p = paths.get(d.getParentId());
-        return p == null ? "" : p;
-    }
-
-    /** 树的先序（按 sort、id），使导出的父子顺序可直接回填导入。 */
-    private List<Department> ordered(List<Department> all) {
-        Map<Long, List<Department>> children = new LinkedHashMap<>();
-        List<Department> roots = new ArrayList<>();
-        for (Department d : all) {
-            if (d.getParentId() == null) {
-                roots.add(d);
-            } else {
-                children.computeIfAbsent(d.getParentId(), k -> new ArrayList<>()).add(d);
-            }
-        }
-        Comparator<Department> cmp = Comparator
-                .comparingInt((Department d) -> d.getSort() == null ? DEFAULT_SORT : d.getSort())
-                .thenComparing(Department::getId);
-        roots.sort(cmp);
-        List<Department> out = new ArrayList<>();
-        for (Department root : roots) {
-            walk(root, children, cmp, out);
-        }
-        return out;
-    }
-
-    private void walk(Department node, Map<Long, List<Department>> children, Comparator<Department> cmp, List<Department> out) {
-        out.add(node);
-        List<Department> kids = children.get(node.getId());
-        if (kids == null || kids.isEmpty()) {
-            return;
-        }
-        kids.sort(cmp);
-        for (Department kid : kids) {
-            walk(kid, children, cmp, out);
-        }
-    }
-
     private Map<String, Long> usernames() {
         Map<String, Long> out = new HashMap<>();
         userMapper.selectList(Wrappers.<SysUser>lambdaQuery().select(SysUser::getId, SysUser::getUsername))
@@ -454,7 +315,12 @@ public class DepartmentExcelService {
     private record ParsedRow(int excelRow, String name, String parent, String sort, String leader) {
     }
 
+    /** 解析出的上级引用：id 可为本文件内的占位 id。 */
+    private record ParentRef(Long id, String path) {
+    }
+
     /** 校验通过、待落库的行。 */
-    private record Validated(int excelRow, String name, String parentPath, Integer sort, Long leaderId, Department matched) {
+    private record Validated(int excelRow, String name, String parentPath, Integer sort,
+                             Long leaderId, Department matched) {
     }
 }
