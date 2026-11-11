@@ -1,7 +1,7 @@
 package com.bbtc.bluebird.modules.org.controller;
 
 import com.bbtc.bluebird.common.api.ApiResult;
-import com.bbtc.bluebird.modules.org.application.OrgSyncService;
+import com.bbtc.bluebird.modules.org.application.OrgPushService;
 import com.bbtc.bluebird.modules.org.dto.OrgPushPayload;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,12 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class OrgPushController {
 
-    private final OrgSyncService orgSyncService;
+    private final OrgPushService orgPushService;
 
     @Operation(summary = "私有 IDM 推送")
     @PostMapping("/push")
     public ApiResult<Void> push(@RequestBody OrgPushPayload payload) {
-        orgSyncService.applyPush(payload);
+        orgPushService.applyPush(payload);
         return ApiResult.ok();
     }
 }

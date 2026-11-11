@@ -1,7 +1,7 @@
 package com.bbtc.bluebird.modules.org.controller;
 
 import com.bbtc.bluebird.common.api.ApiResult;
-import com.bbtc.bluebird.modules.org.application.OrgSyncService;
+import com.bbtc.bluebird.modules.org.application.ScimSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +27,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ScimController {
 
-    private final OrgSyncService orgSyncService;
+    private final ScimSyncService scimSyncService;
 
     @Operation(summary = "SCIM 查询用户")
     @GetMapping("/Users")
@@ -39,21 +39,21 @@ public class ScimController {
     @Operation(summary = "SCIM 创建/替换用户")
     @PostMapping("/Users")
     public ApiResult<Void> createUser(@RequestBody Map<String, Object> resource) {
-        orgSyncService.scimUpsertUser(resource);
+        scimSyncService.upsertUser(resource);
         return ApiResult.ok();
     }
 
     @Operation(summary = "SCIM 替换用户")
     @PutMapping("/Users")
     public ApiResult<Void> putUser(@RequestBody Map<String, Object> resource) {
-        orgSyncService.scimUpsertUser(resource);
+        scimSyncService.upsertUser(resource);
         return ApiResult.ok();
     }
 
     @Operation(summary = "SCIM 局部更新用户")
     @PatchMapping("/Users")
     public ApiResult<Void> patchUser(@RequestBody Map<String, Object> resource) {
-        orgSyncService.scimUpsertUser(resource);
+        scimSyncService.upsertUser(resource);
         return ApiResult.ok();
     }
 
@@ -73,21 +73,21 @@ public class ScimController {
     @Operation(summary = "SCIM 创建部门")
     @PostMapping("/Groups")
     public ApiResult<Void> createGroup(@RequestBody Map<String, Object> resource) {
-        orgSyncService.scimUpsertGroup(resource);
+        scimSyncService.upsertGroup(resource);
         return ApiResult.ok();
     }
 
     @Operation(summary = "SCIM 替换部门")
     @PutMapping("/Groups")
     public ApiResult<Void> putGroup(@RequestBody Map<String, Object> resource) {
-        orgSyncService.scimUpsertGroup(resource);
+        scimSyncService.upsertGroup(resource);
         return ApiResult.ok();
     }
 
     @Operation(summary = "SCIM 局部更新部门")
     @PatchMapping("/Groups")
     public ApiResult<Void> patchGroup(@RequestBody Map<String, Object> resource) {
-        orgSyncService.scimUpsertGroup(resource);
+        scimSyncService.upsertGroup(resource);
         return ApiResult.ok();
     }
 
