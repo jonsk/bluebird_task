@@ -165,6 +165,20 @@
     <build>
         <finalName>bluebird-task</finalName>
         <plugins>
+            <!-- 显式开启注解处理：classpath 上有 Lombok / spring-boot-configuration-processor，
+                 javac 会「隐式启用」并打印「由于在类路径中发现了一个或多个处理程序…」。
+                 JDK 23 起隐式注解处理被取消，届时 Lombok 不再生成 getter/setter，
+                 所以这里写成 -proc:full 把它变成显式契约（注意不能用 -proc:none，那会真的关掉
+                 Lombok 导致全量编译失败）。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <compilerArgs>
+                        <arg>-proc:full</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
             <!-- 覆盖率度量（目标见 docs：先量基线，再上只防回落的门禁）。
                  report 绑在 test 阶段：跑完单测即可在 target/site/jacoco/ 看到报告。 -->
             <plugin>
