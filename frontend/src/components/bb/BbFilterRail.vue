@@ -25,6 +25,7 @@ import { useAppStore, type ThemeKey } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useMenuStore } from '@/stores/menu'
 import { useTaskStore } from '@/stores/task'
+import { notifyNavSelect } from '@/composables/useNavReload'
 import type { Menu } from '@/api/menu'
 import { logoutEverywhere } from '@/utils/logout'
 
@@ -135,6 +136,9 @@ function countOf(key: string): number | null {
 
 function goView(name: string): void {
   taskStore.setMenuFilter(null)
+  // 无论是否真的跳转都广播一次：点当前页面的菜单项不会重新挂载，
+  // 页面靠这个信号自己重新校验（如「每周工作记录」每次点都确保当周记录存在）。
+  notifyNavSelect(name)
   if (route.name !== name) void router.push({ name })
 }
 

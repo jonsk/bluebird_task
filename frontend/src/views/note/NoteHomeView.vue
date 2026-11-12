@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NoteListView from './NoteListView.vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
@@ -11,6 +11,7 @@ import { calendar as noteCalendar } from '@/api/calendar'
 import { createWeeklyNote, listNotes } from '@/api/note'
 import { BizError, HttpError } from '@/api/http'
 import { ElMessage } from 'element-plus'
+import { navSelect } from '@/composables/useNavReload'
 import { useNoteStore } from '@/stores/note'
 import {
   shiftDay,
@@ -110,6 +111,15 @@ const displayNotes = computed(() => {
   if (composerOpen.value && composerId.value != null) hide.add(composerId.value)
   if (!hide.size) return notes.value
   return notes.value.filter((n) => n.id == null || !hide.has(n.id))
+})
+
+/**
+ * 点「每周工作记录」菜单：即使已经停在这个页面（路由重复不会重新挂载组件），
+ * 也重新校验一次当周记录——有就加载，没有就新建。
+ */
+watch(navSelect, (sig) => {
+  if (!sig || !isWeekly.value || sig.name !== 'WeeklyNoteHome') return
+  void openCurrentWeekRecord()
 })
 
 onMounted(() => {
