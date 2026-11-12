@@ -24,6 +24,7 @@
         <sqlite.version>3.46.1.3</sqlite.version>
         <jjwt.version>0.11.5</jjwt.version>
         <springdoc.version>2.6.0</springdoc.version>
+        <swagger.version>2.2.22</swagger.version>
         <poi.version>5.5.1</poi.version>
         <!-- 质量工具链（见 build/plugins）：三件套都锁版本，避免 CI 与本地跑出不同结果。 -->
         <jacoco.version>0.8.12</jacoco.version>
@@ -104,11 +105,16 @@
             <version>${sqlite.version}</version>
         </dependency>
 
-        <!-- Excel（部门导入/导出/模板，.xlsx）。poi-ooxml 带 xlsx 读写与 xmlbeans。 -->
+        <!-- Excel（部门导入/导出/模板，.xlsx）。
+             运行时用 common/excel 下的 XlsxReader/XlsxWriter（JDK zip+XML），不打 POI；
+             POI 只留在 test 作用域，当「独立实现」的裁判：单测用它读回我们写出的文件、
+             用它造文件喂给我们的解析器。这样既不进运行时包，又保留了交叉验证。
+             注意：不要改成 compile，会重新把 poi+poi-ooxml+xmlbeans+commons-math3 约 12 MB 塞回 jar。 -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>${poi.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- Flyway（迁移）；SQLite 支持随 flyway-core 提供 -->
@@ -136,11 +142,15 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- API 文档（仅 dev 启用，DOC_ENABLED，ADR-011） -->
+        <!-- API 文档：默认**不进**依赖，用 -Papidocs 激活（见文件末尾 profiles）。
+             以前是 compile 作用域靠 DOC_ENABLED 运行时关掉，但 swagger-ui + springdoc + swagger-core
+             约 4 MB 照样躺在 jar 里；生产包不需要这些静态资源。
+             但控制器上的 @Operation / @Tag 是编译期注解，所以单留 annotations-jakarta（约 50 KB），
+             这样「默认包不带文档实现」和「注解不丢」两个目标不冲突。 -->
         <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>${springdoc.version}</version>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations-jakarta</artifactId>
+            <version>${swagger.version}</version>
         </dependency>
 
         <dependency>
@@ -380,4 +390,20 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- 接口文档（springdoc + swagger-ui）默认不激活：生产/单机部署直接用默认构建，jar 里没有这 4 MB。
+             本地要看 Swagger UI 时：mvn -Papidocs spring-boot:run（或 -Papidocs package 做临时包）。
+             DOC_ENABLED 环境变量仍需为 true，二者是「装不装」与「开不开」两层开关。 -->
+        <profile>
+            <id>apidocs</id>
+            <dependencies>
+                <dependency>
+                    <groupId>org.springdoc</groupId>
+                    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                    <version>${springdoc.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

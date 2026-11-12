@@ -1,6 +1,8 @@
 package com.bbtc.bluebird.modules.org.application;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.bbtc.bluebird.common.excel.XlsxReader;
+import com.bbtc.bluebird.common.excel.XlsxSheet;
 import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.modules.identity.domain.SysUser;
@@ -10,12 +12,6 @@ import com.bbtc.bluebird.modules.org.dto.DeptImportResult;
 import com.bbtc.bluebird.modules.org.infrastructure.DepartmentMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -172,8 +168,8 @@ public class DepartmentExcelService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "仅支持 .xlsx 格式，请使用「下载导入模板」");
         }
         List<ParsedRow> rows;
-        try (InputStream in = file.getInputStream(); Workbook wb = new XSSFWorkbook(in)) {
-            rows = parse(wb);
+        try (InputStream in = file.getInputStream()) {
+            rows = parse(XlsxReader.readFirstSheet(in));
         } catch (IOException | RuntimeException e) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "Excel 解析失败，请确认使用导入模板：" + e.getMessage());
         }
@@ -255,19 +251,17 @@ public class DepartmentExcelService {
 
     /* ==================== 解析与小工具 ==================== */
 
-    private List<ParsedRow> parse(Workbook wb) {
-        Sheet sheet = wb.getSheetAt(0);
-        DataFormatter fmt = new DataFormatter();
+    private List<ParsedRow> parse(XlsxSheet sheet) {
         List<ParsedRow> out = new ArrayList<>();
-        for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-            Row row = sheet.getRow(i);
+        for (int i = 1; i <= sheet.lastRowIndex(); i++) {
+            String[] row = sheet.row(i);
             if (row == null) {
                 continue;
             }
-            String name = cell(fmt, row, 0);
-            String parent = cell(fmt, row, 1);
-            String sort = cell(fmt, row, 2);
-            String leader = cell(fmt, row, 3);
+            String name = cell(row, 0);
+            String parent = cell(row, 1);
+            String sort = cell(row, 2);
+            String leader = cell(row, 3);
             if (name.isEmpty() && parent.isEmpty() && sort.isEmpty() && leader.isEmpty()) {
                 continue;
             }
@@ -279,9 +273,11 @@ public class DepartmentExcelService {
         return out;
     }
 
-    private static String cell(DataFormatter fmt, Row row, int idx) {
-        Cell c = row.getCell(idx);
-        return c == null ? "" : fmt.formatCellValue(c).trim();
+    private static String cell(String[] row, int idx) {
+        if (row == null || idx < 0 || idx >= row.length || row[idx] == null) {
+            return "";
+        }
+        return row[idx].trim();
     }
 
     private static String key(Long parentId, String name) {
