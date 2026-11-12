@@ -66,8 +66,15 @@ const noteNavItems = computed<
   const items: Array<{ name: string; label: string; icon: unknown; test: string }> = [
     { name: 'NoteHome', label: '我的日志', icon: Notebook, test: 'note-mine' },
   ]
+  items.push({ name: 'WeeklyNoteHome', label: '每周工作记录', icon: Calendar, test: 'note-weekly' })
   if (auth.user?.managerCanReadSubordinate) {
     items.push({ name: 'NoteSubordinate', label: '员工日志', icon: User, test: 'note-subordinate' })
+    items.push({
+      name: 'WeeklyNoteSubordinate',
+      label: '员工周记录',
+      icon: User,
+      test: 'note-weekly-subordinate',
+    })
   }
   // 周报由工作日志生成，放在日志分组内，日志用户无需切到「任务」分组才能找到。
   items.push({ name: 'WeeklyReport', label: '工作周报', icon: Document, test: 'note-weekly-report' })

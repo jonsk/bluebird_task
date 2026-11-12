@@ -2271,12 +2271,13 @@ export interface paths {
         };
         /**
          * 工作日志分页（4 种 scope + 过滤/排序）
-         * @description `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 标签能力已下线，不再有 `tagId`/`tagName` 过滤；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（传驼峰 `logDate_*` 会被忽略而回落默认）。
+         * @description `scope`：`mine`（默认）| `subordinate`（员工日志，需开关 `app.security.manager-can-read-subordinate`）| `visible`（我可见的全部）| `all`（ADMIN，后台「全部日志」使用）。 标签能力已下线，不再有 `tagId`/`tagName` 过滤；`date` 与 `start/end` 互斥。`sort`：`log_date_desc`（默认）| `log_date_asc` | `created_desc` | `updated_desc`（传驼峰 `logDate_*` 会被忽略而回落默认）。 `period`：`DAY`（默认，工作日志，按 `log_date` 过滤/排序）| `WEEK`（每周工作记录，按 `period_start` 过滤/排序， `date/start/end` 均表示该周周一）。
          */
         get: {
             parameters: {
                 query?: {
                     scope?: "mine" | "subordinate" | "visible" | "all";
+                    period?: "DAY" | "WEEK";
                     keyword?: string;
                     start?: string;
                     end?: string;
@@ -2328,6 +2329,51 @@ export interface paths {
                 cookie?: never;
             };
             requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NoteCreateReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiResult"] & {
+                            data?: components["schemas"]["NoteDetailVO"];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 创建或打开「本周」的每周工作记录（幂等）
+         * @description 一周一条：同一用户同一周（ISO 周一 ~ 周日，Asia/Shanghai）只有一条未删除记录。 本周已有记录时直接返回那条，不覆盖内容；请求体可省略，缺省正文为 7 个日期一级标题。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
                 content: {
                     "application/json": components["schemas"]["NoteCreateReq"];
                 };

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { WarningFilled, RefreshRight } from '@element-plus/icons-vue'
-import type { NoteBrief } from '@/types/note'
+import type { NoteBrief, NotePeriod } from '@/types/note'
 import NoteCard from './NoteCard.vue'
 
 /**
@@ -16,12 +16,14 @@ withDefaults(
     total: number
     activeId?: number | null
     emptyText?: string
+    period?: NotePeriod
   }>(),
   {
     loading: false,
     error: null,
     activeId: null,
     emptyText: '暂无工作日志',
+    period: 'DAY',
   },
 )
 
@@ -57,6 +59,7 @@ const emit = defineEmits<{
         v-for="note in notes"
         :key="note.id"
         :note="note"
+        :period="period"
         :active="activeId != null && note.id === activeId"
         @open="emit('open', $event)"
         @edit="emit('edit', $event)"

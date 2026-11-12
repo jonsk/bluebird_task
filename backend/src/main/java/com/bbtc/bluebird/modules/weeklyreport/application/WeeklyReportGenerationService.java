@@ -115,6 +115,7 @@ public class WeeklyReportGenerationService {
         int max = Math.max(1, Math.min(200, config.getInt("weeklyreport", "max-notes", 50)));
         List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
                 .eq(Note::getOwnerId, userId)
+                .eq(Note::getPeriodType, Note.PERIOD_DAY)
                 .ge(Note::getLogDate, report.getWeekStart())
                 .le(Note::getLogDate, report.getWeekEnd())
                 .orderByDesc(Note::getLogDate)

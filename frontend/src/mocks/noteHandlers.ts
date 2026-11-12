@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { dataOf } from './fixtures'
 import { canReadSubordinate, isAdminRequest } from './identity'
+import { todayWeekStart, weekHeadings } from '@/utils/date'
 
 /**
  * Note（工作日志）MSW Mock —— 内存实现，覆盖 `docs/api/openapi.yaml` 的 note 相关端点。
@@ -24,6 +25,8 @@ interface NoteRow {
   id: number
   content: string
   logDate: string
+  /** DAY=工作日志（缺省）；WEEK=每周工作记录（一周一条，logDate 即周一） */
+  periodType?: 'DAY' | 'WEEK'
   ownerId: number
   ownerName: string
   deptId: number | null
@@ -196,9 +199,12 @@ function summaryOf(content: string): string {
 
 function brief(n: NoteRow) {
   const p = permsOf(n)
+  const weekly = n.periodType === 'WEEK'
+  // 周记录默认正文是 7 个日期标题，摘要里整段剥掉（与后端 summaryOf 一致）
+  const summarySource = weekly ? n.content.replace(/<h1\b[^>]*>.*?<\/h1>/gis, ' ') : n.content
   return {
     id: n.id,
-    contentSummary: summaryOf(n.content),
+    contentSummary: summaryOf(summarySource),
     logDate: n.logDate,
     ownerId: n.ownerId,
     ownerName: n.ownerName,
@@ -343,7 +349,8 @@ export const noteHandlers = [
     if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
     const counter = new Map<string, number>()
     for (const n of notes) {
-      if (!alive(n) || !inScope(n, scope)) continue
+      // 日历只统计日日志；周记录按周展示，不进入日视图
+      if (!alive(n) || n.periodType === 'WEEK' || !inScope(n, scope)) continue
       const [y, m] = n.logDate.split('-').map(Number)
       if (y !== year || m !== month) continue
       counter.set(n.logDate, (counter.get(n.logDate) ?? 0) + 1)
@@ -359,14 +366,21 @@ export const noteHandlers = [
     const size = Number(q.get('size') ?? 20)
     const keyword = (q.get('keyword') ?? '').trim().toLowerCase()
     const date = q.get('date') ?? ''
+    const startDate = q.get('start') ?? ''
+    const endDate = q.get('end') ?? ''
+    const period = (q.get('period') ?? 'DAY').toUpperCase()
 
     // 权限门控（对齐后端 NoteQueryService）：all 仅 ADMIN；subordinate 需 MANAGER_CAN_READ_SUBORDINATE
     if (scope === 'all' && !isAdminRequest(request)) return fail(10003, '无权限', 403)
     if (scope === 'subordinate' && !canReadSubordinate(request)) return fail(10003, '无权限', 403)
 
-    let list = notes.filter((n) => alive(n) && inScope(n, scope))
+    let list = notes.filter(
+      (n) => alive(n) && inScope(n, scope) && (n.periodType ?? 'DAY') === period,
+    )
     if (keyword) list = list.filter((n) => n.content.toLowerCase().includes(keyword))
     if (date) list = list.filter((n) => n.logDate === date)
+    if (startDate) list = list.filter((n) => n.logDate >= startDate)
+    if (endDate) list = list.filter((n) => n.logDate <= endDate)
 
     const sorted = sortNotes(list, q.get('sort') ?? 'log_date_desc')
     const start = (page - 1) * size
@@ -393,6 +407,37 @@ export const noteHandlers = [
       content: body.content,
       // 与后端一致：日志日期固定为创建当天（Asia/Shanghai）
       logDate: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }),
+      ownerId: ME,
+      ownerName: ME_NAME,
+      deptId: ME_DEPT,
+      version: 1,
+      deleted: false,
+      createdAt: now,
+      updatedAt: now,
+    }
+    notes.unshift(row)
+    return ok(detailOf(row))
+  }),
+
+  // 每周工作记录：一周一条；本周已有就返回已有那条（与后端 POST /notes/weekly 同语义）
+  http.post(`${AUTH}/notes/weekly`, async ({ request }) => {
+    const monday = todayWeekStart()
+    const existing = notes.find(
+      (n) => alive(n) && n.ownerId === ME && n.periodType === 'WEEK' && n.logDate === monday,
+    )
+    if (existing) return ok(detailOf(existing))
+    const body = (await request.json().catch(() => ({}))) as { content?: string }
+    const content =
+      body.content?.trim() ||
+      weekHeadings(monday)
+        .map((h) => `<h1>${h}</h1>`)
+        .join('') + '<p></p>'
+    const now = new Date().toISOString()
+    const row: NoteRow = {
+      id: ++noteSeq,
+      content,
+      logDate: monday,
+      periodType: 'WEEK',
       ownerId: ME,
       ownerName: ME_NAME,
       deptId: ME_DEPT,

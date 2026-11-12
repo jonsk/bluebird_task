@@ -10,7 +10,7 @@ import NoteNotFound from '@/components/note/NoteNotFound.vue'
 import { useNoteDetail } from '@/composables/useNoteDetail'
 import { useNoteActions } from '@/composables/useNoteActions'
 import { useNoteStore } from '@/stores/note'
-import { formatHeaderDate } from '@/utils/date'
+import { formatHeaderDate, weekRangeLabel } from '@/utils/date'
 import { stripMarkdown } from '@/utils/markdown'
 
 /**
@@ -30,6 +30,8 @@ const actions = useNoteActions()
 const id = computed(() => Number(route.params.id))
 const detail = detailApi.detail
 const editing = ref(false)
+/** 从「员工周记录」进入时带 ?period=WEEK：日期显示成周区间，返回回到周列表。 */
+const weekly = computed(() => route.query.period === 'WEEK')
 
 function load(): void {
   void detailApi.load(id.value)
@@ -55,7 +57,7 @@ onUnmounted(() => {
 })
 
 function back(): void {
-  void router.push({ name: 'NoteHome' })
+  void router.push({ name: weekly.value ? 'WeeklyNoteSubordinate' : 'NoteHome' })
 }
 
 async function removeNote(): Promise<void> {
@@ -70,7 +72,7 @@ async function removeNote(): Promise<void> {
     return
   }
   await actions.remove({ id: Number(d.id) })
-  void router.push({ name: 'NoteHome' })
+  void router.push({ name: weekly.value ? 'WeeklyNoteSubordinate' : 'NoteHome' })
 }
 
 /** 自动保存成功：保持编辑态继续写；列表缓存先失效，回到列表时取新数据。 */
@@ -112,7 +114,7 @@ function onCancelEdit(): void {
     <template v-else-if="detail">
       <section class="note-detail__head">
         <div class="note-detail__meta">
-          <span class="note-detail__logdate">{{ detail.logDate }}</span>
+          <span class="note-detail__logdate">{{ weekly && detail.logDate ? weekRangeLabel(detail.logDate) : detail.logDate }}</span>
           <span class="note-detail__owner">{{ detail.ownerName }}</span>
         </div>
         <div class="note-detail__ops">
@@ -128,6 +130,7 @@ function onCancelEdit(): void {
       <section v-if="editing" class="note-detail__editor">
         <NoteEditor
           :note-id="Number(detail.id)"
+          :period="weekly ? 'WEEK' : 'DAY'"
           closable
           @saved="onSaved"
           @cancel="onCancelEdit"

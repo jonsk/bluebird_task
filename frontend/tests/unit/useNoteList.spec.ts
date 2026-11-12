@@ -139,6 +139,7 @@ describe('useNoteList · needsReload', () => {
       page: 3,
       size: 20,
       sort: 'log_date_desc',
+      period: 'DAY',
     } as never)
     store.cacheSet(key, pageData([], 5, 3))
 

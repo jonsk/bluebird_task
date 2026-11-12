@@ -119,7 +119,7 @@ describe('BbFilterRail · 工作日志分组', () => {
   it('普通用户：只有我的日志，无员工、无全部日志、无授权入口', () => {
     const w = mountRail()
     const tests = navTests(w)
-    expect(tests).toEqual(['nav-note-mine', 'nav-note-weekly-report'])
+    expect(tests).toEqual(['nav-note-mine', 'nav-note-weekly', 'nav-note-weekly-report'])
     expect(tests).not.toContain('nav-note-shared')
     expect(tests).not.toContain('nav-note-grants')
   })
@@ -128,6 +128,8 @@ describe('BbFilterRail · 工作日志分组', () => {
     authState.user = { name: '张三', username: 'zhangli', managerCanReadSubordinate: true }
     const w = mountRail()
     expect(navTests(w)).toContain('nav-note-subordinate')
+    // 周记录同口径：可读下属日志才有「员工周记录」
+    expect(navTests(w)).toContain('nav-note-weekly-subordinate')
   })
 
   it('ADMIN 也不出现「全部日志」（已移到后台 /admin/notes）', () => {

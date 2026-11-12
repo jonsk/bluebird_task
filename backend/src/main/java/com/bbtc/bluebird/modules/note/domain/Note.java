@@ -22,12 +22,21 @@ import java.time.Instant;
 @TableName("note")
 public class Note extends BaseEntity {
 
+    /** 日粒度工作日志（默认；历史数据全部是这一档）。 */
+    public static final String PERIOD_DAY = "DAY";
+    /** 周粒度工作记录：一周一条，period_start = 该周周一。 */
+    public static final String PERIOD_WEEK = "WEEK";
+
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     private String content;
-    /** 工作日 YYYY-MM-DD（按日聚合，一天可多条）。 */
+    /** 工作日 YYYY-MM-DD（按日聚合，一天可多条）；周记录写该周周一，保证 NOT NULL。 */
     private String logDate;
+    /** DAY | WEEK。周记录的日期口径见 {@link #periodStart}。 */
+    private String periodType;
+    /** 周期起点 YYYY-MM-DD：DAY = log_date，WEEK = 该周周一（ISO 周，Asia/Shanghai）。 */
+    private String periodStart;
     private Long ownerId;
     /** owner 部门快照（用于详情展示部门名）。 */
     private Long deptId;

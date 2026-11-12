@@ -12,7 +12,7 @@ import NoteList from '@/components/note/NoteList.vue'
 import NoteFilterBar from '@/components/note/NoteFilterBar.vue'
 import NoteSearchInput from '@/components/note/NoteSearchInput.vue'
 import BbPageHeader from '@/components/bb/BbPageHeader.vue'
-import type { NoteBrief, NoteQuery, NoteQueryPatch, NoteScope } from '@/types/note'
+import type { NoteBrief, NotePeriod, NoteQuery, NoteQueryPatch, NoteScope } from '@/types/note'
 import { formatHeaderDate } from '@/utils/date'
 
 /**
@@ -58,6 +58,7 @@ const emit = defineEmits<{
 
 const route = useRoute()
 const scope = computed<NoteScope>(() => (route.meta.scope as NoteScope) || 'mine')
+const period = computed<NotePeriod>(() => (route.meta.period === 'WEEK' ? 'WEEK' : 'DAY'))
 const title = computed(() => (route.meta.title as string) || '工作日志')
 const headerDate = computed(() => formatHeaderDate())
 
@@ -127,6 +128,7 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
               :page="page"
               :total="total"
               :active-id="activeId"
+              :period="period"
               :empty-text="emptyText"
               @page-change="(p) => emit('page-change', p)"
               @retry="emit('retry')"

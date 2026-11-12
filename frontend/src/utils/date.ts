@@ -74,6 +74,57 @@ export function todayInShanghai(): string {
 /** todayInShanghai 的同义别名。 */
 export const todayDate = todayInShanghai
 
+/* ==================== 周口径（ISO 周：周一 ~ 周日，Asia/Shanghai） ==================== */
+
+const WEEK_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+
+/** YYYY-MM-DD 视为纯日历日，用 UTC 运算避免本地时区把日期推前/推后一天。 */
+function parseDay(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d))
+}
+
+function formatDayUtc(date: Date): string {
+  const y = date.getUTCFullYear()
+  const m = pad(date.getUTCMonth() + 1)
+  const d = pad(date.getUTCDate())
+  return `${y}-${m}-${d}`
+}
+
+/** 日期加减天数（纯日历运算）。 */
+export function shiftDay(ymd: string, days: number): string {
+  const date = parseDay(ymd)
+  date.setUTCDate(date.getUTCDate() + days)
+  return formatDayUtc(date)
+}
+
+/** 所在 ISO 周的周一（周日归到本周一，不是下周一）。 */
+export function weekStartOf(ymd: string): string {
+  const date = parseDay(ymd)
+  const dow = date.getUTCDay() // 0=周日
+  const offset = dow === 0 ? 6 : dow - 1
+  date.setUTCDate(date.getUTCDate() - offset)
+  return formatDayUtc(date)
+}
+
+/** 本周周一（上海时区）。 */
+export function todayWeekStart(): string {
+  return weekStartOf(todayInShanghai())
+}
+
+/** 周标签：`2026-12-28 ~ 2027-01-03`（两端完整日期，跨年也不省略年份）。 */
+export function weekRangeLabel(weekStart: string): string {
+  return `${weekStart} ~ ${shiftDay(weekStart, 6)}`
+}
+
+/** 周记录默认正文的 7 个日期标题：`2026年11月2日 周一` … `2026年11月8日 周日`。 */
+export function weekHeadings(weekStart: string): string[] {
+  return WEEK_LABELS.map((label, i) => {
+    const d = parseDay(shiftDay(weekStart, i))
+    return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日 ${label}`
+  })
+}
+
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n)
 }

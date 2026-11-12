@@ -93,6 +93,7 @@ public class WeeklyReportService {
         String currentWeek = WeeklyReportPeriod.of(LocalDate.now(ZONE)).start();
         List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
                 .eq(Note::getOwnerId, me)
+                .eq(Note::getPeriodType, Note.PERIOD_DAY)
                 .select(Note::getId, Note::getLogDate));
         Map<String, Long> counts = new HashMap<>();
         for (Note note : notes) {
@@ -134,6 +135,7 @@ public class WeeklyReportService {
         WeeklyReportPeriod period = periodOf(req == null ? null : req.weekStart());
         long noteCount = noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
                 .eq(Note::getOwnerId, me)
+                .eq(Note::getPeriodType, Note.PERIOD_DAY)
                 .ge(Note::getLogDate, period.start())
                 .le(Note::getLogDate, period.end()));
         if (noteCount == 0) {
@@ -245,6 +247,7 @@ public class WeeklyReportService {
         WeeklyReportPeriod period = WeeklyReportPeriod.of(LocalDate.now(ZONE));
         List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
                 .isNotNull(Note::getOwnerId)
+                .eq(Note::getPeriodType, Note.PERIOD_DAY)
                 .ge(Note::getLogDate, period.start())
                 .le(Note::getLogDate, period.end())
                 .select(Note::getId, Note::getOwnerId));

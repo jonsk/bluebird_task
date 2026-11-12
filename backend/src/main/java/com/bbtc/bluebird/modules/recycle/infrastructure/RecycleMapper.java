@@ -29,7 +29,11 @@ public interface RecycleMapper {
                 <if test="userId != null"> AND (deleted_by = #{userId} OR (deleted_by IS NULL AND owner_id = #{userId})) </if>
                 <if test="keyword != null and keyword != ''"> AND title LIKE '%' || #{keyword} || '%' </if>
               UNION ALL
-              SELECT 'NOTE' AS type, id AS id, substr(content, 1, 60) AS title, deleted_at AS deleted_at, deleted_by AS deleted_by
+              SELECT 'NOTE' AS type, id AS id,
+                     CASE WHEN period_type = 'WEEK'
+                          THEN period_start || ' ~ ' || date(period_start, '+6 day')
+                          ELSE substr(content, 1, 60) END AS title,
+                     deleted_at AS deleted_at, deleted_by AS deleted_by
                 FROM note WHERE deleted = 1
                 <if test="type == 'task'"> AND 1 = 0 </if>
                 <if test="userId != null"> AND (deleted_by = #{userId} OR (deleted_by IS NULL AND owner_id = #{userId})) </if>

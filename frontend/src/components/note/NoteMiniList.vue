@@ -1,17 +1,26 @@
 <script setup lang="ts">
 import { ArrowRight } from '@element-plus/icons-vue'
 import { stripMarkdown } from '@/utils/markdown'
-import type { NoteBrief } from '@/types/note'
+import type { NoteBrief, NotePeriod } from '@/types/note'
+import { weekRangeLabel } from '@/utils/date'
 
 /** NoteMiniList — 右栏小列表（无分页），底部「查看全部」跳转。 */
-withDefaults(
+const props = withDefaults(
   defineProps<{
     notes: NoteBrief[]
     loading?: boolean
     activeId?: number | null
+    /** DAY 显示日期；WEEK 显示 `2026-11-02 ~ 2026-11-08` */
+    period?: NotePeriod
   }>(),
-  { loading: false, activeId: null },
+  { loading: false, activeId: null, period: 'DAY' },
 )
+
+/** 周记录的 logDate 就是该周周一，展示时展开成区间。 */
+function noteLabel(note: NoteBrief): string {
+  const date = note.logDate ?? ''
+  return props.period === 'WEEK' && date ? weekRangeLabel(date) : date
+}
 
 const emit = defineEmits<{
   (e: 'open', id: number): void
@@ -22,7 +31,11 @@ const emit = defineEmits<{
 <template>
   <div class="note-mini-list">
     <el-skeleton v-if="loading" :rows="3" animated />
-    <el-empty v-else-if="!notes.length" description="今日暂无日志" :image-size="48" />
+    <el-empty
+      v-else-if="!notes.length"
+      :description="period === 'WEEK' ? '本周暂无记录' : '今日暂无日志'"
+      :image-size="48"
+    />
     <ul v-else class="note-mini-list__items">
       <li
         v-for="note in notes"
@@ -31,8 +44,8 @@ const emit = defineEmits<{
         :class="{ 'is-active': activeId != null && note.id === activeId }"
         @click="note.id != null && emit('open', note.id)"
       >
-        <span class="note-mini-list__date">{{ note.logDate }}</span>
-        <span class="note-mini-list__summary">{{ stripMarkdown(note.contentSummary) || '（无内容）' }}</span>
+        <span class="note-mini-list__date">{{ noteLabel(note) }}</span>
+        <span class="note-mini-list__summary">{{ stripMarkdown(note.contentSummary) || (period === 'WEEK' ? '本周暂无内容' : '（无内容）') }}</span>
       </li>
     </ul>
     <div class="note-mini-list__footer">

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { Expand } from '@element-plus/icons-vue'
 import BbFilterRail from '@/components/bb/BbFilterRail.vue'
 import { useAppStore } from '@/stores/app'
@@ -13,6 +14,7 @@ import { useNoteStore } from '@/stores/note'
 const app = useAppStore()
 const taskStore = useTaskStore()
 const noteStore = useNoteStore()
+const route = useRoute()
 
 onMounted(() => {
   void taskStore.fetchCounts()
@@ -29,7 +31,9 @@ onMounted(() => {
       <el-tooltip v-if="app.leftCollapsed" content="展开菜单" placement="bottom" effect="light">
         <el-icon class="layout__expand" data-test="rail-expand" @click="app.toggleLeft()"><Expand /></el-icon>
       </el-tooltip>
-      <router-view />
+      <!-- 按 path 重建：工作日志与每周工作记录复用同一批页面组件，
+           不重建会沿用上一页的 composer/编辑态；query 变化（筛选）不重建列表。 -->
+      <router-view :key="route.path" />
     </main>
   </div>
 </template>

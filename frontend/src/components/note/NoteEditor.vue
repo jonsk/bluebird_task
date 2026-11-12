@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import DragHandle from '@tiptap/extension-drag-handle-vue-3'
-import { getNote, createNote, updateNote, bindAttachment } from '@/api/note'
+import { getNote, createNote, createWeeklyNote, updateNote, bindAttachment } from '@/api/note'
 import { uploadFile } from '@/api/file'
 import { BizError, HttpError } from '@/api/http'
 import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
@@ -13,6 +13,7 @@ import { buildNoteExtensions } from '@/utils/noteEditorExtensions'
 import { isBlankHtml, plainTextFromHtml, toEditorHtml, visibleLength } from '@/utils/richText'
 import { containsDangerousRichText } from '@/utils/sanitize'
 import { formatClock } from '@/utils/format'
+import { todayWeekStart, weekHeadings } from '@/utils/date'
 import { validateUploadFile } from '@/utils/upload'
 import { useFileConfig } from '@/composables/useFileConfig'
 import { useBlockDragHandle } from '@/composables/useBlockDragHandle'
@@ -20,7 +21,7 @@ import BbSaveStatus from '@/components/bb/BbSaveStatus.vue'
 import NoteToolbar from './editor/NoteToolbar.vue'
 import NoteBubbleMenu from './editor/NoteBubbleMenu.vue'
 import NoteOutline from './editor/NoteOutline.vue'
-import type { NoteDetailVO } from '@/types/note'
+import type { NoteDetailVO, NotePeriod } from '@/types/note'
 import '@/styles/note-editor.css'
 
 /**
@@ -57,8 +58,13 @@ const props = withDefaults(
      * 用于列表行内编辑（NoteHomeView）这类有独立「正在编辑」标题栏的场景。
      */
     compact?: boolean
+    /**
+     * 周期：DAY = 工作日志（新建预置当天日期标题）；WEEK = 每周工作记录
+     * （新建预置 7 个日期标题，首次落库走 `POST /notes/weekly`，一周一条由后端兜底）。
+     */
+    period?: NotePeriod
   }>(),
-  { noteId: null, initial: null, fieldPermissions: () => ({}), closable: false, compact: false },
+  { noteId: null, initial: null, fieldPermissions: () => ({}), closable: false, compact: false, period: 'DAY' },
 )
 
 /**
@@ -253,7 +259,7 @@ function todayHeading(): string {
 function applyNewDefaults(): void {
   // 新建才插入日期标题；编辑态由详情接口回显，宿主若传了 initial 则以传入内容为准
   const initial = props.initial?.content
-  content.value = initial ?? `<h1>${todayHeading()}</h1><p></p>`
+  content.value = initial ?? defaultDraft()
   createdId.value = null
   currentVersion.value = undefined
   loadedPerms.value = null
@@ -263,6 +269,14 @@ function applyNewDefaults(): void {
   applyContent(toEditorHtml(content.value))
   // 预置标题不算"已保存内容"：正文写出来才会真正建这条日志
   lastSaved.value = initial ? content.value : ''
+}
+
+/** 新建态默认正文：日日志一行当天日期；周记录 7 个日期标题（与后端 weekTemplate 同格式）。 */
+function defaultDraft(): string {
+  if (props.period === 'WEEK') {
+    return weekHeadings(todayWeekStart()).map((h) => `<h1>${h}</h1>`).join('') + '<p></p>'
+  }
+  return `<h1>${todayHeading()}</h1><p></p>`
 }
 
 function init(): void {
@@ -306,6 +320,10 @@ function hasBody(value: string): boolean {
     .map((line) => line.trim())
     .filter(Boolean)
   if (!lines.length) return false
+  if (props.period === 'WEEK') {
+    // 周记录预置 7 个「YYYY年M月D日 周X」标题，只有标题同样不建记录
+    return lines.some((line) => !/^\d{4}年\d{1,2}月\d{1,2}日\s*周[一二三四五六日]$/.test(line))
+  }
   return !/^\d{4}年\d{1,2}月\d{1,2}日$/.test(lines[0]) || lines.length > 1
 }
 
@@ -348,9 +366,17 @@ async function saveNow(): Promise<void> {
 
   saving = (async () => {
     try {
-      const detail: NoteDetailVO = created
-        ? await createNote({ content: value })
+      let detail: NoteDetailVO = created
+        ? props.period === 'WEEK'
+          ? await createWeeklyNote({ content: value })
+          : await createNote({ content: value })
         : await updateNote(id, { content: value, version: currentVersion.value })
+
+      if (created && props.period === 'WEEK' && detail.content != null && detail.content !== value) {
+        // 该周已有记录（另一标签页/另一台设备先建了）：以本地这次输入为准覆盖，
+        // 避免「返回已有记录」让用户以为保存成功、实际写的是旧内容。
+        detail = await updateNote(Number(detail.id), { content: value, version: detail.version })
+      }
 
       if (created) createdId.value = Number(detail.id)
       currentVersion.value = detail.version

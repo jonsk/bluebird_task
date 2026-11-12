@@ -48,10 +48,11 @@ public class NoteController {
             @RequestParam(required = false) String end,
             @RequestParam(required = false) String date,
             @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "DAY") String period,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "20") long size) {
         NoteQuery query = new NoteQuery(scope, keyword,
-                parseDate(start), parseDate(end), parseDate(date), sort, page, size);
+                parseDate(start), parseDate(end), parseDate(date), sort, page, size, period);
         return ApiResult.ok(queryService.page(query));
     }
 
@@ -66,6 +67,18 @@ public class NoteController {
     @PostMapping
     public ApiResult<NoteDetailVO> create(@Valid @RequestBody NoteCreateReq req) {
         return ApiResult.ok(commandService.create(req));
+    }
+
+    /**
+     * 每周工作记录：取回/创建「本周」那一条。
+     *
+     * <p>幂等：本周已有记录时直接返回它（不覆盖），所以前端可以放心在保存首行时调用。
+     * 请求体可省略，缺省正文为 7 个日期一级标题。
+     */
+    @Operation(summary = "创建或打开本周工作记录")
+    @PostMapping("/weekly")
+    public ApiResult<NoteDetailVO> createWeekly(@RequestBody(required = false) NoteCreateReq req) {
+        return ApiResult.ok(commandService.createWeekly(req));
     }
 
     @Operation(summary = "更新日志（携带 version）")

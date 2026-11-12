@@ -1,14 +1,25 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Delete, Edit } from '@element-plus/icons-vue'
 import { stripMarkdown } from '@/utils/markdown'
-import type { NoteBrief } from '@/types/note'
+import { weekRangeLabel } from '@/utils/date'
+import type { NoteBrief, NotePeriod } from '@/types/note'
 
 /**
- * NoteCard — 列表项卡片（纯展示，不请求）。
- * 点击卡片 → open；按 canEdit / canManage 显隐操作按钮。
- * 置顶能力已下线，不再有置顶徽标与置顶按钮。
+ * NoteCard — 列表卡片（只展示，不请求）。
+ * 点击卡片 → open；canEdit / canManage 决定操作按钮。
+ * 用于所有日志页，受控于调用方（不显示归档按钮）。
  */
-const props = withDefaults(defineProps<{ note: NoteBrief; active?: boolean }>(), { active: false })
+const props = withDefaults(
+  defineProps<{ note: NoteBrief; active?: boolean; period?: NotePeriod }>(),
+  { active: false, period: 'DAY' },
+)
+
+/** 周记录 logDate 是周一，卡片上展示整周区间。 */
+const dateLabel = computed(() => {
+  const date = props.note.logDate ?? ''
+  return props.period === 'WEEK' && date ? weekRangeLabel(date) : date
+})
 
 const emit = defineEmits<{
   (e: 'open', id: number): void
@@ -32,11 +43,11 @@ function stop(e: Event): void {
     @click="onClick"
   >
     <div class="note-card__head">
-      <span class="note-card__date">{{ note.logDate }}</span>
+      <span class="note-card__date">{{ dateLabel }}</span>
       <span class="note-card__owner">{{ note.ownerName }}</span>
     </div>
 
-    <p class="note-card__summary">{{ stripMarkdown(note.contentSummary) || '（无内容）' }}</p>
+    <p class="note-card__summary">{{ stripMarkdown(note.contentSummary) || (period === 'WEEK' ? '本周暂无内容' : '（无内容）') }}</p>
 
     <div v-if="note.canEdit || note.canManage" class="note-card__ops" @click="stop">
       <el-button

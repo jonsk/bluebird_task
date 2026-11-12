@@ -2,7 +2,7 @@ import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listNotes } from '@/api/note'
 import { useNoteStore } from '@/stores/note'
-import type { NoteBrief, NoteQuery, NoteQueryPatch, NoteScope } from '@/types/note'
+import type { NoteBrief, NotePeriod, NoteQuery, NoteQueryPatch, NoteScope } from '@/types/note'
 
 export interface UseNoteListOptions {
   isolated?: boolean
@@ -46,6 +46,8 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
   const router = useRouter()
   const store = useNoteStore()
   const scope = computed<NoteScope>(() => (route.meta.scope as NoteScope) || 'mine')
+  /** 周期跟随路由：日志页 DAY、每周记录页 WEEK；查询与缓存 key 都带它，日/周列表互不污染。 */
+  const period = computed<NotePeriod>(() => (route.meta.period === 'WEEK' ? 'WEEK' : 'DAY'))
 
   const notes = ref<NoteBrief[]>([])
   const total = ref(0)
@@ -70,6 +72,7 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
     return {
       ...base,
       scope: scope.value,
+      period: period.value,
       page: page.value,
       size: base.size ?? 20,
     }
@@ -179,7 +182,7 @@ export function useNoteList(options: UseNoteListOptions = {}): UseNoteListResult
       },
     )
     watch(
-      () => [route.meta.scope],
+      () => [route.meta.scope, route.meta.period],
       () => {
         page.value = 1
         void run()

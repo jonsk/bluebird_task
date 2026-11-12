@@ -10,6 +10,8 @@ declare module 'vue-router' {
     module?: 'task' | 'note'
     /** note 列表 scope（4 值集合的子集；NoteListView/useNoteList 唯一输入） */
     scope?: 'mine' | 'subordinate' | 'visible' | 'all'
+    /** note 周期：DAY=工作日志（缺省）；WEEK=每周工作记录（同一套页面组件，靠 meta 分流） */
+    period?: 'DAY' | 'WEEK'
     /** 该页固定浅色（登录 / 回调），不跟随用户主题；与 theme-init.js 的 AUTH_PATHS 保持一致 */
     forceLight?: boolean
   }
@@ -90,6 +92,34 @@ export const routes: RouteRecordRaw[] = [
         name: 'NoteDetail',
         component: () => import('@/views/note/NoteDetailView.vue'),
         meta: { module: 'note', title: '日志详情', requiresAuth: true },
+      },
+      /**
+       * 每周工作记录：和工作日志同一套页面组件，靠 `meta.period` 分流（一周一条）。
+       * 与 AI 生成的「工作周报」(`weekly-reports`) 是两件互不相干的事。
+       */
+      {
+        path: 'weekly-notes',
+        name: 'WeeklyNoteHome',
+        component: () => import('@/views/note/NoteHomeView.vue'),
+        meta: {
+          module: 'note',
+          scope: 'mine',
+          period: 'WEEK',
+          title: '每周工作记录',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'weekly-notes/subordinate',
+        name: 'WeeklyNoteSubordinate',
+        component: () => import('@/views/note/NoteSubordinateView.vue'),
+        meta: {
+          module: 'note',
+          scope: 'subordinate',
+          period: 'WEEK',
+          title: '员工周记录',
+          requiresAuth: true,
+        },
       },
     ],
   },

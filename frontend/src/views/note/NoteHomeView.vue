@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import NoteListView from './NoteListView.vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
 import NoteMiniList from '@/components/note/NoteMiniList.vue'
@@ -8,8 +8,16 @@ import BbMiniCalendar from '@/components/bb/BbMiniCalendar.vue'
 import { useNoteScopePage } from '@/composables/useNoteScopePage'
 import { useNoteList } from '@/composables/useNoteList'
 import { calendar as noteCalendar } from '@/api/calendar'
+import { listNotes } from '@/api/note'
 import { useNoteStore } from '@/stores/note'
-import { todayInShanghai } from '@/utils/date'
+import {
+  shiftDay,
+  todayInShanghai,
+  todayWeekStart,
+  weekRangeLabel,
+  weekStartOf,
+} from '@/utils/date'
+import type { NotePeriod } from '@/types/note'
 
 /** 与 BbMiniCalendar.loader 返回结构一致（组件内不导出类型，避免 .vue 类型导出限制）。 */
 interface CalendarDayCount {
@@ -23,9 +31,17 @@ interface CalendarDayCount {
  * 右栏 = BbMiniCalendar(mine) + 当日日志（isolated 列表，点日历只影响右栏，不污染主列表页码/筛选）。
  */
 const router = useRouter()
+const route = useRoute()
 const noteStore = useNoteStore()
+/**
+ * 同一套页面组件服务两个菜单：`route.meta.period` 决定日/周口径。
+ * DAY = 工作日志（一天可多条）；WEEK = 每周工作记录（一周一条，选中项一律归到周一）。
+ */
+const period = computed<NotePeriod>(() => (route.meta.period === 'WEEK' ? 'WEEK' : 'DAY'))
+const isWeekly = computed(() => period.value === 'WEEK')
 const today = todayInShanghai()
-const selectedDate = ref<string | null>(today)
+const weekStart = ref(todayWeekStart())
+const selectedDate = ref<string | null>(isWeekly.value ? weekStart.value : today)
 const editId = ref<number | null>(null)
 
 /**
@@ -49,7 +65,7 @@ const inlineEditorRef = ref<InlineEditorExpose | null>(null)
 const composerEditorRef = ref<InlineEditorExpose | null>(null)
 
 const page = useNoteScopePage({
-  emptyText: '还没有工作日志，写下今天的第一条吧',
+  emptyText: isWeekly.value ? '本周还没有工作记录，写下这一周吧' : '还没有工作日志，写下今天的第一条吧',
   onOpenEditor: (id) => {
     // 切去编辑既有日志时，新建框会被隐藏（卸载）；若草稿已由自动保存落库，
     // 重置隐藏 id 让其放行显示，避免残留导致该草稿一直从列表里消失。
@@ -74,7 +90,7 @@ const {
 /** 右栏当日日志：独立实例，size=5，无分页 */
 const side = useNoteList({
   isolated: true,
-  initialQuery: { date: today, page: 1, size: 5 },
+  initialQuery: { date: selectedDate.value ?? undefined, page: 1, size: 5 },
 })
 
 /** 主列表高亮：只对"写入时的 scope"生效 */
@@ -96,18 +112,75 @@ const displayNotes = computed(() => {
 
 onMounted(() => {
   side.setQuery({ date: selectedDate.value ?? today })
+  if (isWeekly.value) void openCurrentWeekRecord()
 })
 
-/** 日历取数：month 由组件按 Date 语义传 0-based，接口要 1-based。 */
+/** 周记录一周一条：本周已有记录就直接进入行内编辑，不再显示新建框（否则"新建"其实是在改旧记录）。 */
+async function openCurrentWeekRecord(): Promise<void> {
+  try {
+    const data = await listNotes({
+      scope: 'mine',
+      period: 'WEEK',
+      date: weekStart.value,
+      page: 1,
+      size: 1,
+    })
+    const existing = data.list?.[0]
+    if (existing?.id != null) editId.value = Number(existing.id)
+  } catch {
+    // 取不到就保留新建框，用户仍可手写（保存时后端会幂等返回已有那条）
+  }
+}
+
+/**
+ * 日历取数。
+ * - DAY：当月每天条数（后端 aggregate）。
+ * - WEEK：一周一条，把记录标在该周落在本月的第一天（通常是周一；月初不完整时标在 1 号），
+ *   点任意一天都会归到该周周一。
+ */
 async function calendarLoader(year: number, month: number): Promise<CalendarDayCount[]> {
-  const days = await noteCalendar(year, month + 1, 'mine')
-  return days.map((d) => ({ date: d.date ?? '', count: Number(d.count) || 0 }))
+  if (!isWeekly.value) {
+    const days = await noteCalendar(year, month + 1, 'mine')
+    return days.map((d) => ({ date: d.date ?? '', count: Number(d.count) || 0 }))
+  }
+  const pad = (n: number): string => (n < 10 ? `0${n}` : String(n))
+  const monthStart = `${year}-${pad(month + 1)}-01`
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+  const monthEnd = `${year}-${pad(month + 1)}-${pad(daysInMonth)}`
+  const data = await listNotes({
+    scope: 'mine',
+    period: 'WEEK',
+    start: weekStartOf(monthStart),
+    end: weekStartOf(monthEnd),
+    page: 1,
+    size: 100,
+  })
+  const byDay: Record<string, number> = {}
+  for (const note of data.list ?? []) {
+    const start = note.logDate
+    if (!start) continue
+    const badgeDay = start < monthStart ? shiftDay(start, 6) : start
+    if (badgeDay > monthEnd) continue
+    byDay[badgeDay] = (byDay[badgeDay] ?? 0) + 1
+  }
+  return Object.entries(byDay).map(([date, count]) => ({ date, count }))
 }
 
 function onSelectDate(date: string | null): void {
-  selectedDate.value = date
-  side.setQuery({ date: date ?? undefined })
+  // 周视图：点周内任意一天都归到该周周一，右栏与列表按周取数
+  const next = date == null ? null : isWeekly.value ? weekStartOf(date) : date
+  selectedDate.value = next
+  side.setQuery({ date: next ?? undefined })
 }
+
+/** 右栏标题：日视图显示具体日期，周视图显示周区间。 */
+const sideTitle = computed(() => {
+  if (isWeekly.value) {
+    const start = selectedDate.value ?? weekStart.value
+    return start === weekStart.value ? '本周记录' : `周记录 · ${weekRangeLabel(start)}`
+  }
+  return selectedDate.value === today ? '今日日志' : `日志 · ${selectedDate.value}`
+})
 
 /**
  * 新建框自动保存：首次落库（created）时记下草稿 id（列表先把它隐藏）。
@@ -192,6 +265,7 @@ function retryInlineSave(): void {
         <NoteEditor
           ref="composerEditorRef"
           compact
+          :period="period"
           @saved="onComposerSaved"
         />
         <div class="note-inline-editor__actions note-inline-editor__actions--end">
@@ -207,7 +281,7 @@ function retryInlineSave(): void {
         </div>
       </div>
       <el-button
-        v-else
+        v-else-if="!isWeekly"
         class="note-composer__new"
         data-test="note-composer-reopen"
         @click="openComposer"
@@ -285,13 +359,14 @@ function retryInlineSave(): void {
           />
         </div>
         <div class="note-side__list">
-          <h3 class="note-side__title">{{ selectedDate === today ? '今日日志' : `日志 · ${selectedDate}` }}</h3>
+          <h3 class="note-side__title">{{ sideTitle }}</h3>
           <NoteMiniList
             :notes="side.notes.value"
             :loading="side.loading.value"
             :active-id="activeId"
+            :period="period"
             @open="onEdit"
-            @view-all="router.push({ name: 'NoteHome' })"
+            @view-all="router.push({ name: isWeekly ? 'WeeklyNoteHome' : 'NoteHome' })"
           />
         </div>
       </div>

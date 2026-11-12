@@ -18,11 +18,18 @@ export type NoteScope = 'mine' | 'subordinate' | 'visible' | 'all'
 /** 日历作用域（不含 visible）。 */
 export type NoteCalendarScope = Exclude<NoteScope, 'visible' | 'all'>
 
+/**
+ * 周期：DAY = 工作日志（默认，一天可多条）；WEEK = 每周工作记录（一周一条，周一为周期起点）。
+ * 由 `route.meta.period` 决定，查询参数与后端 `period` 同名。
+ */
+export type NotePeriod = 'DAY' | 'WEEK'
+
 /** 排序（蛇形，与后端 NoteQueryService.applySort 对齐）。 */
 export type NoteSort = 'log_date_desc' | 'log_date_asc' | 'created_desc' | 'updated_desc'
 
 export interface NoteQuery {
   scope?: NoteScope
+  period?: NotePeriod
   keyword?: string
   start?: string
   end?: string
@@ -33,7 +40,7 @@ export interface NoteQuery {
 }
 
 /** setQuery 入参：剔除 scope/page/size（防绕过 route.meta 与分页单一入口）。 */
-export type NoteQueryPatch = Partial<Omit<NoteQuery, 'scope' | 'page' | 'size'>>
+export type NoteQueryPatch = Partial<Omit<NoteQuery, 'scope' | 'period' | 'page' | 'size'>>
 
 /** 品牌类型（落到 attachmentId 而非 fileId，类型系统阻止误传 id）。 */
 export type AttachmentRefId = number

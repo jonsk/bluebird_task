@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
 import NoteListView from './NoteListView.vue'
 import { useNoteScopePage } from '@/composables/useNoteScopePage'
 
 /**
- * 员工日志：我是部门负责人时可读下属（含子部门）的日志。
- * 开关关闭时后端返回 403 → 本页渲染空态（不给重试按钮），导航入口同时隐藏。
+ * 员工日志/员工周记录：不是部门负责人时后端 403 → 页面渲染空态（不显示重试按钮）。
+ * 同一组件服务日/周两个入口，靠 `route.meta.period` 切换文案与查询口径。
  */
+const isWeekly = useRoute().meta.period === 'WEEK'
+
 const {
   notes,
   query,
@@ -20,9 +23,11 @@ const {
   onEdit,
   onRemove,
 } = useNoteScopePage({
-  emptyText: '员工暂无工作日志',
+  emptyText: isWeekly ? '员工本周暂无工作记录' : '员工暂无工作日志',
   emptyOn403: true,
-  forbiddenText: '未开启「上级可读员工日志」，或您不是部门负责人',
+  forbiddenText: isWeekly
+    ? '无权查看员工周记录：仅部门负责人可读下属记录'
+    : '无权查看员工日志：仅部门负责人可读下属日志',
 })
 </script>
 

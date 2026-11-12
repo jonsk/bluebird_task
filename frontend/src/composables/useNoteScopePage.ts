@@ -52,7 +52,10 @@ export function useNoteScopePage(options: UseNoteScopePageOptions = {}) {
   }
 
   function openDetail(id: number): void {
-    void router.push({ name: 'NoteDetail', params: { id: String(id) } })
+    // 周记录的详情页与日日志共用；带上 period 让详情页把日期渲染成周区间、返回按钮回到周列表
+    const weekly = route.meta.period === 'WEEK'
+    const target = { name: 'NoteDetail', params: { id: String(id) } }
+    void router.push(weekly ? { ...target, query: { period: 'WEEK' } } : target)
   }
 
   function onOpen(id: number): void {

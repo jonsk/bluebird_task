@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bbtc.bluebird.common.domain.PageResult;
 import com.bbtc.bluebird.common.exception.HttpStatusException;
@@ -37,8 +38,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 日志读查询：4 种 scope 列表、详情、日历。
@@ -50,6 +53,8 @@ import java.util.Set;
 public class NoteQueryService {
 
     private static final int SUMMARY_LIMIT = 200;
+    /** 周记录的默认正文是 7 个日期一级标题，摘要要把它们整段剥掉，否则列表上全是「2026年11月2日 周一…」。 */
+    private static final Pattern H1_BLOCK = Pattern.compile("(?is)<h1\\b[^>]*>.*?</h1>");
 
     private final NoteMapper noteMapper;
     private final NoteAttachmentRefMapper attachmentRefMapper;
@@ -71,15 +76,29 @@ public class NoteQueryService {
         long page = Math.max(1, q.page());
         long size = q.size() < 1 ? 20 : Math.min(q.size(), 100);
 
+        String period = periodOf(q.period());
         LambdaQueryWrapper<Note> w = Wrappers.lambdaQuery();
+        w.eq(Note::getPeriodType, period);
         w.apply(visibilitySql.scopePredicate(scope, me, admin));
         applyKeyword(w, q.keyword());
-        applyDate(w, q);
-        applySort(w, q.sort());
+        applyDate(w, q, period);
+        applySort(w, q.sort(), period);
 
         IPage<Note> p = noteMapper.selectPage(new Page<>(page, size), w);
         List<NoteBrief> list = toBriefs(p.getRecords());
         return PageResult.of(list, p.getTotal(), p.getCurrent(), p.getSize());
+    }
+
+    /** 周期参数归一：缺省/空 → DAY；只接受 DAY|WEEK。 */
+    static String periodOf(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return Note.PERIOD_DAY;
+        }
+        String p = raw.trim().toUpperCase(Locale.ROOT);
+        if (Note.PERIOD_DAY.equals(p) || Note.PERIOD_WEEK.equals(p)) {
+            return p;
+        }
+        throw HttpStatusException.badRequest("非法 period，只支持 DAY 或 WEEK");
     }
 
     private void applyKeyword(LambdaQueryWrapper<Note> w, String keyword) {
@@ -89,29 +108,33 @@ public class NoteQueryService {
         w.apply("note.content LIKE {0} ESCAPE '\\'", likePattern(keyword.trim()));
     }
 
-    private void applyDate(LambdaQueryWrapper<Note> w, NoteQuery q) {
+    private void applyDate(LambdaQueryWrapper<Note> w, NoteQuery q, String period) {
+        SFunction<Note, String> column = Note.PERIOD_WEEK.equals(period)
+                ? Note::getPeriodStart : Note::getLogDate;
         if (q.date() != null) {
             if (q.start() != null || q.end() != null) {
                 throw HttpStatusException.badRequest("date 与 start/end 互斥");
             }
-            w.eq(Note::getLogDate, q.date().toString());
+            w.eq(column, q.date().toString());
             return;
         }
         if (q.start() != null) {
-            w.ge(Note::getLogDate, q.start().toString());
+            w.ge(column, q.start().toString());
         }
         if (q.end() != null) {
-            w.le(Note::getLogDate, q.end().toString());
+            w.le(column, q.end().toString());
         }
     }
 
-    private void applySort(LambdaQueryWrapper<Note> w, String sort) {
+    private void applySort(LambdaQueryWrapper<Note> w, String sort, String period) {
+        SFunction<Note, String> column = Note.PERIOD_WEEK.equals(period)
+                ? Note::getPeriodStart : Note::getLogDate;
         String s = StringUtils.hasText(sort) ? sort : "log_date_desc";
         switch (s) {
-            case "log_date_asc" -> w.orderByAsc(Note::getLogDate).orderByAsc(Note::getCreatedAt);
+            case "log_date_asc" -> w.orderByAsc(column).orderByAsc(Note::getCreatedAt);
             case "created_desc" -> w.orderByDesc(Note::getCreatedAt);
             case "updated_desc" -> w.orderByDesc(Note::getUpdatedAt).orderByDesc(Note::getCreatedAt);
-            default -> w.orderByDesc(Note::getLogDate).orderByDesc(Note::getCreatedAt);
+            default -> w.orderByDesc(column).orderByDesc(Note::getCreatedAt);
         }
     }
 
@@ -152,6 +175,8 @@ public class NoteQueryService {
         w.select("note.log_date AS d", "COUNT(*) AS c");
         w.apply(visibilitySql.scopePredicate(s, me, admin));
         w.apply("note.deleted = 0");
+        // 日志日历只统计日粒度；周记录按周展示，不进入日视图
+        w.apply("note.period_type = {0}", Note.PERIOD_DAY);
         w.between("note.log_date", ym.atDay(1).toString(), ym.atEndOfMonth().toString());
         w.groupBy("note.log_date");
         w.orderByAsc("note.log_date");
@@ -195,7 +220,7 @@ public class NoteQueryService {
 
         List<NoteBrief> out = new ArrayList<>();
         for (Note n : notes) {
-            out.add(new NoteBrief(n.getId(), summary(n.getContent()), n.getLogDate(),
+            out.add(new NoteBrief(n.getId(), summaryOf(n), n.getLogDate(),
                     n.getOwnerId(),
                     ownerNames.get(n.getOwnerId()),
                     canEdit(n, me, admin), canManage(n, me, admin), versionOf(n)));
@@ -205,7 +230,7 @@ public class NoteQueryService {
 
     private void fillBase(NoteVO vo, Note note, Long me) {
         vo.setId(note.getId());
-        vo.setContentSummary(summary(note.getContent()));
+        vo.setContentSummary(summaryOf(note));
         vo.setLogDate(note.getLogDate());
         vo.setOwnerId(note.getOwnerId());
         Map<Long, String> names = userNames(Set.of(note.getOwnerId()));
@@ -304,6 +329,16 @@ public class NoteQueryService {
         }
         int end = plain.offsetByCodePoints(0, SUMMARY_LIMIT);
         return plain.substring(0, end);
+    }
+
+    /** 按周期取摘要：周记录先剥掉 7 个日期一级标题，正文为空时返回空串（前端展示「本周暂无内容」）。 */
+    private static String summaryOf(Note note) {
+        if (Note.PERIOD_WEEK.equals(note.getPeriodType())) {
+            String body = H1_BLOCK.matcher(note.getContent() == null ? "" : note.getContent()).replaceAll(" ");
+            String plain = summary(body);
+            return plain == null ? "" : plain.trim();
+        }
+        return summary(note.getContent());
     }
 
     private Long versionOf(Note note) {

@@ -1,5 +1,6 @@
 package com.bbtc.bluebird.modules.recycle.application;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.bbtc.bluebird.common.domain.PageParam;
 import com.bbtc.bluebird.common.domain.PageResult;
 import com.bbtc.bluebird.common.exception.BusinessException;
@@ -129,6 +130,15 @@ public class RecycleService {
         Long me = UserContext.currentUserId();
         if (!UserContext.isAdmin() && (me == null || !me.equals(note.getOwnerId()))) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        // 周记录恢复前先挡「同一周已有另一条」：部分唯一索引只覆盖 deleted=0，
+        // 直接恢复会撞唯一键变成 500，这里给可操作提示。
+        if (Note.PERIOD_WEEK.equals(note.getPeriodType())
+                && noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
+                        .eq(Note::getOwnerId, note.getOwnerId())
+                        .eq(Note::getPeriodType, Note.PERIOD_WEEK)
+                        .eq(Note::getPeriodStart, note.getPeriodStart())) > 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "该周已有工作记录，无法恢复这条");
         }
         noteMapper.restoreDeleted(id);
     }
