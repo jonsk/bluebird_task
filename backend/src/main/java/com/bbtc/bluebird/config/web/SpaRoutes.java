@@ -42,6 +42,9 @@ public final class SpaRoutes {
             // 每周工作记录（一周一条，复用日志页面）
             "/weekly-notes",
             "/weekly-notes/**",
+            // AI 周工作总结（由工作日志生成）
+            "/weekly-reports",
+            "/weekly-reports/**",
             // 后台：/admin 本身 + 全部子页（* 只匹配一层，故必须用 **）
             "/admin",
             "/admin/**");
