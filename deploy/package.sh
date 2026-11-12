@@ -58,21 +58,22 @@ else
   mvn -B -f "$BACKEND/pom.xml" -DskipTests package
 fi
 
-JAR="$BACKEND/target/bluebird-task.jar"
-[[ -f "$JAR" ]] || die "打包未产出 $JAR"
+JAR="$BACKEND/target/dist/bluebird-task.jar"
+[[ -f "$JAR" ]] || die "打包未产出 $JAR（slim-sqlite 步骤未执行？）"
+SLIM_JAR="$(readlink -f "$JAR" 2>/dev/null || echo "$JAR")"
 
 step "校验 jar 内嵌产物"
 if command -v unzip >/dev/null 2>&1; then
-  listing="$(unzip -l "$JAR")"
-  for need in "BOOT-INF/classes/static/index.html"; do
-    grep -q "$need" <<<"$listing" || die "jar 缺少 $need（前端产物未内嵌？）"
+  listing="$(unzip -l "$SLIM_JAR")"
+  for need in "BOOT-INF/classes/static/index.html" "BOOT-INF/lib/sqlite-jdbc"; do
+    grep -q "$need" <<<"$listing" || die "jar 缺少 $need（前端产物或 sqlite 驱动未内嵌？）"
   done
 else
   echo "!! 未找到 unzip，跳过 jar 内容校验"
 fi
 
 mkdir -p "$(dirname "$OUT")"
-cp -f "$JAR" "$OUT"
+cp -f "$SLIM_JAR" "$OUT"
 
 if command -v sha256sum >/dev/null 2>&1; then
   sum="$(sha256sum "$OUT" | cut -d' ' -f1)"

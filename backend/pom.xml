@@ -26,6 +26,10 @@
         <springdoc.version>2.6.0</springdoc.version>
         <swagger.version>2.2.22</swagger.version>
         <poi.version>5.5.1</poi.version>
+        <!-- sqlite-jdbc 原生库裁剪目标。留空 = 由 deploy/slim-sqlite.* 按构建机检测；
+             CI 或交叉构建时用 -Dsqlite.platform=linux -Dsqlite.arch=aarch64 显式指定。 -->
+        <sqlite.platform></sqlite.platform>
+        <sqlite.arch></sqlite.arch>
         <!-- 质量工具链（见 build/plugins）：三件套都锁版本，避免 CI 与本地跑出不同结果。 -->
         <jacoco.version>0.8.12</jacoco.version>
         <!-- 覆盖率门禁阈值（防回落用，不是质量目标），可用 -D 覆盖做验证 -->
@@ -404,6 +408,94 @@
                     <version>${springdoc.version}</version>
                 </dependency>
             </dependencies>
+        </profile>
+
+        <!-- sqlite-jdbc 原生库裁剪：repackage 之后重写嵌套 jar，只保留目标平台目录。
+             产物写到 target/dist/bluebird-task-<version>-<platform>-<arch>.jar，
+             并建立稳定别名 target/dist/bluebird-task.jar（软链，Windows 用复制）。
+             平台/架构不传时由脚本按构建机检测；CI 上若不是 linux/x86_64 会直接失败。 -->
+        <profile>
+            <id>slim-sqlite-windows</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>slim-sqlite</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="powershell" failonerror="true"
+                                              dir="${project.basedir}">
+                                            <arg value="-NoProfile"/>
+                                            <arg value="-ExecutionPolicy"/>
+                                            <arg value="Bypass"/>
+                                            <arg value="-File"/>
+                                            <arg value="${project.basedir}/../deploy/slim-sqlite.ps1"/>
+                                            <env key="SLIM_JAR" value="${project.build.directory}/bluebird-task.jar"/>
+                                            <env key="SLIM_VERSION" value="${project.version}"/>
+                                            <env key="SLIM_PLATFORM" value="${sqlite.platform}"/>
+                                            <env key="SLIM_ARCH" value="${sqlite.arch}"/>
+                                            <env key="SLIM_OUT" value="${project.build.directory}/dist"/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>slim-sqlite-unix</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                </os>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>slim-sqlite</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="/bin/bash" failonerror="true"
+                                              dir="${project.basedir}">
+                                            <arg value="${project.basedir}/../deploy/slim-sqlite.sh"/>
+                                            <env key="SLIM_JAR" value="${project.build.directory}/bluebird-task.jar"/>
+                                            <env key="SLIM_VERSION" value="${project.version}"/>
+                                            <env key="SLIM_PLATFORM" value="${sqlite.platform}"/>
+                                            <env key="SLIM_ARCH" value="${sqlite.arch}"/>
+                                            <env key="SLIM_OUT" value="${project.build.directory}/dist"/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>
