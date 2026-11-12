@@ -30,6 +30,8 @@
              CI 或交叉构建时用 -Dsqlite.platform=linux -Dsqlite.arch=aarch64 显式指定。 -->
         <sqlite.platform></sqlite.platform>
         <sqlite.arch></sqlite.arch>
+        <!-- 一次性生成 5 平台 x 2 架构共 10 个包：mvn package -Dsqlite.all=true -->
+        <sqlite.all></sqlite.all>
         <!-- 质量工具链（见 build/plugins）：三件套都锁版本，避免 CI 与本地跑出不同结果。 -->
         <jacoco.version>0.8.12</jacoco.version>
         <!-- 覆盖率门禁阈值（防回落用，不是质量目标），可用 -D 覆盖做验证 -->
@@ -447,6 +449,7 @@
                                             <env key="SLIM_VERSION" value="${project.version}"/>
                                             <env key="SLIM_PLATFORM" value="${sqlite.platform}"/>
                                             <env key="SLIM_ARCH" value="${sqlite.arch}"/>
+                                            <env key="SLIM_ALL" value="${sqlite.all}"/>
                                             <env key="SLIM_OUT" value="${project.build.directory}/dist"/>
                                         </exec>
                                     </target>
@@ -487,6 +490,7 @@
                                             <env key="SLIM_VERSION" value="${project.version}"/>
                                             <env key="SLIM_PLATFORM" value="${sqlite.platform}"/>
                                             <env key="SLIM_ARCH" value="${sqlite.arch}"/>
+                                            <env key="SLIM_ALL" value="${sqlite.all}"/>
                                             <env key="SLIM_OUT" value="${project.build.directory}/dist"/>
                                         </exec>
                                     </target>
