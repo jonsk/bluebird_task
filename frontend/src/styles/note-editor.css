@@ -1269,7 +1269,10 @@
   container-type: inline-size;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--bb-radius-sm);
+  /* hidden 会创建滚动容器，导致内部 sticky 以它为参照、滚正文时大纲跟着走；
+     clip 同样裁剪圆角，但不是滚动容器，sticky 才能相对外层滚动区生效。 */
   overflow: hidden;
+  overflow: clip;
   background: var(--bg-primary);
 }
 
@@ -1287,7 +1290,20 @@
 }
 
 .note-editor__outline .note-outline {
+  /* 大纲独立滚动：滚动正文时它停在可视区内，自己超出高度时在内部滚动，
+     不把外层页面或正文顶下去。标题固定，只有条目列表滚动。 */
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 96px);
   padding: 12px 8px;
+}
+
+.note-editor__outline .note-outline__list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .note-editor__body {
