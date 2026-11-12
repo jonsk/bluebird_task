@@ -8,7 +8,12 @@
 /* ==================== 顶部工具栏 ==================== */
 
 .note-toolbar {
-  position: relative;
+  /* 固定在滚动区顶部：滚正文时工具栏不跟着走。
+     高度由 NoteEditor 量出写进 --bb-note-toolbar-h，供大纲 sticky 让位。
+     注意：sticky 也是定位元素，工具栏内 .tb-popover 的 absolute 仍然以它为参照。 */
+  position: sticky;
+  top: 0;
+  z-index: 3;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1291,12 +1296,13 @@
 
 .note-editor__outline .note-outline {
   /* 大纲独立滚动：滚动正文时它停在可视区内，自己超出高度时在内部滚动，
-     不把外层页面或正文顶下去。标题固定，只有条目列表滚动。 */
+     不把外层页面或正文顶下去。标题固定，只有条目列表滚动。
+     顶部让开固定工具栏（--bb-note-toolbar-h 由 NoteEditor 实测工具栏高度写入）。 */
   position: sticky;
-  top: 12px;
+  top: calc(var(--bb-note-toolbar-h, 0px) + 12px);
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 96px);
+  max-height: calc(100vh - var(--bb-note-toolbar-h, 0px) - 96px);
   padding: 12px 8px;
 }
 

@@ -122,7 +122,27 @@ const currentId = computed(() => props.noteId ?? createdId.value)
 /* ==================== Tiptap 实例 ==================== */
 
 const hostRef = ref<HTMLElement | null>(null)
+/** 工具栏是 sticky 的，大纲需要按它的实际高度让位；高度在运行时量，不能在 CSS 里写死。 */
+const toolbarRef = ref<{ $el?: HTMLElement } | null>(null)
+const toolbarHeight = ref(0)
+let toolbarObserver: ResizeObserver | null = null
+
+function observeToolbar(): void {
+  const el = toolbarRef.value?.$el
+  if (!el) return
+  toolbarHeight.value = el.offsetHeight
+  // jsdom（单测环境）没有 ResizeObserver：拿到初始高度即可。
+  if (toolbarObserver || typeof ResizeObserver === 'undefined') return
+  toolbarObserver = new ResizeObserver(() => {
+    const target = toolbarRef.value?.$el
+    if (target) toolbarHeight.value = target.offsetHeight
+  })
+  toolbarObserver.observe(el)
+}
+
 const stateTick = ref(0)
+/** 把一帧内的多次 transaction 合并成一次视图刷新，避免输入法组合期间反复重渲染。 */
+let tickFrame = 0
 let hydrator: ImageHydrator | null = null
 /** setContent 期间忽略 onUpdate，避免“回显”被误判成用户输入。 */
 let hydrating = false
@@ -177,8 +197,14 @@ const editor = useEditor({
     if (status.value !== 'error') status.value = 'idle'
     scheduleSave()
   },
-  onTransaction: () => {
-    stateTick.value += 1
+  onTransaction: ({ editor: ed }) => {
+    // 输入法组合期间不重渲染（工具栏/大纲跟着 tick 刷新）：Chromium 在组合文本
+    // 提交前后重排 DOM 会把光标画回上一格，表现为「打完标点光标左跳」。
+    if (ed.view.composing || tickFrame) return
+    tickFrame = requestAnimationFrame(() => {
+      tickFrame = 0
+      stateTick.value += 1
+    })
   },
 })
 
@@ -190,12 +216,19 @@ onMounted(() => {
   init()
   hydrator = watchMarkdownImages(() => hostRef.value)
   void loadFileConfig()
+  observeToolbar()
 })
 
 onUnmounted(() => {
   hydrator?.stop()
   hydrator = null
+  if (tickFrame) cancelAnimationFrame(tickFrame)
+  tickFrame = 0
+  toolbarObserver?.disconnect()
+  toolbarObserver = null
 })
+
+watch(toolbarRef, () => observeToolbar())
 
 /** 用 HTML 覆盖编辑器内容，并同步 content / lastSaved 基线。 */
 function applyContent(html: string): void {
@@ -564,13 +597,19 @@ defineExpose({
 </script>
 
 <template>
-  <div class="note-editor" data-test="note-editor" @keydown.capture="onKeydown">
+  <div
+    class="note-editor"
+    data-test="note-editor"
+    :style="toolbarHeight ? { '--bb-note-toolbar-h': `${toolbarHeight}px` } : undefined"
+    @keydown.capture="onKeydown"
+  >
     <div v-if="isEdit && loading" v-loading="loading" class="note-editor__loading">加载中…</div>
 
     <template v-else>
       <div class="note-editor__content" :class="{ 'is-readonly': !canEditContent }">
         <NoteToolbar
           v-if="editor && canEditContent"
+          ref="toolbarRef"
           :editor="editor"
           :tick="stateTick"
           @upload-image="uploadImages"

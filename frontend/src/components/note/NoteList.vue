@@ -16,6 +16,8 @@ withDefaults(
     total: number
     activeId?: number | null
     emptyText?: string
+    /** 编辑区已展开时列表为空是正常的，不显示「还没有记录」引导。 */
+    hideEmpty?: boolean
     period?: NotePeriod
   }>(),
   {
@@ -23,6 +25,7 @@ withDefaults(
     error: null,
     activeId: null,
     emptyText: '暂无工作日志',
+    hideEmpty: false,
     period: 'DAY',
   },
 )
@@ -52,7 +55,11 @@ const emit = defineEmits<{
       <el-button size="small" :icon="RefreshRight" @click="emit('retry')">重试</el-button>
     </div>
 
-    <el-empty v-else-if="!notes.length" :description="emptyText" data-test="note-list-empty" />
+    <el-empty
+      v-else-if="!notes.length && !hideEmpty"
+      :description="emptyText"
+      data-test="note-list-empty"
+    />
 
     <template v-else>
       <NoteCard

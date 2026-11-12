@@ -36,6 +36,8 @@ const props = withDefaults(
     errorMode?: 'card' | 'empty'
     /** 是否显示顶部新建入口（仅 mine） */
     showComposer?: boolean
+    /** 编辑区已展开时列表为空是正常的，不显示空态引导 */
+    hideEmpty?: boolean
   }>(),
   {
     loading: false,
@@ -44,6 +46,7 @@ const props = withDefaults(
     emptyText: '暂无工作日志',
     errorMode: 'card',
     showComposer: false,
+    hideEmpty: false,
   },
 )
 
@@ -130,6 +133,7 @@ const isEmptyError = computed(() => props.errorMode === 'empty' && props.error !
               :active-id="activeId"
               :period="period"
               :empty-text="emptyText"
+              :hide-empty="hideEmpty"
               @page-change="(p) => emit('page-change', p)"
               @retry="emit('retry')"
               @open="(id) => emit('open', id)"

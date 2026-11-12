@@ -8,7 +8,9 @@ import BbMiniCalendar from '@/components/bb/BbMiniCalendar.vue'
 import { useNoteScopePage } from '@/composables/useNoteScopePage'
 import { useNoteList } from '@/composables/useNoteList'
 import { calendar as noteCalendar } from '@/api/calendar'
-import { listNotes } from '@/api/note'
+import { createWeeklyNote, listNotes } from '@/api/note'
+import { BizError, HttpError } from '@/api/http'
+import { ElMessage } from 'element-plus'
 import { useNoteStore } from '@/stores/note'
 import {
   shiftDay,
@@ -115,20 +117,21 @@ onMounted(() => {
   if (isWeekly.value) void openCurrentWeekRecord()
 })
 
-/** 周记录一周一条：本周已有记录就直接进入行内编辑，不再显示新建框（否则"新建"其实是在改旧记录）。 */
+/**
+ * 周记录一周一条，由系统自动生成：
+ * 打开周页面就向后端取当周记录（不存在则按模板新建，已存在原样返回），
+ * 拿到后直接进编辑态，页面上不再有「新建」入口。
+ */
 async function openCurrentWeekRecord(): Promise<void> {
   try {
-    const data = await listNotes({
-      scope: 'mine',
-      period: 'WEEK',
-      date: weekStart.value,
-      page: 1,
-      size: 1,
-    })
-    const existing = data.list?.[0]
-    if (existing?.id != null) editId.value = Number(existing.id)
-  } catch {
-    // 取不到就保留新建框，用户仍可手写（保存时后端会幂等返回已有那条）
+    const detail = await createWeeklyNote()
+    if (detail.id != null) editId.value = Number(detail.id)
+    // 列表/右栏在 ensure 之前就发过请求，这里补一次确保当周卡片可见。
+    list.refresh()
+    side.refresh()
+  } catch (e) {
+    const msg = e instanceof BizError || e instanceof HttpError ? e.message : (e as Error).message
+    ElMessage.error(msg || '本周工作记录加载失败')
   }
 }
 
@@ -252,7 +255,8 @@ function retryInlineSave(): void {
     :active-id="activeId"
     :error-mode="errorMode"
     :empty-text="emptyText"
-    :show-composer="editId == null"
+    :show-composer="!isWeekly && editId == null"
+    :hide-empty="editId != null"
     @change="list.setQuery"
     @page-change="list.setPage"
     @retry="list.refresh"
