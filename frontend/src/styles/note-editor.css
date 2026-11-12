@@ -573,7 +573,11 @@
   line-height: 1.4;
   color: var(--bb-text);
   caret-color: var(--bg-accent);
-  word-break: break-word;
+  /* 不要用 word-break: break-word（废弃值，Blink 按 overflow-wrap: anywhere 处理，
+     会在每个字符之间插入断点；当中文标点紧跟西文时（如 fsdfsdf。），标点处既有断点
+     又是字体回退分段边界，Chrome 会把光标画到标点左侧一格。 */
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .note-editor__prose {
