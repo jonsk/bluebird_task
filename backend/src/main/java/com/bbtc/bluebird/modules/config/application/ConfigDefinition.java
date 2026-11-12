@@ -119,7 +119,7 @@ public final class ConfigDefinition {
                             false, false, "操作/登录日志的保留天数（清理任务据此执行）", List.of(),
                             "app.audit.retention-days"))),
 
-            new Group("weeklyreport", "AI周工作总结", "AI 周报生成策略；提示词留空时使用系统默认模板", List.of(
+            new Group("weeklyreport", "AI周工作总结", "AI 周工作总结生成策略；提示词留空时使用系统默认模板", List.of(
                     new Item("weeklyreport", "prompt-template", "全局提示词模板", "TEXT",
                             DEFAULT_WEEKLY_PROMPT,
                             false, false,
@@ -127,9 +127,9 @@ public final class ConfigDefinition {
                                     + "JSON 结构与安全约束由系统固定，用户只能补充行文规则",
                             List.of(), null),
                     new Item("weeklyreport", "auto-enabled", "启用自动生成", "BOOL", "true",
-                            false, false, "每周固定时间自动为有日志的用户生成周报（生成即定稿）", List.of(), null),
+                            false, false, "每周固定时间自动为有日志的用户生成 AI 周工作总结（生成即定稿）", List.of(), null),
                     new Item("weeklyreport", "auto-day", "自动生成日", "SELECT", "FRI",
-                            false, false, "自动生成周报的星期", List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"),
+                            false, false, "自动生成 AI 周工作总结的星期", List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"),
                             null),
                     new Item("weeklyreport", "auto-time", "自动生成时间", "STRING", "18:00",
                             false, false, "24 小时制 HH:mm，按 Asia/Shanghai 时区执行", List.of(), null),

@@ -79,7 +79,7 @@ async function loadWeeklyGroup(): Promise<void> {
   try {
     weeklyGroup.value = await getConfigGroup('weeklyreport')
   } catch (e) {
-    ElMessage.error((e as Error).message || '周报配置加载失败')
+    ElMessage.error((e as Error).message || 'AI 周工作总结配置加载失败')
   }
 }
 
@@ -211,7 +211,7 @@ async function onDelete(row: AiModelVO): Promise<void> {
       <div>
         <h2 class="ai__title">AI 模型</h2>
         <p class="ai__desc">
-          周报生成使用「当前模型」。可配置多条，但同一时间只能启用一条；API Key 加密存储且不会回显。
+          AI 周工作总结生成使用「当前模型」。可配置多条，但同一时间只能启用一条；API Key 加密存储且不会回显。
           下方的「AI周工作总结」为该功能自身的生成策略。
         </p>
       </div>
@@ -225,7 +225,7 @@ async function onDelete(row: AiModelVO): Promise<void> {
       type="warning"
       show-icon
       :closable="false"
-      title="尚未启用任何模型，周报生成不可用。"
+      title="尚未启用任何模型，AI 周工作总结生成不可用。"
       class="ai__alert"
     />
     <el-alert

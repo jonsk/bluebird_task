@@ -139,17 +139,17 @@ public class WeeklyReportService {
                 .ge(Note::getLogDate, period.start())
                 .le(Note::getLogDate, period.end()));
         if (noteCount == 0) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "该周没有工作日志，无法生成周报");
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "该周没有工作日志，无法生成 AI 周工作总结");
         }
 
         WeeklyReport report = findOwnedWeek(me, period.start());
         boolean overwrite = req != null && Boolean.TRUE.equals(req.overwrite());
         if (report != null) {
             if ("GENERATING".equals(report.getStatus())) {
-                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周周报正在生成，请稍候");
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 周工作总结正在生成，请稍候");
             }
             if (!overwrite && StringUtils.hasText(report.getContentHtml())) {
-                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周周报已存在，如需重新生成请确认覆盖");
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 周工作总结已存在，如需重新生成请确认覆盖");
             }
             report.setStatus("GENERATING");
             report.setErrorMessage(null);
@@ -166,7 +166,7 @@ public class WeeklyReportService {
             try {
                 reportMapper.insert(report);
             } catch (DuplicateKeyException e) {
-                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周周报已存在，请刷新后重试");
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 周工作总结已存在，请刷新后重试");
             }
         }
         generationService.generate(report.getId(), me);
@@ -182,7 +182,7 @@ public class WeeklyReportService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "正在生成中，暂不能编辑");
         }
         if (req.version() != null && !req.version().equals(report.getVersion())) {
-            throw new BusinessException(ErrorCode.VERSION_CONFLICT, "周报已被修改，请刷新后重试");
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT, "AI 周工作总结已被修改，请刷新后重试");
         }
         // 正文来自前端编辑器，也可被直接调 API 伪造；落库前拒绝明确的 XSS 载荷。
         RichTextGuard.assertSafe(req.contentHtml());
@@ -293,7 +293,7 @@ public class WeeklyReportService {
         Long me = requireUser();
         WeeklyReport report = reportMapper.selectById(id);
         if (report == null || !me.equals(report.getOwnerId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "周报不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND, "AI 周工作总结不存在");
         }
         return report;
     }

@@ -164,7 +164,7 @@ async function loadDetail(id: number): Promise<void> {
     applyDetail(d)
   } catch (e) {
     if (seq !== detailSeq) return
-    ElMessage.error((e as Error).message || '周报加载失败')
+    ElMessage.error((e as Error).message || 'AI 周工作总结加载失败')
   } finally {
     if (seq === detailSeq) loadingDetail.value = false
   }
@@ -210,9 +210,9 @@ function schedulePoll(): void {
       refreshWeekRow(d)
       if (wasGenerating && d.status !== 'GENERATING') {
         if (d.status === 'FAILED') {
-          ElMessage.error(d.errorMessage || '周报生成失败')
+          ElMessage.error(d.errorMessage || 'AI 周工作总结生成失败')
         } else {
-          ElMessage.success('周报已生成')
+          ElMessage.success('AI 周工作总结已生成')
         }
       }
     } catch {
@@ -225,14 +225,14 @@ async function startGenerate(): Promise<void> {
   if (generating.value) return
   const weekStart = selectedWeek.value
   if (!weekStart) {
-    ElMessage.warning('请先在左侧选择要生成周报的周')
+    ElMessage.warning('请先在左侧选择要生成 AI 周工作总结的周')
     return
   }
   const existing = selected.value
   if (existing?.reportId) {
     try {
       await ElMessageBox.confirm(
-        `「${weekStart} ~ ${existing.weekEnd}」已有周报，重新生成会覆盖当前正文。`,
+        `「${weekStart} ~ ${existing.weekEnd}」已有 AI 周工作总结，重新生成会覆盖当前正文。`,
         '重新生成',
         { type: 'warning', confirmButtonText: '覆盖生成' },
       )
@@ -251,7 +251,7 @@ async function startGenerate(): Promise<void> {
     if (d.status === 'GENERATING') {
       ElMessage.info('已开始生成，请稍候…')
     } else if (d.status !== 'FAILED') {
-      ElMessage.success('周报已生成')
+      ElMessage.success('AI 周工作总结已生成')
     }
   } catch (e) {
     ElMessage.error((e as Error).message || '生成失败')
@@ -319,7 +319,7 @@ async function removeReport(): Promise<void> {
   const d = detail.value
   if (!d) return
   try {
-    await ElMessageBox.confirm('删除后不可恢复，确认删除这份周报？', '删除周报', {
+    await ElMessageBox.confirm('删除后不可恢复，确认删除这份 AI 周工作总结？', '删除 AI 周工作总结', {
       type: 'warning',
       confirmButtonText: '删除',
     })
@@ -386,7 +386,7 @@ onBeforeUnmount(() => {
   <div class="weekly">
     <aside class="weekly__side">
       <div class="weekly__side-head">
-        <h2 class="weekly__side-title">我的周报</h2>
+        <h2 class="weekly__side-title">我的 AI 周工作总结</h2>
         <el-button text size="small" :icon="Setting" data-test="weekly-preference" @click="openPreference">
           个人规则
         </el-button>
@@ -472,7 +472,7 @@ onBeforeUnmount(() => {
           :error-message="saveError"
           @retry="saveNow"
         />
-        <el-empty v-else :description="selected ? '该周还没有周报' : '先在左侧选择一周'">
+        <el-empty v-else :description="selected ? '该周还没有 AI 周工作总结' : '先在左侧选择一周'">
           <el-button
             v-if="selectedWeek"
             type="primary"
@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
             :loading="generating"
             @click="startGenerate"
           >
-            生成这一周的周报
+            生成这一周的 AI 周工作总结
           </el-button>
         </el-empty>
       </div>
@@ -488,7 +488,7 @@ onBeforeUnmount(() => {
 
     <BbFormDialog
       v-model:open="prefVisible"
-      title="周报个人规则"
+      title="AI 周工作总结个人规则"
       width="520px"
       :loading="prefSaving"
       @submit="savePreference"

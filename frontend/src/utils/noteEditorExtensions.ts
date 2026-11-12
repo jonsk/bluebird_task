@@ -35,7 +35,7 @@ export interface NoteExtensionOptions {
 }
 
 export const NOTE_PLACEHOLDER = '记录今日工作…（Ctrl+Enter 保存）'
-export const WEEKLY_PLACEHOLDER = '点击「AI 生成」自动生成周报，或直接手动撰写…'
+export const WEEKLY_PLACEHOLDER = '点击「AI 生成」自动生成 AI 周工作总结，或直接手动撰写…'
 
 /**
  * 日志编辑器 / 只读渲染共用的 Tiptap 扩展集合。
