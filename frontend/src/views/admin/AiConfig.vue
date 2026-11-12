@@ -212,7 +212,7 @@ async function onDelete(row: AiModelVO): Promise<void> {
         <h2 class="ai__title">AI 模型</h2>
         <p class="ai__desc">
           周报生成使用「当前模型」。可配置多条，但同一时间只能启用一条；API Key 加密存储且不会回显。
-          下方的「工作周报」为该功能自身的生成策略。
+          下方的「AI周工作总结」为该功能自身的生成策略。
         </p>
       </div>
       <el-button type="primary" :icon="Plus" data-test="ai-model-create" @click="openCreate">

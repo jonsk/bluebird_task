@@ -5,7 +5,7 @@ import type { NoteQuery, NoteQueryPatch, NoteSort } from '@/types/note'
  * NoteFilterBar — 列表正文区的补充筛选（排序 / 日期）。
  *
  * 关键词搜索已提到标题栏（`NoteSearchInput`），与「我的一天」保持同一位置；
- * 这里只保留排序与日期。「我的日志」(scope=mine) 只有关键词，外壳不再渲染本组件。
+ * 这里只保留排序与日期。「每日工作记录」(scope=mine) 只有关键词，外壳不再渲染本组件。
  * 所有变更 emit('change', patch) 由外壳（useNoteList）统一写入；本组件不请求。
  */
 withDefaults(

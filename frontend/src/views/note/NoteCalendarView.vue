@@ -17,7 +17,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const SCOPE_LABELS: Record<NoteCalendarScope, string> = {
-  mine: '我的日志',
+  mine: '每日工作记录',
   subordinate: '员工日志',
 }
 

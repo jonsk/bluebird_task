@@ -63,7 +63,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'weekly-reports',
         name: 'WeeklyReport',
         component: () => import('@/views/weekly/WeeklyReportView.vue'),
-        meta: { module: 'note', title: '工作周报', requiresAuth: true },
+        meta: { module: 'note', title: 'AI周工作总结', requiresAuth: true },
       },
       /**
        * 工作日志（note）。**声明顺序是硬约束**：静态段必须排在 `notes/:id(\d+)` 之前，
@@ -73,7 +73,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'notes',
         name: 'NoteHome',
         component: () => import('@/views/note/NoteHomeView.vue'),
-        meta: { module: 'note', scope: 'mine', title: '我的日志', requiresAuth: true },
+        meta: { module: 'note', scope: 'mine', title: '每日工作记录', requiresAuth: true },
       },
       {
         path: 'notes/subordinate',
@@ -95,7 +95,7 @@ export const routes: RouteRecordRaw[] = [
       },
       /**
        * 每周工作记录：和工作日志同一套页面组件，靠 `meta.period` 分流（一周一条）。
-       * 与 AI 生成的「工作周报」(`weekly-reports`) 是两件互不相干的事。
+       * 与 AI 生成的「AI周工作总结」(`weekly-reports`) 是两件互不相干的事。
        */
       {
         path: 'weekly-notes',

@@ -15,7 +15,7 @@ describe('noteListRouteOf', () => {
     expect(noteListRouteOf(scope)).toBe(path)
   })
 
-  it('visible 无独立列表页，回落到我的日志', () => {
+  it('visible 无独立列表页，回落到每日工作记录', () => {
     expect(noteListRouteOf('visible')).toBe('/notes')
   })
 })

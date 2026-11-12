@@ -119,7 +119,7 @@ public final class ConfigDefinition {
                             false, false, "操作/登录日志的保留天数（清理任务据此执行）", List.of(),
                             "app.audit.retention-days"))),
 
-            new Group("weeklyreport", "工作周报", "AI 周报生成策略；提示词留空时使用系统默认模板", List.of(
+            new Group("weeklyreport", "AI周工作总结", "AI 周报生成策略；提示词留空时使用系统默认模板", List.of(
                     new Item("weeklyreport", "prompt-template", "全局提示词模板", "TEXT",
                             DEFAULT_WEEKLY_PROMPT,
                             false, false,
