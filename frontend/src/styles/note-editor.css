@@ -585,13 +585,6 @@
   outline: none;
 }
 
-/* Blink（Chrome/Edge 123+）默认压缩行首行尾中文标点，光标命中仍按压缩前宽度计算，
-   导致标点后光标左偏一格。只在可编辑正文里关闭标点压缩；阅读态没有光标，保留压缩。
-   用 contenteditable 选择器，自动覆盖日志编辑器、周报编辑器等所有复用 .note-prose 的编辑区域。 */
-.note-prose[contenteditable='true'] {
-  text-spacing-trim: space-all;
-}
-
 .note-renderer__prose {
   outline: none;
 }
