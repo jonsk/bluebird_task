@@ -39,6 +39,9 @@ public final class SpaRoutes {
             // 工作日志（note）：列表/详情/日历/授权（探索、本部门、归档已下线）
             "/notes",
             "/notes/**",
+            // 每周工作记录（一周一条，复用日志页面）
+            "/weekly-notes",
+            "/weekly-notes/**",
             // 后台：/admin 本身 + 全部子页（* 只匹配一层，故必须用 **）
             "/admin",
             "/admin/**");
