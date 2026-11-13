@@ -138,7 +138,11 @@ class WeeklyNoteFlowTest {
         // 7 个一级标题，日期从本周周一开始，逐日取自己的年月（跨月/跨年不会写错）
         assertEquals(7, content.split("<h1>", -1).length - 1);
         assertTrue(content.startsWith("<h1>" + heading(MONDAY, "周一") + "</h1>"), content);
-        assertTrue(content.contains("</h1><h1>" + heading(MONDAY.plusDays(6), "周日") + "</h1>"), content);
+        // 日期之间空两行，末尾留一行输入位置
+        assertEquals(6, content.split("<p></p><p></p>", -1).length - 1);
+        assertTrue(content.contains("</h1><p></p><p></p><h1>" + heading(MONDAY.plusDays(1), "周二") + "</h1>"), content);
+        assertTrue(content.contains("</h1><p></p><p></p><h1>" + heading(MONDAY.plusDays(6), "周日") + "</h1>"), content);
+        assertTrue(content.endsWith("</h1><p></p>"), content);
         assertEquals(MONDAY.toString(), first.path("logDate").asText());
         // 只有标题没有正文 → 摘要为空（前端展示「本周暂无内容」）
         assertEquals("", first.path("contentSummary").asText());
@@ -161,7 +165,7 @@ class WeeklyNoteFlowTest {
         assertEquals(futureMonday.toString(), created.path("logDate").asText());
         assertEquals(7, content.split("<h1>", -1).length - 1);
         assertTrue(content.startsWith("<h1>" + heading(futureMonday, "周一") + "</h1>"), content);
-        assertTrue(content.contains("</h1><h1>" + heading(futureMonday.plusDays(6), "周日") + "</h1>"), content);
+        assertTrue(content.contains("</h1><p></p><p></p><h1>" + heading(futureMonday.plusDays(6), "周日") + "</h1>"), content);
 
         // 幂等：同一周再次创建返回同一条，不覆盖
         JsonNode again = createWeeklyAt(u, futureMonday.toString());

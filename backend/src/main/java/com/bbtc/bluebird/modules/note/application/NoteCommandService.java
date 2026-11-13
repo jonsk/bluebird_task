@@ -133,17 +133,21 @@ public class NoteCommandService {
                 .last("LIMIT 1"));
     }
 
-    /** 默认正文：7 个一级标题，日期逐日取自己的年月（跨月/跨年不会写错）。 */
+    /** 默认正文：7 个一级标题，日期逐日取自己的年月（跨月/跨年不会写错）；日期之间空两行。 */
     static String weekTemplate(LocalDate monday) {
         StringBuilder sb = new StringBuilder(256);
         for (int i = 0; i < WEEKDAYS.length; i++) {
+            if (i > 0) {
+                sb.append("<p></p><p></p>");
+            }
             LocalDate d = monday.plusDays(i);
             sb.append("<h1>").append(d.getYear()).append('年')
                     .append(d.getMonthValue()).append('月')
                     .append(d.getDayOfMonth()).append("日 ")
                     .append(WEEKDAYS[i]).append("</h1>");
         }
-        return sb.toString();
+        // 与前端新建态保持一致，末尾留一行可直接输入的位置。
+        return sb.append("<p></p>").toString();
     }
 
     @Transactional

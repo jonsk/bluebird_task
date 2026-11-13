@@ -125,6 +125,13 @@ export function weekHeadings(weekStart: string): string[] {
   })
 }
 
+/** 周记录默认正文 HTML：日期标题之间空两行，末尾留一行可输入位置。 */
+export function weekTemplateHtml(weekStart: string): string {
+  return weekHeadings(weekStart)
+    .map((h) => `<h1>${h}</h1>`)
+    .join('<p></p><p></p>') + '<p></p>'
+}
+
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n)
 }

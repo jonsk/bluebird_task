@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { shiftDay, weekHeadings, weekRangeLabel, weekStartOf } from '@/utils/date'
+import {
+  shiftDay,
+  weekHeadings,
+  weekRangeLabel,
+  weekStartOf,
+  weekTemplateHtml,
+} from '@/utils/date'
 
 /**
  * 周口径（ISO 周：周一 ~ 周日）。周记录的所有日期计算都走这些函数：
@@ -27,6 +33,16 @@ describe('周口径工具', () => {
       '2027年1月2日 周六',
       '2027年1月3日 周日',
     ])
+  })
+
+  it('周模板日期之间空两行，末尾留输入位置', () => {
+    const html = weekTemplateHtml('2026-11-23')
+    expect(html.startsWith('<h1>2026年11月23日 周一</h1>')).toBe(true)
+    expect(html).toContain(
+      '</h1><p></p><p></p><h1>2026年11月24日 周二</h1>',
+    )
+    expect(html.split('<p></p><p></p>')).toHaveLength(7)
+    expect(html.endsWith('</h1><p></p>')).toBe(true)
   })
 
   it('shiftDay 按日历日加减（跨月/跨年）', () => {

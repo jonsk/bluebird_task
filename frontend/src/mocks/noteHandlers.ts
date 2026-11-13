@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { dataOf } from './fixtures'
 import { canReadSubordinate, isAdminRequest } from './identity'
-import { todayWeekStart, weekHeadings, weekStartOf } from '@/utils/date'
+import { todayWeekStart, weekStartOf, weekTemplateHtml } from '@/utils/date'
 
 /**
  * Note（工作日志）MSW Mock —— 内存实现，覆盖 `docs/api/openapi.yaml` 的 note 相关端点。
@@ -434,11 +434,7 @@ export const noteHandlers = [
       (n) => alive(n) && n.ownerId === ME && n.periodType === 'WEEK' && n.logDate === monday,
     )
     if (existing) return ok(detailOf(existing))
-    const content =
-      body.content?.trim() ||
-      weekHeadings(monday)
-        .map((h) => `<h1>${h}</h1>`)
-        .join('') + '<p></p>'
+    const content = body.content?.trim() || weekTemplateHtml(monday)
     const now = new Date().toISOString()
     const row: NoteRow = {
       id: ++noteSeq,

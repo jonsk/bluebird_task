@@ -13,7 +13,7 @@ import { buildNoteExtensions } from '@/utils/noteEditorExtensions'
 import { isBlankHtml, plainTextFromHtml, toEditorHtml, visibleLength } from '@/utils/richText'
 import { containsDangerousRichText } from '@/utils/sanitize'
 import { formatClock } from '@/utils/format'
-import { todayWeekStart, weekHeadings } from '@/utils/date'
+import { todayWeekStart, weekTemplateHtml } from '@/utils/date'
 import { validateUploadFile } from '@/utils/upload'
 import { useFileConfig } from '@/composables/useFileConfig'
 import { useBlockDragHandle } from '@/composables/useBlockDragHandle'
@@ -310,7 +310,7 @@ function applyNewDefaults(): void {
 /** 新建态默认正文：日日志一行当天日期；周记录 7 个日期标题（与后端 weekTemplate 同格式）。 */
 function defaultDraft(): string {
   if (props.period === 'WEEK') {
-    return weekHeadings(todayWeekStart()).map((h) => `<h1>${h}</h1>`).join('') + '<p></p>'
+    return weekTemplateHtml(todayWeekStart())
   }
   return `<h1>${todayHeading()}</h1><p></p>`
 }
