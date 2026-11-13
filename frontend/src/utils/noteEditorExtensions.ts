@@ -4,7 +4,6 @@ import Highlight from '@tiptap/extension-highlight'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
 import Details, { DetailsContent, DetailsSummary } from '@tiptap/extension-details'
 import Image from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
@@ -17,6 +16,7 @@ import { NoteIndent } from '@/utils/noteIndent'
 import { LegacyCode, LegacyCodeBlock } from '@/utils/noteLegacyCode'
 import { NoteLinkClick } from '@/utils/noteLinkClick'
 import { NoteMention } from '@/utils/noteMention'
+import { NoteTaskItem } from '@/utils/noteTaskItem'
 import { NoteTypography } from '@/utils/noteTypography'
 
 /**
@@ -66,7 +66,7 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
     TextStyle,
     Color,
     TaskList,
-    TaskItem.configure({ nested: true }),
+    NoteTaskItem.configure({ nested: true }),
     Details.configure({
       persist: true,
       openClassName: 'is-open',
