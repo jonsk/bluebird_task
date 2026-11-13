@@ -68,6 +68,26 @@ describe('NoteToolbar 下拉框显示', () => {
   })
 })
 
+describe('NoteToolbar 附件入口', () => {
+  it('不传 attachments 时默认显示图片 / 附件入口', () => {
+    const wrapper = mountToolbar()
+    expect(wrapper.find('[data-test="note-attachment"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="note-attachment-input"]').exists()).toBe(true)
+  })
+
+  it('显式 attachments=false 时隐藏入口（周报）', () => {
+    const wrapper = shallowMount(NoteToolbar, {
+      props: { editor: editorWith() as never, attachments: false },
+      global: {
+        plugins: [createPinia()],
+        stubs: { NoteIcon: true, NoteOutline: true, NoteEmojiPicker: true },
+      },
+    })
+    expect(wrapper.find('[data-test="note-attachment"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="note-attachment-input"]').exists()).toBe(false)
+  })
+})
+
 describe('NoteToolbar 状态同步', () => {
   /** Tiptap 的 Vue 版 Editor 把 state 包成 debounced 响应式，事务后组件会自动重算。 */
   function waitEditorFlush(): Promise<void> {

@@ -7,14 +7,20 @@ import NoteEmojiPicker from './NoteEmojiPicker.vue'
 import { firstFontFamily, withCurrentValue } from '@/utils/toolbarSelect'
 import { useAppStore } from '@/stores/app'
 
-const props = defineProps<{
-  editor: Editor
-  /**
-   * 是否显示「插入图片 / 附件」入口，默认 true。
-   * 周报不绑定 noteId，插进去只会产生解析不了的坏链接，需要置 false。
-   */
-  attachments?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    editor: Editor
+    /**
+     * 是否显示「插入图片 / 附件」入口，默认 true。
+     * 周报不绑定 noteId，插进去只会产生解析不了的坏链接，需要置 false。
+     *
+     * 注意：Boolean prop 不传时会被 Vue 转成 false，必须显式给默认值，
+     * 否则 `attachments !== false` 的判断会让入口永远隐藏。
+     */
+    attachments?: boolean
+  }>(),
+  { attachments: true },
+)
 
 const emit = defineEmits<{
   (e: 'upload-image', files: File[]): void
