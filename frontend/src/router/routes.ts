@@ -100,7 +100,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'weekly-notes',
         name: 'WeeklyNoteHome',
-        component: () => import('@/views/note/NoteHomeView.vue'),
+        component: () => import('@/views/note/WeeklyNoteView.vue'),
         meta: {
           module: 'note',
           scope: 'mine',

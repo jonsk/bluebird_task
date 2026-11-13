@@ -12,6 +12,7 @@ import com.bbtc.bluebird.modules.note.dto.NoteCreateReq;
 import com.bbtc.bluebird.modules.note.dto.NoteDetailVO;
 import com.bbtc.bluebird.modules.note.dto.NoteQuery;
 import com.bbtc.bluebird.modules.note.dto.NoteUpdateReq;
+import com.bbtc.bluebird.modules.note.dto.WeeklyNoteCreateReq;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -70,14 +71,15 @@ public class NoteController {
     }
 
     /**
-     * 每周工作记录：取回/创建「本周」那一条。
+     * 每周工作记录：取回/创建指定周（缺省本周）的那一条。
      *
-     * <p>幂等：本周已有记录时直接返回它（不覆盖），所以前端可以放心在保存首行时调用。
-     * 请求体可省略，缺省正文为 7 个日期一级标题。
+     * <p>幂等：同一周已有记录时直接返回它（不覆盖），所以前端可以放心在保存首行时调用。
+     * 请求体可省略；传入 {@code weekStart} 时只允许本周之后的周，服务端归一化到周一。
+     * 缺省正文为 7 个日期一级标题。
      */
-    @Operation(summary = "创建或打开本周工作记录")
+    @Operation(summary = "创建或打开每周工作记录")
     @PostMapping("/weekly")
-    public ApiResult<NoteDetailVO> createWeekly(@RequestBody(required = false) NoteCreateReq req) {
+    public ApiResult<NoteDetailVO> createWeekly(@RequestBody(required = false) WeeklyNoteCreateReq req) {
         return ApiResult.ok(commandService.createWeekly(req));
     }
 

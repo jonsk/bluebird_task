@@ -3,6 +3,7 @@ import type {
   NoteDetailVO,
   NoteListData,
   NoteCreateReq,
+  WeeklyNoteCreateReq,
   NoteUpdateReq,
   NoteAttachmentBindReq,
   NoteAttachmentVO,
@@ -24,10 +25,11 @@ export function createNote(payload: NoteCreateReq): Promise<NoteDetailVO> {
 }
 
 /**
- * 取回/创建本周（ISO 周一 ~ 周日）的每周工作记录。
- * 幂等：本周已有记录时返回已有那条（不覆盖内容），所以首行保存时可直接调用。
+ * 取回/创建每周工作记录。
+ * - 不传 weekStart：本周（ISO 周一 ~ 周日），幂等返回已有那条；
+ * - 传 weekStart：任意一天会被服务端归一化到周一，只允许本周之后的周。
  */
-export function createWeeklyNote(payload?: NoteCreateReq): Promise<NoteDetailVO> {
+export function createWeeklyNote(payload?: WeeklyNoteCreateReq): Promise<NoteDetailVO> {
   return post<NoteDetailVO>('/notes/weekly', payload ?? {})
 }
 

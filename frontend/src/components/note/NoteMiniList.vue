@@ -12,8 +12,14 @@ const props = withDefaults(
     activeId?: number | null
     /** DAY 显示日期；WEEK 显示 `2026-11-02 ~ 2026-11-08` */
     period?: NotePeriod
+    /** 空态文案；不传按 period 使用默认文案 */
+    emptyText?: string
+    /** 是否显示底部「查看全部」；每周页右栏分组不需要 */
+    showFooter?: boolean
+    /** 条目上的标签文案（如「未来」）；不传不显示 */
+    tagText?: string
   }>(),
-  { loading: false, activeId: null, period: 'DAY' },
+  { loading: false, activeId: null, period: 'DAY', emptyText: undefined, showFooter: true, tagText: undefined },
 )
 
 /** 周记录的 logDate 就是该周周一，展示时展开成区间。 */
@@ -33,7 +39,7 @@ const emit = defineEmits<{
     <el-skeleton v-if="loading" :rows="3" animated />
     <el-empty
       v-else-if="!notes.length"
-      :description="period === 'WEEK' ? '本周暂无记录' : '今日暂无日志'"
+      :description="emptyText ?? (period === 'WEEK' ? '本周暂无记录' : '今日暂无日志')"
       :image-size="48"
     />
     <ul v-else class="note-mini-list__items">
@@ -45,10 +51,11 @@ const emit = defineEmits<{
         @click="note.id != null && emit('open', note.id)"
       >
         <span class="note-mini-list__date">{{ noteLabel(note) }}</span>
-        <span class="note-mini-list__summary">{{ plainSummary(note.contentSummary) || (period === 'WEEK' ? '本周暂无内容' : '（无内容）') }}</span>
+        <span v-if="tagText" class="note-mini-list__tag">{{ tagText }}</span>
+        <span class="note-mini-list__summary">{{ plainSummary(note.contentSummary) || (period === 'WEEK' ? '暂无内容' : '（无内容）') }}</span>
       </li>
     </ul>
-    <div class="note-mini-list__footer">
+    <div v-if="showFooter" class="note-mini-list__footer">
       <el-button text size="small" :icon="ArrowRight" @click="emit('view-all')">查看全部</el-button>
     </div>
   </div>
@@ -78,6 +85,15 @@ const emit = defineEmits<{
 .note-mini-list__date {
   flex: 0 0 auto;
   color: var(--bb-text-muted);
+}
+.note-mini-list__tag {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--bg-accent);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
 }
 .note-mini-list__summary {
   flex: 1;

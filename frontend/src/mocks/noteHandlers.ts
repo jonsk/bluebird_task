@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { dataOf } from './fixtures'
 import { canReadSubordinate, isAdminRequest } from './identity'
-import { todayWeekStart, weekHeadings } from '@/utils/date'
+import { todayWeekStart, weekHeadings, weekStartOf } from '@/utils/date'
 
 /**
  * Note（工作日志）MSW Mock —— 内存实现，覆盖 `docs/api/openapi.yaml` 的 note 相关端点。
@@ -421,12 +421,19 @@ export const noteHandlers = [
 
   // 每周工作记录：一周一条；本周已有就返回已有那条（与后端 POST /notes/weekly 同语义）
   http.post(`${AUTH}/notes/weekly`, async ({ request }) => {
-    const monday = todayWeekStart()
+    const body = (await request.json().catch(() => ({}))) as {
+      content?: string
+      weekStart?: string
+    }
+    const thisMonday = todayWeekStart()
+    const monday = body.weekStart ? weekStartOf(body.weekStart) : thisMonday
+    if (body.weekStart && monday <= thisMonday) {
+      return fail(10001, '只能创建本周之后的每周工作记录', 400)
+    }
     const existing = notes.find(
       (n) => alive(n) && n.ownerId === ME && n.periodType === 'WEEK' && n.logDate === monday,
     )
     if (existing) return ok(detailOf(existing))
-    const body = (await request.json().catch(() => ({}))) as { content?: string }
     const content =
       body.content?.trim() ||
       weekHeadings(monday)

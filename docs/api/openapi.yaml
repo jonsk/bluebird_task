@@ -793,7 +793,7 @@ paths:
         æœ¬å‘¨å·²æœ‰è®°å½•æ—¶ç›´æ¥è¿”å›é‚£æ¡ï¼Œä¸è¦†ç›–å†…å®¹ï¼›è¯·æ±‚ä½“å¯çœç•¥ï¼Œç¼ºçœæ­£æ–‡ä¸º 7 ä¸ªæ—¥æœŸä¸€çº§æ ‡é¢˜ã€‚
       requestBody:
         required: false
-        content: { application/json: { schema: { $ref: '#/components/schemas/NoteCreateReq' } } }
+        content: { application/json: { schema: { $ref: '#/components/schemas/WeeklyNoteCreateReq' } } }
       responses:
         '200':
           description: OK
@@ -1125,6 +1125,18 @@ components:
       description: æ—¥å¿—æ—¥æœŸä¸å¯é€‰ï¼ŒæœåŠ¡ç«¯å›ºå®šè®°ä¸ºåˆ›å»ºå½“å¤©ï¼ˆAsia/Shanghaiï¼‰ï¼›ä¸æ¥å— logDateã€‚
       properties:
         content: { type: string }
+    WeeklyNoteCreateReq:
+      type: object
+      description: >
+        Ã¿ÖÜ¹¤×÷¼ÇÂ¼´´½¨Èë²Î¡£weekStart ¿ÉÊ¡ÂÔ£¨±¾ÖÜ£©£»´«ÈëÈÎÒâÈÕÆÚ»á¹éÒ»»¯µ½¸ÃÖÜÖÜÒ»£¬
+        ÇÒÖ»ÔÊĞí±¾ÖÜÖ®ºóµÄÖÜ¡£content Ê¡ÂÔ/¿Õ°×Ê±Ê¹ÓÃ 7 ¸öÈÕÆÚÒ»¼¶±êÌâÄ£°å¡£
+      properties:
+        content: { type: string, nullable: true }
+        weekStart:
+          type: string
+          format: date
+          nullable: true
+          description: Ä¿±êÖÜÄÚÈÎÒâÒ»Ìì£¨YYYY-MM-DD£©£¬·şÎñ¶Ë¹éÒ»»¯µ½ÖÜÒ»
     NoteUpdateReq:
       type: object
       description: å­—æ®µå‡å¯çœç•¥ï¼ˆnull=ä¸æ”¹ï¼‰ï¼›æä¾› version æ—¶åšä¹è§‚é”æ ¡éªŒã€‚æ—¥å¿—æ—¥æœŸä¸å¯ä¿®æ”¹ï¼Œæºå¸¦ logDate è¿”å› 400ã€‚

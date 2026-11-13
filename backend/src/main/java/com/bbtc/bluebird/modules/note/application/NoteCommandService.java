@@ -12,6 +12,7 @@ import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
 import com.bbtc.bluebird.modules.note.dto.NoteCreateReq;
 import com.bbtc.bluebird.modules.note.dto.NoteDetailVO;
 import com.bbtc.bluebird.modules.note.dto.NoteUpdateReq;
+import com.bbtc.bluebird.modules.note.dto.WeeklyNoteCreateReq;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteAttachmentRefMapper;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
 import com.bbtc.bluebird.modules.org.application.CurrentUserDeptService;
@@ -24,6 +25,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
 
 /** 日志写操作：创建/更新/删除 + 字段级权限 + 级联清理。 */
@@ -63,17 +65,24 @@ public class NoteCommandService {
     }
 
     /**
-     * 创建/打开「本周」的每周工作记录。
+     * 创建/打开指定周（缺省本周）的每周工作记录。
      *
      * <p>一周一条由 DB 部分唯一索引兜底；这里先查再插，撞并发唯一键时回读已存在那条。
      * 已存在时**不覆盖**原内容，返回现有记录，前端据此转成编辑态（避免另一个标签页把自己写的内容冲掉）。
      *
+     * <p>{@code weekStart} 传入时只允许本周之后的周；任意日期都归一化到该周周一。
+     *
      * @param req 可空；为空/正文空白时用 7 个日期一级标题作为默认正文
      */
     @Transactional
-    public NoteDetailVO createWeekly(NoteCreateReq req) {
+    public NoteDetailVO createWeekly(WeeklyNoteCreateReq req) {
         Long me = UserContext.currentUserId();
-        LocalDate monday = LocalDate.now(ZONE).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate thisMonday = LocalDate.now(ZONE).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        boolean explicitWeek = req != null && req.weekStart() != null && !req.weekStart().isBlank();
+        LocalDate monday = explicitWeek ? parseWeekStart(req.weekStart()) : thisMonday;
+        if (explicitWeek && !monday.isAfter(thisMonday)) {
+            throw HttpStatusException.badRequest("只能创建本周之后的每周工作记录");
+        }
         String start = monday.toString();
 
         Note existing = findByWeek(me, start);
@@ -105,6 +114,15 @@ public class NoteCommandService {
             return queryService.detail(race.getId());
         }
         return queryService.detail(note.getId());
+    }
+
+    /** 任意日期 → 该周周一；格式非法直接 400。 */
+    private LocalDate parseWeekStart(String raw) {
+        try {
+            return LocalDate.parse(raw.trim()).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        } catch (DateTimeParseException e) {
+            throw HttpStatusException.badRequest("weekStart 格式非法（YYYY-MM-DD）：" + raw);
+        }
     }
 
     private Note findByWeek(Long ownerId, String weekStart) {

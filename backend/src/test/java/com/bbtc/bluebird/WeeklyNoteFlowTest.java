@@ -115,6 +115,16 @@ class WeeklyNoteFlowTest {
         return objectMapper.readTree(body).path("data");
     }
 
+    private JsonNode createWeeklyAt(SysUser u, String weekStart) throws Exception {
+        String body = mvc.perform(auth(post("/api/v1/notes/weekly"), u)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"weekStart\":\"" + weekStart + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        return objectMapper.readTree(body).path("data");
+    }
+
     /* ==================== 用例 ==================== */
 
     @Test
@@ -137,6 +147,38 @@ class WeeklyNoteFlowTest {
         JsonNode second = createWeekly(u);
         assertEquals(id, second.path("id").asLong());
         assertEquals(content, second.path("content").asText());
+    }
+
+    @Test
+    void createsRequestedFutureWeekAndNormalizesToMonday() throws Exception {
+        SysUser u = user("future", null, "COMMON");
+        LocalDate futureMonday = MONDAY.plusWeeks(3);
+
+        JsonNode created = createWeeklyAt(u, futureMonday.plusDays(4).toString());
+        long id = created.path("id").asLong();
+        String content = created.path("content").asText();
+
+        assertEquals(futureMonday.toString(), created.path("logDate").asText());
+        assertEquals(7, content.split("<h1>", -1).length - 1);
+        assertTrue(content.startsWith("<h1>" + heading(futureMonday, "周一") + "</h1>"), content);
+        assertTrue(content.contains("</h1><h1>" + heading(futureMonday.plusDays(6), "周日") + "</h1>"), content);
+
+        // 幂等：同一周再次创建返回同一条，不覆盖
+        JsonNode again = createWeeklyAt(u, futureMonday.toString());
+        assertEquals(id, again.path("id").asLong());
+        assertEquals(content, again.path("content").asText());
+    }
+
+    @Test
+    void rejectsCurrentAndPastWeekWhenExplicitlyRequested() throws Exception {
+        SysUser u = user("past", null, "COMMON");
+
+        for (String week : new String[]{MONDAY.toString(), MONDAY.minusWeeks(1).toString()}) {
+            mvc.perform(auth(post("/api/v1/notes/weekly"), u)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"weekStart\":\"" + week + "\"}"))
+                    .andExpect(status().isBadRequest());
+        }
     }
 
     @Test

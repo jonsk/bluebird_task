@@ -2375,7 +2375,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["NoteCreateReq"];
+                    "application/json": components["schemas"]["WeeklyNoteCreateReq"];
                 };
             };
             responses: {
@@ -2997,6 +2997,15 @@ export interface components {
         /** @description 日志日期不可选，服务端固定记为创建当天（Asia/Shanghai）；不接受 logDate。 */
         NoteCreateReq: {
             content: string;
+        };
+        /** @description ÿ�ܹ�����¼������Ρ�weekStart ��ʡ�ԣ����ܣ��������������ڻ��һ����������һ�� ��ֻ��������֮����ܡ�content ʡ��/�հ�ʱʹ�� 7 ������һ������ģ�塣 */
+        WeeklyNoteCreateReq: {
+            content?: string | null;
+            /**
+             * Format: date
+             * @description Ŀ����������һ�죨YYYY-MM-DD��������˹�һ������һ
+             */
+            weekStart?: string | null;
         };
         /** @description 字段均可省略（null=不改）；提供 version 时做乐观锁校验。日志日期不可修改，携带 logDate 返回 400。 */
         NoteUpdateReq: {
