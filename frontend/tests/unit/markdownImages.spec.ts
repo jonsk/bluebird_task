@@ -80,6 +80,22 @@ describe('watchMarkdownImages', () => {
     hydrator.stop()
   })
 
+  it('容器晚于首帧才挂载时，图片仍会被水合', async () => {
+    let late: HTMLElement | null = null
+    const hydrator = watchMarkdownImages(() => late)
+    await flush()
+
+    late = root
+    const img = addImg()
+    await flush()
+    await new Promise<void>((r) => setTimeout(r, 40))
+    await flush()
+
+    expect(getBlob).toHaveBeenCalledWith(PREVIEW)
+    expect(img.getAttribute('src')).toBe('blob:mock/1')
+    hydrator.stop()
+  })
+
   it('外链图片不动，也不发请求', async () => {
     const hydrator = watchMarkdownImages(() => root)
     await flush()

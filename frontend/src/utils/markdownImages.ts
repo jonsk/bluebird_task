@@ -93,9 +93,9 @@ export function watchMarkdownImages(getRoot: () => HTMLElement | null | undefine
     root.querySelectorAll('img').forEach((el) => void hydrate(el as HTMLImageElement))
   }
 
-  function attach(): void {
+  function attach(): boolean {
     const root = getRoot()
-    if (!root) return
+    if (!root) return false
     scan()
     if (!observer) {
       observer = new MutationObserver(() => scan())
@@ -107,10 +107,17 @@ export function watchMarkdownImages(getRoot: () => HTMLElement | null | undefine
         attributeFilter: ['src'],
       })
     }
+    return true
   }
 
-  // 容器可能在首帧之后才渲染（异步组件 + 数据请求），用 rAF 兜住这一次延迟。
-  const raf = requestAnimationFrame(attach)
+  // 容器可能晚于首帧才渲染（异步组件、加载态 v-if 切换、数据请求）：
+  // 不能在 root 为空时直接放弃，否则之后插入的图片永远不会水合。
+  function waitForRoot(): void {
+    if (stopped || attach()) return
+    raf = requestAnimationFrame(waitForRoot)
+  }
+
+  let raf = requestAnimationFrame(waitForRoot)
 
   return {
     stop: () => {

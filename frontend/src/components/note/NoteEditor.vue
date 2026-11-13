@@ -205,10 +205,24 @@ watch(canEditContent, (editable) => {
 
 onMounted(() => {
   init()
-  hydrator = watchMarkdownImages(() => hostRef.value)
+  attachHydrator()
   void loadFileConfig()
   observeToolbar()
 })
+
+/**
+ * 正文容器会被加载态 v-if 整体替换（编辑态先出现、随后被移除、数据回来又重建），
+ * 水合器必须跟着容器元素一起重建，否则观察器会绑在已经脱离文档的旧节点上，
+ * 预览图（需要 Bearer）永远是裂图，只剩 alt 文件名。
+ */
+function attachHydrator(): void {
+  hydrator?.stop()
+  hydrator = null
+  if (!hostRef.value) return
+  hydrator = watchMarkdownImages(() => hostRef.value)
+}
+
+watch(hostRef, () => attachHydrator())
 
 onUnmounted(() => {
   hydrator?.stop()
