@@ -78,4 +78,28 @@ export const NoteIndent = Extension.create<NoteIndentOptions>({
         },
     }
   },
+
+  addKeyboardShortcuts() {
+    /**
+     * Tab / Shift-Tab 的缩进入口。只接管段落与标题：
+     * - 表格单元格里 Tab 是「跳到下一个单元格」，列表项里是 sink/lift，均交给上游处理；
+     * - 其它节点（图片、附件、折叠块标题等）不拦截，保留浏览器/上游默认行为；
+     * - 到达 0 / max 边界时仍然拦截，避免焦点被 Tab 带出编辑器。
+     */
+    const indentByTab = (direction: 'in' | 'out') => (): boolean => {
+      const { editor } = this
+      if (editor.isActive('table')) return false
+      if (editor.isActive('taskItem') || editor.isActive('listItem')) return false
+      if (!editor.isActive('paragraph') && !editor.isActive('heading')) return false
+
+      if (direction === 'in') editor.commands.indentBlock()
+      else editor.commands.outdentBlock()
+      return true
+    }
+
+    return {
+      Tab: indentByTab('in'),
+      'Shift-Tab': indentByTab('out'),
+    }
+  },
 })
