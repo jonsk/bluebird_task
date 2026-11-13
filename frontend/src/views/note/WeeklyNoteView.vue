@@ -315,42 +315,45 @@ function retryInlineSave(): void {
           :title="title"
           :icon="Calendar"
           :date="headerDate"
-        />
+        >
+          <template #title-extra>
+            <span class="weekly-header__range" data-test="weekly-range">
+              {{ activeWeekLabel }}
+            </span>
+          </template>
+          <template #actions>
+            <span
+              class="weekly-header__status"
+              data-test="weekly-inline-status"
+              :data-status="editorRef?.status ?? 'idle'"
+            >
+              <template v-if="editorRef?.status === 'saving'">
+                <span class="weekly-header__save is-saving">保存中…</span>
+              </template>
+              <template v-else-if="editorRef?.status === 'error'">
+                <button
+                  class="weekly-header__save weekly-header__retry"
+                  type="button"
+                  @click="retryInlineSave"
+                >
+                  {{ editorRef.errorMessage }}，点击重试
+                </button>
+              </template>
+              <span v-if="editorRef?.savedAt" class="weekly-header__save is-saved">
+                <template
+                  v-if="editorRef?.status === 'saving' || editorRef?.status === 'error'"
+                >
+                  ·
+                </template>
+                已保存 {{ editorRef.savedAt }}
+              </span>
+            </span>
+          </template>
+        </BbPageHeader>
 
         <section class="right-box-bottom">
           <div class="note-page weekly-page">
             <div v-if="editId != null" class="weekly-editor" data-test="weekly-inline-editor">
-              <div class="weekly-editor__bar">
-                <span class="weekly-editor__range">{{ activeWeekLabel }}</span>
-                <span
-                  class="weekly-editor__status"
-                  data-test="weekly-inline-status"
-                  :data-status="editorRef?.status ?? 'idle'"
-                >
-                  <template v-if="editorRef?.status === 'saving'">
-                    <span class="weekly-editor__save is-saving">保存中…</span>
-                  </template>
-                  <template v-else-if="editorRef?.status === 'error'">
-                    <button
-                      class="weekly-editor__save weekly-editor__retry"
-                      type="button"
-                      @click="retryInlineSave"
-                    >
-                      {{ editorRef.errorMessage }}，点击重试
-                    </button>
-                  </template>
-                  <span v-if="editorRef?.savedAt" class="weekly-editor__save is-saved">
-                    <template
-                      v-if="
-                        editorRef?.status === 'saving' || editorRef?.status === 'error'
-                      "
-                    >
-                      ·
-                    </template>
-                    已保存 {{ editorRef.savedAt }}
-                  </span>
-                </span>
-              </div>
               <NoteEditor
                 ref="editorRef"
                 :key="`weekly:${editId}`"
@@ -501,36 +504,30 @@ function retryInlineSave(): void {
 .weekly-page {
   padding-top: 8px;
 }
-.weekly-editor__bar {
+.weekly-header__range {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--bb-text-muted);
+}
+.weekly-header__status {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 24px;
-  margin-bottom: 6px;
-}
-.weekly-editor__range {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--bb-text-secondary);
-}
-.weekly-editor__status {
-  display: flex;
-  align-items: center;
+  justify-content: flex-end;
   gap: 4px;
   flex-wrap: wrap;
 }
-.weekly-editor__save {
+.weekly-header__save {
   font-size: 12px;
   font-weight: 400;
 }
-.weekly-editor__save.is-saving {
+.weekly-header__save.is-saving {
   color: var(--bb-text-secondary);
 }
-.weekly-editor__save.is-saved {
+.weekly-header__save.is-saved {
   color: var(--bb-success, #67c23a);
 }
-.weekly-editor__save.weekly-editor__retry {
+.weekly-header__save.weekly-header__retry {
   padding: 0;
   border: none;
   background: none;

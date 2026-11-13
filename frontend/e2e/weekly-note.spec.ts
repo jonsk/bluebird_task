@@ -36,7 +36,7 @@ test.describe('每周工作记录', () => {
 
   test('W-01 当前周自动打开，Esc 不退出且无主列表', async ({ page }) => {
     const editor = page.locator('[data-test="weekly-inline-editor"]')
-    await expect(editor.getByText('2026-09-28 ~ 2026-10-04')).toBeVisible()
+    await expect(page.locator('[data-test="weekly-range"]')).toHaveText('2026-09-28 ~ 2026-10-04')
     await expect(page.locator('[data-test="note-inline-done"]')).toHaveCount(0)
     await expect(page.locator('.note-card')).toHaveCount(0)
     await expect(page.locator('[data-test="weekly-inline-status"]')).toBeVisible()
@@ -60,7 +60,7 @@ test.describe('每周工作记录', () => {
 
     await expect(dialog).toBeHidden()
     const editor = page.locator('[data-test="weekly-inline-editor"]')
-    await expect(editor.getByText('2026-10-05 ~ 2026-10-11')).toBeVisible()
+    await expect(page.locator('[data-test="weekly-range"]')).toHaveText('2026-10-05 ~ 2026-10-11')
     await expect(editor.locator('.note-editor__prose')).toContainText('2026年10月5日 周一')
 
     const future = page.locator('[data-test="weekly-future-group"]')
