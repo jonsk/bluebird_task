@@ -4,7 +4,7 @@ import Highlight from '@tiptap/extension-highlight'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import TaskList from '@tiptap/extension-task-list'
-import Details, { DetailsContent, DetailsSummary } from '@tiptap/extension-details'
+import Details, { DetailsContent } from '@tiptap/extension-details'
 import Image from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
 import TextAlign from '@tiptap/extension-text-align'
@@ -17,13 +17,6 @@ import { NoteLinkClick } from '@/utils/noteLinkClick'
 import { NoteMention } from '@/utils/noteMention'
 import { NoteTaskItem } from '@/utils/noteTaskItem'
 import { NoteTypography } from '@/utils/noteTypography'
-
-/**
- * Tiptap 默认的 detailsSummary 只允许纯文本（text*），Emoji 是 inline atom，
- * 在折叠代码标题里会被 schema 拒绝。summary 本身是 phrasing content，
- * 放宽到 inline* 后即可插入 Emoji、提及等行内节点。
- */
-const NoteDetailsSummary = DetailsSummary.extend({ content: 'inline*' })
 
 export interface NoteExtensionOptions {
   /** editor = 可编辑（带占位符）；render = 只读详情渲染。 */
@@ -73,7 +66,6 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
         element.setAttribute('aria-label', isOpen ? '收起' : '展开')
       },
     }),
-    NoteDetailsSummary,
     DetailsContent,
     ...(isWeekly
       ? []
