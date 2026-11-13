@@ -1,67 +1,24 @@
-import { marked } from 'marked'
 import { sanitizeRichTextHtml } from './sanitize'
 
 /**
- * 富文本格式兼容工具。
+ * 富文本工具。
  *
- * 日志正文从历史 Markdown 迁移到 Tiptap HTML 后，库里会同时存在两种形态：
- * - 新写入：Tiptap `getHTML()` 输出，必以块级标签开头（`<p>`/`<h1>`/`<ul>`…）；
- * - 历史数据：Markdown 源码。
- *
- * 这里用「是否以块级标签开头」做轻量判别，不新增数据库字段：
- * - 编辑/渲染前把历史 Markdown 转成 HTML；
- * - 用户真正编辑后，自动保存会把该篇日志落成 HTML（无需一次性迁移脚本）。
+ * 日志正文与周报 `contentHtml` 一律落库为 Tiptap `getHTML()` 产出的 HTML；
+ * 历史 Markdown 兼容层已移除（原因与影响见 docs/architecture/tiptap-editor.md §9.4），
+ * 这里不再做格式判别，也不再引入 Markdown 转换器。
  */
-const HTML_BLOCK_START =
-  /^\s*<(?:p|h[1-6]|ul|ol|li|blockquote|pre|div|details|summary|table|thead|tbody|tr|td|th|hr|img|figure|section|article)\b/i
-
-/** 是否为 Tiptap 产出的 HTML（或历史数据里直接写的 HTML 片段）。 */
-export function isHtmlContent(content: string | null | undefined): boolean {
-  if (!content) return false
-  return HTML_BLOCK_START.test(content)
-}
 
 /**
- * 历史 Markdown → HTML。
+ * 任意日志正文转成编辑器可解析的 HTML。
  *
- * `marked` 只负责通用 GFM；任务列表输出会被改写成 Tiptap TaskItem 能识别的结构，
- * 避免旧日志里的 `- [ ]` 在迁移后变成带一个不可用 checkbox 的普通列表。
- */
-export function markdownToHtml(markdown: string): string {
-  const html = marked.parse(markdown, { async: false, gfm: true, breaks: false }) as string
-  return normalizeTaskLists(html)
-}
-
-function normalizeTaskLists(html: string): string {
-  return html
-    .replace(/<ul class="contains-task-list">/g, '<ul data-type="taskList">')
-    .replace(
-      /<li(?:\s+class="task-list-item")?>\s*<input([^>]*)>([\s\S]*?)<\/li>/g,
-      (_match, attrs: string, body: string) => {
-        const checked = /\bchecked\b/i.test(attrs)
-        return (
-          `<li data-type="taskItem" data-checked="${checked}">` +
-          `<label><input type="checkbox"${checked ? ' checked' : ''}><span></span></label>` +
-          `<div><p>${body.trim()}</p></div>` +
-          `</li>`
-        )
-      },
-    )
-    .replace(/<ul>\s*(<li data-type="taskItem")/g, '<ul data-type="taskList">$1')
-}
-
-/**
- * 任意日志正文（HTML 或 Markdown）转成编辑器可解析的 HTML。
- *
- * `isHtmlContent` 只是**格式判别**，不是安全边界：数据库里的 HTML 可能来自历史导入、
- * AI 生成或直接调 API 写入。因此两条分支的产物统一过一次 `sanitizeRichTextHtml`，
- * 与后端写入时的 RichTextGuard 组成双防线；后续即使更换渲染器也不会退化成存储型 XSS。
+ * 数据库里的 HTML 可能来自历史导入、AI 生成或直接调 API 写入，
+ * 因此统一过一遍 `sanitizeRichTextHtml`，与后端写入时的 RichTextGuard 组成双防线；
+ * 后续即使更换渲染器也不会退化成存储型 XSS。
  */
 export function toEditorHtml(content: string | null | undefined): string {
   const src = content ?? ''
   if (!src.trim()) return '<p></p>'
-  const html = isHtmlContent(src) ? src : markdownToHtml(src)
-  return sanitizeRichTextHtml(html)
+  return sanitizeRichTextHtml(src)
 }
 
 /**
@@ -79,6 +36,12 @@ export function plainTextFromHtml(html: string): string {
     .replace(/<hr\s*\/?>/gi, '\n')
   const doc = new DOMParser().parseFromString(withBreaks, 'text/html')
   return (doc.body.textContent ?? '').replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n')
+}
+
+/** 把正文压成单行摘要文本，供列表卡片 / 右栏小列表 / 详情页标题使用。 */
+export function plainSummary(content?: string | null): string {
+  if (!content) return ''
+  return plainTextFromHtml(content).replace(/\s+/g, ' ').trim()
 }
 
 /** HTML 是否是“空文档”（只有空段落/空白）。 */

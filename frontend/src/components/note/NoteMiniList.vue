@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowRight } from '@element-plus/icons-vue'
-import { stripMarkdown } from '@/utils/markdown'
+import { plainSummary } from '@/utils/richText'
 import type { NoteBrief, NotePeriod } from '@/types/note'
 import { weekRangeLabel } from '@/utils/date'
 
@@ -45,7 +45,7 @@ const emit = defineEmits<{
         @click="note.id != null && emit('open', note.id)"
       >
         <span class="note-mini-list__date">{{ noteLabel(note) }}</span>
-        <span class="note-mini-list__summary">{{ stripMarkdown(note.contentSummary) || (period === 'WEEK' ? '本周暂无内容' : '（无内容）') }}</span>
+        <span class="note-mini-list__summary">{{ plainSummary(note.contentSummary) || (period === 'WEEK' ? '本周暂无内容' : '（无内容）') }}</span>
       </li>
     </ul>
     <div class="note-mini-list__footer">

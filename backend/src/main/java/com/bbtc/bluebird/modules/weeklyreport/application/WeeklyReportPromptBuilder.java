@@ -1,6 +1,6 @@
 package com.bbtc.bluebird.modules.weeklyreport.application;
 
-import com.bbtc.bluebird.common.util.MarkdownText;
+import com.bbtc.bluebird.common.util.RichTextPlain;
 import com.bbtc.bluebird.modules.config.application.ConfigDefinition;
 import com.bbtc.bluebird.modules.config.application.ConfigService;
 import com.bbtc.bluebird.modules.note.domain.Note;
@@ -102,7 +102,7 @@ public class WeeklyReportPromptBuilder {
         StringBuilder sb = new StringBuilder();
         int total = 0;
         for (Note note : notes) {
-            String content = clip(MarkdownText.plain(note.getContent()), NOTE_CHAR_LIMIT);
+            String content = clip(RichTextPlain.plain(note.getContent()), NOTE_CHAR_LIMIT);
             if (!StringUtils.hasText(content)) {
                 continue;
             }

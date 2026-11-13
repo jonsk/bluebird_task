@@ -206,8 +206,8 @@ describe('NoteEditor × fieldPermissions', () => {
     expect(state.html).toContain(`<h1>${heading}</h1>`)
   })
 
-  it('编辑态：回显正文，历史 Markdown 自动转 HTML，不插入日期标题', async () => {
-    await mountEdit(detail({ content: '# 已有内容\n正文' }))
+  it('编辑态：回显 HTML 正文，不插入日期标题', async () => {
+    await mountEdit(detail({ content: '<h1>已有内容</h1><p>正文</p>' }))
     expect(state.html).toContain('<h1>已有内容</h1>')
     expect(state.html).toContain('正文')
     expect(state.html).not.toContain('2026年9月28日')

@@ -40,7 +40,7 @@ describe('sanitizeRichTextHtml', () => {
     )
   })
 
-  it('toEditorHtml 的两条分支（历史 HTML / Markdown）都过消毒', () => {
+  it('toEditorHtml 对 HTML 正文过消毒', () => {
     expect(toEditorHtml('<p>hi</p><script>alert(1)</script>')).not.toContain('<script')
     expect(toEditorHtml('## 标题\n\n<script>alert(1)</script>')).not.toContain('<script')
     expect(toEditorHtml('')).toBe('<p></p>')

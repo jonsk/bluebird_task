@@ -5,7 +5,7 @@ import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
-import com.bbtc.bluebird.common.util.MarkdownText;
+import com.bbtc.bluebird.common.util.RichTextPlain;
 import com.bbtc.bluebird.common.util.RichTextGuard;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.domain.NoteAttachmentRef;
@@ -189,11 +189,9 @@ public class NoteCommandService {
             throw HttpStatusException.badRequest("content 不能为空");
         }
         // 富文本原样落库，渲染侧靠 Tiptap schema；这里拒绝明确危险载荷，作为第二道防线。
-        // 历史 Markdown 同样过一遍：转 HTML 时若含裸 script 标签也要拦。
         RichTextGuard.assertSafe(content);
-        // 富文本按用户可见文字计数，避免 HTML 标签把 20000 字额度提前吃掉；
-        // 历史 Markdown 仍按原文计数，保持既有行为。
-        String measured = MarkdownText.looksLikeHtml(content) ? MarkdownText.plain(content) : content;
+        // 富文本按用户可见文字计数，避免 HTML 标签把 20000 字额度提前吃掉。
+        String measured = RichTextPlain.plain(content);
         if (measured.codePointCount(0, measured.length()) > CONTENT_LIMIT) {
             throw new BusinessException(ErrorCode.NOTE_CONTENT_TOO_LONG);
         }

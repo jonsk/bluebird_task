@@ -11,13 +11,13 @@ import { useNoteDetail } from '@/composables/useNoteDetail'
 import { useNoteActions } from '@/composables/useNoteActions'
 import { useNoteStore } from '@/stores/note'
 import { formatHeaderDate, weekRangeLabel } from '@/utils/date'
-import { stripMarkdown } from '@/utils/markdown'
+import { plainSummary } from '@/utils/richText'
 
 /**
  * 日志详情：查看 + 行内编辑 + 附件。
  * - 正文渲染器与编辑器统一为 Tiptap（同一套 schema + `.note-prose` 样式），
  *   保证同一篇日志在两处的排版、颜色、折叠块表现一致。
- * - 历史 Markdown 由 NoteContent 在渲染前自动转成 HTML。
+ * - 正文一律按 HTML 处理（历史 Markdown 兼容层已移除）。
  * - 一切改动经 `useNoteDetail.reload()` 整体收敛（子组件不局部 append/merge）。
  * - 404/50001 → NoteNotFound（不显示重试、不改标题）。
  * - 按钮显隐一律用后端下发的 canEdit / canManage。
@@ -49,7 +49,7 @@ watch(id, () => {
 const BASE_TITLE = document.title
 watch(detail, (d) => {
   if (!d) return
-  const flat = stripMarkdown(d.content)
+  const flat = plainSummary(d.content)
   document.title = `日志详情 · ${flat.slice(0, 12)}`
 })
 onUnmounted(() => {

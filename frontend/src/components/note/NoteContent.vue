@@ -10,7 +10,7 @@ import '@/styles/note-editor.css'
  * 日志正文只读渲染器。
  *
  * 与 NoteEditor 使用同一套 Tiptap schema 和 `.note-prose` 样式：
- * - 历史 Markdown 先转 HTML，再交给编辑器解析；
+ * - 正文一律按 HTML 处理，只做消毒后交给编辑器解析；
  * - 折叠块可点击展开、待办只读展示、笔记图片继续走 Bearer blob 水合。
  */
 const props = defineProps<{ content?: string | null }>()

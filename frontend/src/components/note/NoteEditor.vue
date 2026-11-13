@@ -28,8 +28,7 @@ import '@/styles/note-editor.css'
  * NoteEditor — 新建 / 编辑日志（Tiptap 富文本编辑器，**自动保存**）。
  *
  * 与列表/详情共用 `buildNoteExtensions` 的 schema；正文以 HTML 落库。
- * 历史 Markdown 日志在进入编辑器时用 `toEditorHtml` 转换，用户继续编辑并保存后
- * 自动升级为 HTML，不需要一次性迁移脚本。
+ * 正文一律按 HTML 处理：进入编辑器前用 `toEditorHtml` 消毒，保存时写回 `getHTML()`。
  *
  * - 没有「保存 / 取消」按钮：停止输入 AUTO_SAVE_DELAY 后自动落库（Ctrl+S / Ctrl+Enter 立即保存，
  *   组件销毁前兜底保存一次）；状态行显示 保存中 / 已保存 HH:mm / 保存失败·点击重试。

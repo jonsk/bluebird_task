@@ -10,7 +10,7 @@ import com.bbtc.bluebird.common.domain.PageResult;
 import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.common.util.ContentTypes;
-import com.bbtc.bluebird.common.util.MarkdownText;
+import com.bbtc.bluebird.common.util.RichTextPlain;
 import com.bbtc.bluebird.modules.file.domain.Attachment;
 import com.bbtc.bluebird.modules.file.infrastructure.AttachmentMapper;
 import com.bbtc.bluebird.modules.identity.infrastructure.SysUserMapper;
@@ -314,16 +314,15 @@ public class NoteQueryService {
     /* ==================== 工具 ==================== */
 
     /**
-     * 摘要：先剥离 HTML / Markdown 标记，再取前 200 码位（不补省略号）。
+     * 摘要：先剥离 HTML 标签，再取前 200 码位（不补省略号）。
      *
-     * <p>直接截断原文会把 HTML 标签或 {@code ##}/{@code **}/{@code ```} 露到卡片上，
-     * 甚至把代码围栏切成两半；因此截断前先走 {@link MarkdownText#plain}。
+     * <p>直接截断原文会把 HTML 标签露到卡片上，因此截断前先走 {@link RichTextPlain#plain}。
      */
     public static String summary(String content) {
         if (content == null) {
             return null;
         }
-        String plain = MarkdownText.plain(content);
+        String plain = RichTextPlain.plain(content);
         if (plain.codePointCount(0, plain.length()) <= SUMMARY_LIMIT) {
             return plain;
         }
