@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
@@ -40,7 +40,6 @@ const emit = defineEmits<{
   (e: 'retry'): void
 }>()
 
-const tick = ref(0)
 let hydrating = false
 let warnedDanger = false
 const DANGER_WARN = '本文含已被过滤的嵌入式内容（视频/脚本等），编辑保存后将永久移除'
@@ -86,9 +85,6 @@ const editor = useEditor({
     if (hydrating) return
     emit('update:modelValue', ed.getHTML())
   },
-  onTransaction: () => {
-    tick.value += 1
-  },
 })
 
 watch(
@@ -128,14 +124,13 @@ const { onNodeChange, insertBelow } = useBlockDragHandle(() => editor.value)
       <NoteToolbar
         v-if="editor && !readonly"
         :editor="editor"
-        :tick="tick"
         :attachments="false"
         data-test="weekly-editor-toolbar"
       />
 
       <div class="note-editor__main">
         <aside v-if="editor && !readonly" class="note-editor__outline" data-test="weekly-editor-outline">
-          <NoteOutline :editor="editor" :tick="tick" persistent />
+          <NoteOutline :editor="editor" persistent />
         </aside>
 
         <div class="note-editor__body">
@@ -164,7 +159,7 @@ const { onNodeChange, insertBelow } = useBlockDragHandle(() => editor.value)
           <EditorContent :editor="editor" class="note-editor__editor" data-test="weekly-editor-content" />
 
           <BubbleMenu v-if="editor && !readonly" :editor="editor" :options="{ placement: 'top' }">
-            <NoteBubbleMenu :editor="editor" :tick="tick" />
+            <NoteBubbleMenu :editor="editor" />
           </BubbleMenu>
         </div>
       </div>

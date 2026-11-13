@@ -4,7 +4,6 @@ import NoteIcon from './NoteIcon.vue'
 
 const props = defineProps<{
   editor: Editor
-  tick?: number
 }>()
 
 const editor = props.editor
@@ -30,7 +29,7 @@ function setLink(): void {
 </script>
 
 <template>
-  <div class="bubble" :data-tick="tick">
+  <div class="bubble">
     <button
       type="button"
       class="bubble-btn bubble-btn--text"

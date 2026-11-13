@@ -31,7 +31,7 @@ function editorWith(attrs: Record<string, string> = {}) {
 
 function mountToolbar(attrs: Record<string, string> = {}) {
   return shallowMount(NoteToolbar, {
-    props: { editor: editorWith(attrs) as never, tick: 0 },
+    props: { editor: editorWith(attrs) as never },
     global: {
       plugins: [createPinia()],
       stubs: { NoteIcon: true, NoteOutline: true, NoteEmojiPicker: true },
@@ -65,5 +65,48 @@ describe('NoteToolbar 下拉框显示', () => {
 
   it('未设置行距时显示默认档位', () => {
     expect(shownText({}, 'note-line-height')).toBe('默认 1.4')
+  })
+})
+
+describe('NoteToolbar 状态同步', () => {
+  /** Tiptap 的 Vue 版 Editor 把 state 包成 debounced 响应式，事务后组件会自动重算。 */
+  function waitEditorFlush(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 80))
+  }
+
+  it('编辑器状态变化后按钮按下态自动更新，不依赖外部 tick', async () => {
+    const { Editor } = await import('@tiptap/vue-3')
+    const { default: StarterKit } = await import('@tiptap/starter-kit')
+
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: [StarterKit],
+      content: '<p>hello</p>',
+    })
+    const wrapper = shallowMount(NoteToolbar, {
+      props: { editor: editor as never },
+      global: {
+        plugins: [createPinia()],
+        stubs: { NoteIcon: true, NoteOutline: true, NoteEmojiPicker: true },
+      },
+    })
+
+    const bold = () => wrapper.find('.tb-btn--bold')
+    expect(bold().classes()).not.toContain('is-active')
+
+    editor.commands.selectAll()
+    editor.commands.toggleBold()
+    await waitEditorFlush()
+    await wrapper.vm.$nextTick()
+    expect(bold().classes()).toContain('is-active')
+
+    editor.commands.selectAll()
+    editor.commands.toggleBold()
+    await waitEditorFlush()
+    await wrapper.vm.$nextTick()
+    expect(bold().classes()).not.toContain('is-active')
+
+    wrapper.unmount()
+    editor.destroy()
   })
 })

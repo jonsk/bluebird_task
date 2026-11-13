@@ -140,9 +140,6 @@ function observeToolbar(): void {
   toolbarObserver.observe(el)
 }
 
-const stateTick = ref(0)
-/** 把一帧内的多次 transaction 合并成一次视图刷新，避免输入法组合期间反复重渲染。 */
-let tickFrame = 0
 let hydrator: ImageHydrator | null = null
 /** setContent 期间忽略 onUpdate，避免“回显”被误判成用户输入。 */
 let hydrating = false
@@ -201,15 +198,6 @@ const editor = useEditor({
     if (status.value !== 'error') status.value = 'idle'
     scheduleSave()
   },
-  onTransaction: ({ editor: ed }) => {
-    // 输入法组合期间不重渲染（工具栏/大纲跟着 tick 刷新）：Chromium 在组合文本
-    // 提交前后重排 DOM 会把光标画回上一格，表现为「打完标点光标左跳」。
-    if (ed.view.composing || tickFrame) return
-    tickFrame = requestAnimationFrame(() => {
-      tickFrame = 0
-      stateTick.value += 1
-    })
-  },
 })
 
 watch(canEditContent, (editable) => {
@@ -226,8 +214,6 @@ onMounted(() => {
 onUnmounted(() => {
   hydrator?.stop()
   hydrator = null
-  if (tickFrame) cancelAnimationFrame(tickFrame)
-  tickFrame = 0
   toolbarObserver?.disconnect()
   toolbarObserver = null
 })
@@ -615,7 +601,6 @@ defineExpose({
           v-if="editor && canEditContent"
           ref="toolbarRef"
           :editor="editor"
-          :tick="stateTick"
           @upload-image="uploadImages"
           @upload-attachment="uploadAttachments"
         />
@@ -626,7 +611,7 @@ defineExpose({
             class="note-editor__outline"
             data-test="note-outline-panel"
           >
-            <NoteOutline :editor="editor" :tick="stateTick" persistent />
+            <NoteOutline :editor="editor" persistent />
           </aside>
 
           <div ref="hostRef" class="note-editor__body" data-test="note-editor-content">
@@ -657,7 +642,7 @@ defineExpose({
             <EditorContent :editor="editor" class="note-editor__editor" />
 
             <BubbleMenu v-if="editor && canEditContent" :editor="editor" :options="{ placement: 'top' }">
-              <NoteBubbleMenu :editor="editor" :tick="stateTick" />
+              <NoteBubbleMenu :editor="editor" />
             </BubbleMenu>
           </div>
         </div>

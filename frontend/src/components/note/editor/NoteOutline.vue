@@ -4,16 +4,12 @@ import type { Editor } from '@tiptap/vue-3'
 
 const props = defineProps<{
   editor: Editor
-  tick?: number
   persistent?: boolean
 }>()
 
 const emit = defineEmits<{ (e: 'close'): void }>()
 
-const items = computed(() => {
-  void props.tick
-  return props.editor.storage.tableOfContents?.content ?? []
-})
+const items = computed(() => props.editor.storage.tableOfContents?.content ?? [])
 
 const listRef = ref<HTMLElement | null>(null)
 const activeId = computed<string | null>(() => items.value.find((i) => i.isActive)?.id ?? null)

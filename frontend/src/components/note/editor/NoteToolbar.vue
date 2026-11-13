@@ -9,8 +9,6 @@ import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
   editor: Editor
-  /** 每次编辑递增的计数，用来强制刷新 isActive / undo 状态 */
-  tick?: number
   /**
    * 是否显示「插入图片 / 附件」入口，默认 true。
    * 周报不绑定 noteId，插进去只会产生解析不了的坏链接，需要置 false。
@@ -90,8 +88,7 @@ const lineHeights = [
 ]
 
 const currentBlock = computed(() => {
-  // 引用 tick，让事务后重新计算块级格式
-  void props.tick
+  // isActive 读的是 Vue 版 Editor 的响应式 state，事务后会自动重算
   for (const level of [1, 2, 3] as const) {
     if (editor.isActive('heading', { level })) return `h${level}`
   }
@@ -100,10 +97,7 @@ const currentBlock = computed(() => {
 
 const blockType = computed(() => (currentBlock.value === 'paragraph' ? 'paragraph' : 'heading'))
 
-const blockAttrs = computed(() => {
-  void props.tick
-  return editor.getAttributes(blockType.value)
-})
+const blockAttrs = computed(() => editor.getAttributes(blockType.value))
 
 const currentFontFamily = computed(() => String(blockAttrs.value.fontFamily || ''))
 const currentFontSize = computed(() => String(blockAttrs.value.fontSize || ''))
@@ -140,14 +134,13 @@ function setTextAlign(align: 'left' | 'center' | 'right' | 'justify'): void {
 }
 
 function isAlign(align: string): boolean {
-  void props.tick
   return editor.isActive({ textAlign: align })
 }
 
-const currentAlign = computed(() => {
-  void props.tick
-  return alignOptions.find((item) => editor.isActive({ textAlign: item.value })) ?? alignOptions[0]
-})
+const currentAlign = computed(
+  () =>
+    alignOptions.find((item) => editor.isActive({ textAlign: item.value })) ?? alignOptions[0],
+)
 
 function applyAlign(align: 'left' | 'center' | 'right' | 'justify'): void {
   setTextAlign(align)
@@ -229,7 +222,7 @@ function toggleEmoji(): void {
 </script>
 
 <template>
-  <div class="note-toolbar" role="toolbar" aria-label="编辑器工具栏" :data-tick="tick">
+  <div class="note-toolbar" role="toolbar" aria-label="编辑器工具栏">
     <select class="tb-select" :value="currentBlock" title="段落格式" @change="onBlockChange">
       <option value="paragraph">正文</option>
       <option value="h1">标题 1</option>
@@ -516,7 +509,7 @@ function toggleEmoji(): void {
     </template>
 
     <div v-if="outlineOpen" class="tb-popover tb-popover--outline">
-      <NoteOutline :editor="editor" :tick="tick" @close="outlineOpen = false" />
+            <NoteOutline :editor="editor" @close="outlineOpen = false" />
     </div>
 
     <div v-if="emojiOpen" class="tb-popover tb-popover--emoji">
