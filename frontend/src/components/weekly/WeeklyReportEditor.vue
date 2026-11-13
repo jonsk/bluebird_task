@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import DragHandle from '@tiptap/extension-drag-handle-vue-3'
@@ -10,7 +9,6 @@ import { sanitizeRichTextHtml, containsDangerousRichText } from '@/utils/sanitiz
 import { useBlockDragHandle } from '@/composables/useBlockDragHandle'
 import BbSaveStatus from '@/components/bb/BbSaveStatus.vue'
 import { tableFromClipboard } from '@/utils/excelTablePaste'
-import { noteLinkHref } from '@/utils/noteLinkTarget'
 import NoteToolbar from '@/components/note/editor/NoteToolbar.vue'
 import NoteBubbleMenu from '@/components/note/editor/NoteBubbleMenu.vue'
 import NoteOutline from '@/components/note/editor/NoteOutline.vue'
@@ -49,21 +47,6 @@ if (containsDangerousRichText(props.modelValue || '')) {
   ElMessage.warning(DANGER_WARN)
 }
 
-const router = useRouter()
-
-/** 站内日志引用（/notes/123）：周报里单击直接跳转，不额外开窗。 */
-function openNoteLink(view: { dom: HTMLElement }, event: MouseEvent): boolean {
-  const href = noteLinkHref(event.target, view.dom)
-  if (!href) return false
-  event.preventDefault()
-  if (event.metaKey || event.ctrlKey || event.shiftKey) {
-    window.open(href, '_blank', 'noopener,noreferrer')
-    return true
-  }
-  void router.push(href)
-  return true
-}
-
 const editor = useEditor({
   content: sanitizeRichTextHtml(props.modelValue || '<p></p>'),
   editable: !props.readonly,
@@ -79,7 +62,6 @@ const editor = useEditor({
       ed.chain().focus().insertContent(table).run()
       return true
     },
-    handleClick: (view, _pos, event) => openNoteLink(view as { dom: HTMLElement }, event),
   },
   onUpdate: ({ editor: ed }) => {
     if (hydrating) return
