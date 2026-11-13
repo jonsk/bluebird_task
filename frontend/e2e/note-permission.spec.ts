@@ -50,7 +50,7 @@ test.describe('工作日志 · 权限分支', () => {
     await page.goto('/notes/subordinate')
     const empty = page.locator('[data-test="note-page-empty"]')
     await expect(empty).toBeVisible()
-    await expect(empty).toContainText('未开启「上级可读员工日志」')
+    await expect(empty).toContainText('无权查看员工日志：仅部门负责人可读下属日志')
     await expect(page.locator('[data-test="note-list-error"]')).toHaveCount(0)
     // 标签能力已下线：筛选条不再有标签选择器，也不会有标签加载失败提示
     await expect(page.locator('.note-page')).not.toContainText('标签加载失败')

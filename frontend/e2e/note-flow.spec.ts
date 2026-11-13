@@ -326,7 +326,7 @@ test.describe('工作日志', () => {
   })
 
   test('N-23 详情页正文图片：带 Bearer 取图后替换为 blob（不出现破图）', async ({ page }) => {
-    // mock 预置：1002 正文含 ![](/notes/1002/attachments/8801/preview)
+    // mock 预置：1002 正文含 <img src="/notes/1002/attachments/8801/preview">
     await page.goto('/notes/1002')
     const img = page.locator('[data-test="note-detail-content"] img').first()
     await expect(img).toBeVisible({ timeout: 15000 })

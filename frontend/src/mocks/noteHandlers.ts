@@ -76,7 +76,9 @@ const notes: NoteRow[] = [
   },
   {
     id: 1002,
-    content: '私有草稿：明天再补日志的移动端适配方案。\n\n![架构图](/notes/1002/attachments/8801/preview)',
+    // 正文一律存 HTML（历史 Markdown 兼容层已移除）：图片用 <img>，才能走 Bearer blob 水合
+    content:
+      '<p>私有草稿：明天再补日志的移动端适配方案。</p><p><img src="/notes/1002/attachments/8801/preview" alt="架构图"></p>',
     logDate: '2026-09-27',
     ownerId: ME,
     ownerName: ME_NAME,
@@ -131,7 +133,7 @@ const files: Record<number, { fileName: string; size: number; contentType: strin
 let fileSeq = 8800
 
 /**
- * 预置一张图片附件给 1002：正文里是 `![](/notes/1002/attachments/8801/preview)`，
+ * 预置一张图片附件给 1002：正文里是 `<img src="/notes/1002/attachments/8801/preview">`，
  * 供 E2E 验证"带 Bearer 取图 → blob 水合"这条链路（`<img src>` 带不了请求头）。
  */
 const PNG_1X1 = Uint8Array.from(

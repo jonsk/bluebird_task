@@ -8,8 +8,9 @@ import { dataOf } from './fixtures'
  * 浏览器 e2e 里覆盖（此前靠后端矩阵脚本兜底）。
  *
  * 约定：
- * - 登录成功返回 `accessToken = mock.access.<username>` / `refreshToken = mock.refresh.<username>`，
- *   刷新与 `users/me` 都从 token 反解身份，刷新页面后身份不丢（token 存 localStorage）。
+ * - 登录成功返回 `accessToken = mock.access.<username>`，并写入会话标记 Cookie
+ *   （`bb_session=1`）与模拟 refresh Cookie（`bb_mock_account=<username>`）；
+ *   刷新与 `users/me` 都从 token 反解身份，整页刷新后 `/auth/refresh` 按 Cookie 恢复账号。
  * - 未带 token（或 token 非法）时回落到 admin，保证历史用例与视觉基线不变。
  * - 数据（日志/任务/标签）仍以 fixture 的 admin 为 owner 视角生成，切账号只影响
  *   权限判定与左栏入口，不影响列表内容；断言也应只针对权限行为。
@@ -79,7 +80,40 @@ export const DEFAULT_ACCOUNT = MOCK_ACCOUNTS[0]
 export const ACCESS_PREFIX = 'mock.access.'
 export const REFRESH_PREFIX = 'mock.refresh.'
 
+/**
+ * 模拟后端写的两个非 HttpOnly Cookie：
+ * - `bb_session=1`：会话标记，前端 `hasSessionMarker()` 据此决定冷启动是否刷新；
+ * - `bb_mock_account=<username>`：MSW 自己的「refresh Cookie」，整页刷新后据此恢复身份。
+ *
+ * 两者都只用于 dev/test mock，不是凭证；真实后端用 HttpOnly refresh Cookie。
+ */
+const MOCK_SESSION_COOKIE = 'bb_session'
+const MOCK_ACCOUNT_COOKIE = 'bb_mock_account'
+
 let mockSession: MockAccount | undefined
+
+function canUseCookie(): boolean {
+  return typeof document !== 'undefined' && typeof document.cookie === 'string'
+}
+
+function readCookie(name: string): string | undefined {
+  if (!canUseCookie() || !document.cookie) return undefined
+  const hit = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+  return hit?.slice(name.length + 1)
+}
+
+function writeCookie(name: string, value: string): void {
+  if (!canUseCookie()) return
+  document.cookie = `${name}=${value}; path=/; samesite=lax`
+}
+
+function removeCookie(name: string): void {
+  if (!canUseCookie()) return
+  document.cookie = `${name}=; path=/; max-age=0; samesite=lax`
+}
 
 export function accessTokenOf(username: string): string {
   return `${ACCESS_PREFIX}${username}`
@@ -91,13 +125,26 @@ export function refreshTokenOf(username: string): string {
 
 /**
  * 模拟「HttpOnly Cookie 里的会话」：MSW 的 fetch handler 看不到也写不了真正的 HttpOnly Cookie，
- * 用一个模块内变量代替。登录时记住、登出时清掉，刷新时据此判断是否还能续签。
+ * 用模块内变量 + 两个非 HttpOnly Cookie 代替。
+ *
+ * <p>模块变量会在整页刷新后丢失（`page.goto` 就会），所以登录时必须把会话标记与账号都写进
+ * Cookie，`/auth/refresh` 才能在刷新后按 Cookie 恢复身份 —— 这正是真实后端的行为。
  */
 export function setMockSession(account?: MockAccount): void {
   mockSession = account
+  if (account) {
+    writeCookie(MOCK_SESSION_COOKIE, '1')
+    writeCookie(MOCK_ACCOUNT_COOKIE, account.username)
+    return
+  }
+  removeCookie(MOCK_SESSION_COOKIE)
+  removeCookie(MOCK_ACCOUNT_COOKIE)
 }
 
+/** 优先用内存会话；刷新后内存为空则从模拟 refresh Cookie 恢复。 */
 export function currentMockSession(): MockAccount | undefined {
+  if (mockSession) return mockSession
+  mockSession = accountByName(readCookie(MOCK_ACCOUNT_COOKIE))
   return mockSession
 }
 
