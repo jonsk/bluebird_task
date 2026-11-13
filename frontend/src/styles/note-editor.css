@@ -825,6 +825,45 @@
   border-radius: var(--bb-radius);
 }
 
+/* 图片尺寸拖拽：上游 ResizableNodeView 只在编辑态挂手柄，这里负责外观与只读态兜底 */
+.note-prose [data-resize-container],
+.note-prose [data-resize-wrapper] {
+  max-width: 100%;
+}
+
+.note-prose [data-resize-handle] {
+  z-index: 3;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--bg-accent);
+  border-radius: 2px;
+  background: var(--bg-primary);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.note-prose [data-resize-container]:hover [data-resize-handle],
+.note-prose [data-resize-container][data-resize-state='true'] [data-resize-handle] {
+  opacity: 1;
+}
+
+.note-prose [data-resize-handle='top-left'] {
+  cursor: nwse-resize;
+}
+.note-prose [data-resize-handle='top-right'] {
+  cursor: nesw-resize;
+}
+.note-prose [data-resize-handle='bottom-left'] {
+  cursor: nesw-resize;
+}
+.note-prose [data-resize-handle='bottom-right'] {
+  cursor: nwse-resize;
+}
+
+.ProseMirror[contenteditable='false'] [data-resize-handle] {
+  display: none;
+}
+
 .note-prose p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;

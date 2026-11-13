@@ -160,7 +160,7 @@ describe('watchMarkdownImages', () => {
   })
 
   describe('缺口 2：src 被父级重渲染改回预览地址后要重新水合', () => {
-    it('监听 src 属性变化，重新取图并替换', async () => {
+    it('复用已下载的 objectURL，不重复取图（图片 resize 提交会重写 src）', async () => {
       const hydrator = watchMarkdownImages(() => root)
       await flush()
 
@@ -169,13 +169,14 @@ describe('watchMarkdownImages', () => {
       await flush()
       expect(img.getAttribute('src')).toBe('blob:mock/1')
 
-      // 模拟 v-html / Tiptap 重绘：src 被写回原始预览地址
+      // 模拟 Tiptap 图片 resize 提交 / v-html 重绘：src 被写回原始预览地址
       img.setAttribute('src', PREVIEW)
       await flush()
       await flush()
 
-      expect(getBlob).toHaveBeenCalledTimes(2)
-      expect(img.getAttribute('src')).toBe('blob:mock/2')
+      expect(getBlob).toHaveBeenCalledTimes(1)
+      expect(img.getAttribute('src')).toBe('blob:mock/1')
+      expect(img.dataset.bbImg).toBe('done')
       hydrator.stop()
     })
 

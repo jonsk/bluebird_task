@@ -74,6 +74,15 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
             inline: false,
             allowBase64: false,
             HTMLAttributes: { class: 'note-image' },
+            // 上游 3.33 内置的尺寸拖拽：松手后把像素宽高写进节点属性，
+            // 只读态由 ResizableNodeView 自动移除手柄（CSS 再兜一层）。
+            resize: {
+              enabled: true,
+              directions: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+              minWidth: 64,
+              minHeight: 64,
+              alwaysPreserveAspectRatio: true,
+            },
           }),
         ]),
     TableKit.configure({
