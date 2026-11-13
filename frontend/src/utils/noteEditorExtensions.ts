@@ -14,7 +14,6 @@ import { NoteAttachment } from '@/utils/noteAttachment'
 import { NoteEmoji } from '@/utils/noteEmoji'
 import { NoteIndent } from '@/utils/noteIndent'
 import { NoteLinkClick } from '@/utils/noteLinkClick'
-import { NoteMention } from '@/utils/noteMention'
 import { NoteTaskItem } from '@/utils/noteTaskItem'
 import { NoteTypography } from '@/utils/noteTypography'
 
@@ -22,7 +21,7 @@ export interface NoteExtensionOptions {
   /** editor = 可编辑（带占位符）；render = 只读详情渲染。 */
   mode?: 'editor' | 'render'
   placeholder?: string
-  /** weekly = 周报编辑器：不注册依赖 noteId 的节点（附件/提及/图片/斜杠菜单/链接点击）。 */
+  /** weekly = 周报编辑器：不注册依赖 noteId 的节点（附件/图片/斜杠菜单/链接点击）。 */
   variant?: 'note' | 'weekly'
 }
 
@@ -87,7 +86,7 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     NoteTypography,
     NoteIndent,
-    ...(isWeekly ? [] : [NoteAttachment, NoteMention]),
+    ...(isWeekly ? [] : [NoteAttachment]),
     NoteEmoji,
     TableOfContents.configure({
       anchorTypes: ['heading'],

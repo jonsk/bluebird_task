@@ -19,7 +19,7 @@ import '@/styles/note-editor.css'
  *
  * 外壳与「编辑日志」（NoteEditor）完全一致：同一套工具栏（去掉插入图片/附件）、
  * 左侧目录大纲、选中浮动菜单、块拖拽手柄、底部保存状态行。
- * 区别只有两点：周报不绑定 noteId，所以没有附件/提及/斜杠命令；保存由宿主统一做自动保存。
+ * 区别只有两点：周报不绑定 noteId，所以没有附件/图片/斜杠命令；保存由宿主统一做自动保存。
  */
 const props = withDefaults(
   defineProps<{

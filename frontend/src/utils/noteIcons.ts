@@ -39,7 +39,6 @@ export type NoteIconName =
   | 'toc'
   | 'emoji'
   | 'attachment'
-  | 'mention'
 
 export const noteIconPaths: Record<NoteIconName, string[]> = {
   paragraph: ['M13 4v16', 'M17 4v16', 'M19 4H9.5a4.5 4.5 0 0 0 0 9H13'],
@@ -108,5 +107,4 @@ export const noteIconPaths: Record<NoteIconName, string[]> = {
   attachment: [
     'm21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48',
   ],
-  mention: ['M12 21a9 9 0 1 0-9-9v1a3 3 0 0 0 6 0V8', 'M15 8v5a3 3 0 0 0 6 0v-2a9 9 0 0 0-9-9'],
 }

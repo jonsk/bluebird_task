@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /** 富文本写入前的危险载荷拒绝（只拒绝、不改写，合法 Tiptap HTML 必须原样放行）。 */
 class RichTextGuardTest {
 
-    /** 真实编辑器产物：details 折叠、任务列表、表格、高亮、@提及、外链、图片、代码块文本。 */
+    /** 真实编辑器产物：details 折叠、任务列表、表格、高亮、外链、图片、代码块文本；@提及 span 属于历史内容，仍须放行。 */
     private static final String LEGAL_TIPTAP_HTML = """
             <h1>2026年11月11日</h1>
             <details data-type="details" open="open"><summary>明细</summary><div data-type="detailsContent"><p>内容</p></div></details>

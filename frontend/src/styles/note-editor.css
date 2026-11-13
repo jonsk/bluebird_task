@@ -491,81 +491,6 @@
   text-align: center;
 }
 
-/* ==================== @提及 ==================== */
-
-.mention-menu {
-  width: 260px;
-  max-height: 280px;
-  overflow: auto;
-  padding: 6px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--bb-radius);
-  background: var(--bg-primary);
-  box-shadow: var(--bb-shadow-flat);
-}
-
-.mention-item {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 9px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--bb-radius);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.mention-item:hover,
-.mention-item.is-selected {
-  background: var(--bg-hover);
-}
-
-.mention-avatar {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--bg-active);
-  color: var(--bg-accent);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.mention-text {
-  min-width: 0;
-}
-
-.mention-name {
-  display: block;
-  overflow: hidden;
-  color: var(--bb-text);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mention-desc {
-  display: block;
-  margin-top: 1px;
-  overflow: hidden;
-  color: var(--bb-text-muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mention-empty {
-  padding: 14px;
-  color: var(--bb-text-muted);
-  font-size: 12px;
-  text-align: center;
-}
-
 /* ==================== 正文排版 ==================== */
 
 .note-prose {
@@ -755,16 +680,6 @@
 
 .note-prose [data-indent='6'] {
   margin-left: 9em;
-}
-
-.note-prose .note-mention {
-  display: inline-block;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--bg-active);
-  color: var(--bg-accent);
-  font-weight: 500;
-  line-height: 1.5;
 }
 
 .note-prose span[data-type='emoji'] {

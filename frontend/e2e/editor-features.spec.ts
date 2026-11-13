@@ -145,16 +145,10 @@ test.describe('工作日志编辑器能力', () => {
     )
   })
 
-  test('E-04 @提及 / Emoji', async ({ page }) => {
+  test('E-04 Emoji', async ({ page }) => {
     const { host, editor } = await openEditor(page)
     await resetEditor(editor)
     await expect(page.locator('[data-test="note-find-toggle"]')).toHaveCount(0)
-
-    await page.keyboard.type('@李')
-    const mentionMenu = page.locator('[data-test="note-mention-menu"]')
-    await expect(mentionMenu).toBeVisible()
-    await mentionMenu.locator('.mention-item').filter({ hasText: '李四' }).click()
-    await expect(editor.locator('.note-mention')).toContainText('@李四')
 
     await page.locator('[data-test="note-emoji-toggle"]').click()
     const picker = page.locator('[data-test="note-emoji-picker"]')
@@ -168,7 +162,6 @@ test.describe('工作日志编辑器能力', () => {
     await expect(host).toHaveCount(0)
     await page.locator('[data-test="note-card-1002"] [data-test="note-card-edit"]').click()
     const reopened = page.locator('[data-test="note-inline-editor"]').locator('.ProseMirror')
-    await expect(reopened.locator('.note-mention')).toContainText('@李四')
     await expect(reopened.locator('span[data-type="emoji"]')).toHaveCount(1)
     await reopened.press('Escape')
   })

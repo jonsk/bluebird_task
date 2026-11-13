@@ -207,10 +207,6 @@ function insertTable(): void {
   editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
 }
 
-function insertMention(): void {
-  editor.chain().focus().insertContent('@').run()
-}
-
 function insertEmoji(name: string): void {
   editor.chain().focus().setEmoji(name).run()
   emojiOpen.value = false
@@ -467,9 +463,6 @@ function toggleEmoji(): void {
 
     <span class="tb-sep" />
 
-    <button type="button" class="tb-btn" title="提及成员（输入 @）" data-test="note-mention" @click="insertMention">
-      <NoteIcon name="mention" />
-    </button>
     <button type="button" class="tb-btn" title="表情" data-test="note-emoji-toggle" @click="toggleEmoji">
       <NoteIcon name="emoji" />
     </button>

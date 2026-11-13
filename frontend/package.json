@@ -27,7 +27,6 @@
     "@tiptap/extension-drag-handle-vue-3": "^3.33.1",
     "@tiptap/extension-highlight": "^3.33.1",
     "@tiptap/extension-image": "^3.33.1",
-    "@tiptap/extension-mention": "^3.33.1",
     "@tiptap/extension-placeholder": "^3.33.1",
     "@tiptap/extension-table": "^3.33.1",
     "@tiptap/extension-table-of-contents": "^3.33.1",
