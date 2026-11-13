@@ -13,6 +13,10 @@ import { freezeTime } from './helpers'
 async function loginToWeekly(page: Page): Promise<void> {
   await freezeTime(page)
   await page.goto('/login?redirect=/weekly-notes')
+  // 冷启动时先等 MSW 接管页面，否则登录后的首个周记录请求会被 Vite 代理到真实后端。
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), undefined, {
+    timeout: 15_000,
+  })
   await page.getByPlaceholder('用户名').fill('admin')
   await page.getByPlaceholder('密码').fill('admin123')
   await page.getByRole('button', { name: '登录' }).click()
@@ -67,5 +71,23 @@ test.describe('每周工作记录', () => {
     await expect(future).toBeVisible()
     await expect(future.locator('.note-side__group-title')).toHaveText('未来')
     await expect(future.getByText('2026-10-05 ~ 2026-10-11')).toBeVisible()
+  })
+
+  test('W-03 顶部搜索可搜到其他周记录并打开', async ({ page }) => {
+    await page.locator('[data-test="weekly-create"]').click()
+    await page.locator('[data-test="weekly-create-submit"]').click()
+    await expect(page.locator('[data-test="weekly-range"]')).toHaveText('2026-10-05 ~ 2026-10-11')
+
+    const search = page.getByPlaceholder('搜索所有周记录')
+    await search.fill('2026年9月28日')
+    const option = page
+      .locator('.weekly-note-search__item')
+      .filter({ hasText: '2026-09-28 ~ 2026-10-04' })
+      .first()
+    await expect(option).toBeVisible()
+    await option.click()
+
+    await expect(page.locator('[data-test="weekly-range"]')).toHaveText('2026-09-28 ~ 2026-10-04')
+    await expect(page.locator('[data-test="weekly-inline-editor"]')).toBeVisible()
   })
 })

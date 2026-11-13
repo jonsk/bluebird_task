@@ -7,6 +7,7 @@ import BbPageHeader from '@/components/bb/BbPageHeader.vue'
 import BbMiniCalendar from '@/components/bb/BbMiniCalendar.vue'
 import NoteEditor from '@/components/note/NoteEditor.vue'
 import NoteMiniList from '@/components/note/NoteMiniList.vue'
+import WeeklyNoteSearch from '@/components/note/WeeklyNoteSearch.vue'
 import { createWeeklyNote, listNotes } from '@/api/note'
 import { BizError, HttpError } from '@/api/http'
 import { useNoteList } from '@/composables/useNoteList'
@@ -187,6 +188,10 @@ function openByNoteId(id: number): void {
   if (note?.logDate) void openWeek(note.logDate)
 }
 
+function openSearchResult(weekStart: string): void {
+  void openWeek(weekStart)
+}
+
 watch(navSelect, (sig) => {
   if (!sig || sig.name !== 'WeeklyNoteHome') return
   void openInitialWeek()
@@ -320,6 +325,9 @@ function retryInlineSave(): void {
             <span class="weekly-header__range" data-test="weekly-range">
               {{ activeWeekLabel }}
             </span>
+          </template>
+          <template #search>
+            <WeeklyNoteSearch @open="openSearchResult" />
           </template>
           <template #actions>
             <span
