@@ -721,32 +721,6 @@
   margin: 0;
 }
 
-.note-prose code {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--bg-hover);
-  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  font-size: 0.88em;
-}
-
-.note-prose pre {
-  margin: 1em 0;
-  padding: 14px 16px;
-  overflow: auto;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--bb-radius);
-  background: var(--bg-secondary);
-  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  font-size: 13px;
-  line-height: 1.65;
-}
-
-.note-prose pre code {
-  padding: 0;
-  background: none;
-  font-size: inherit;
-}
-
 .note-prose hr {
   margin: 26px 0;
   border: 0;

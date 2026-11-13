@@ -13,7 +13,6 @@ import { SlashCommand } from '@/utils/slashCommand'
 import { NoteAttachment } from '@/utils/noteAttachment'
 import { NoteEmoji } from '@/utils/noteEmoji'
 import { NoteIndent } from '@/utils/noteIndent'
-import { LegacyCode, LegacyCodeBlock } from '@/utils/noteLegacyCode'
 import { NoteLinkClick } from '@/utils/noteLinkClick'
 import { NoteMention } from '@/utils/noteMention'
 import { NoteTaskItem } from '@/utils/noteTaskItem'
@@ -51,7 +50,7 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
   const extensions = [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
-      // 旧日志仍可解析 code / codeBlock，但不再提供创建入口和快捷键。
+      // 不提供行内代码 / 代码块：旧数据里的 <code>、<pre> 会按普通文本解析。
       code: false,
       codeBlock: false,
       link: {
@@ -60,8 +59,6 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
         linkOnPaste: true,
       },
     }),
-    LegacyCode,
-    LegacyCodeBlock,
     Highlight.configure({ multicolor: true }),
     TextStyle,
     Color,
