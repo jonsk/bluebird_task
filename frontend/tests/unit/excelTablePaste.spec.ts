@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { htmlTableToJson, tableFromClipboard, tsvToTableJson } from '@/utils/excelTablePaste'
+import {
+  htmlTableToJson,
+  isHtmlOnlyTable,
+  tableFromClipboard,
+  tsvToTableJson,
+} from '@/utils/excelTablePaste'
 
 function cellText(cell: unknown): string {
   const node = cell as { content?: Array<{ content?: Array<{ text?: string }> }> }
   return node.content?.[0]?.content?.[0]?.text ?? ''
+}
+
+function clipboard(html: string, text = ''): DataTransfer {
+  return {
+    getData: (type: string) => (type === 'text/html' ? html : text),
+  } as DataTransfer
 }
 
 describe('excelTablePaste', () => {
@@ -113,5 +124,47 @@ describe('excelTablePaste', () => {
 
     const table = tableFromClipboard(data)
     expect(cellText(table?.content?.[0]?.content?.[0])).toBe('来自 HTML')
+  })
+
+  it('整段内容就是一张表时才接管（Excel 复制区域）', () => {
+    const data = clipboard(
+      '<meta charset="utf-8"><table><tr><td>姓名</td><td>数量</td></tr></table>',
+      '姓名\t数量',
+    )
+
+    const table = tableFromClipboard(data)
+    expect(table?.type).toBe('table')
+    expect(table?.content).toHaveLength(1)
+  })
+
+  it('正文 + 表格的整篇粘贴不接管，交给原生解析', () => {
+    const data = clipboard(
+      '<h1>标题</h1><p>正文</p><table><tr><td>A</td></tr></table><ul><li>一</li></ul>',
+      '标题\n正文',
+    )
+
+    // 接管只会保留第一张表，其余内容全部丢失，因此必须返回 null
+    expect(tableFromClipboard(data)).toBeNull()
+  })
+
+  it('图片或其它块级内容出现在表格之外时也不接管', () => {
+    expect(isHtmlOnlyTable('<table><tr><td>A</td></tr></table><img src="/a.png">')).toBe(false)
+    expect(isHtmlOnlyTable('<table><tr><td>A</td></tr></table><p> </p>')).toBe(true)
+  })
+
+  it('HTML 存在但只有正文时，不再退回 TSV 把制表符文本当表格', () => {
+    const data = clipboard('<p>const a\t= 1</p>', 'a\tb\nc\td')
+    expect(tableFromClipboard(data)).toBeNull()
+  })
+
+  it('Tiptap 的 tableWrapper 包裹层不影响「只有一张表」判定', () => {
+    expect(
+      isHtmlOnlyTable('<div class="tableWrapper"><table><tr><td>A</td></tr></table></div>'),
+    ).toBe(true)
+  })
+
+  it('多张表时不接管，避免只保留第一张', () => {
+    const data = clipboard('<table><tr><td>A</td></tr></table><table><tr><td>B</td></tr></table>')
+    expect(tableFromClipboard(data)).toBeNull()
   })
 })

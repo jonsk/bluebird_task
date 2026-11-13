@@ -8,7 +8,7 @@ import { getNote, createNote, createWeeklyNote, updateNote, bindAttachment } fro
 import { uploadFile } from '@/api/file'
 import { BizError, HttpError } from '@/api/http'
 import { watchMarkdownImages, type ImageHydrator } from '@/utils/markdownImages'
-import { tableFromClipboard } from '@/utils/excelTablePaste'
+import { clipboardHasHtmlTable, tableFromClipboard } from '@/utils/excelTablePaste'
 import { buildNoteExtensions } from '@/utils/noteEditorExtensions'
 import { isBlankHtml, plainTextFromHtml, toEditorHtml, visibleLength } from '@/utils/richText'
 import { containsDangerousRichText } from '@/utils/sanitize'
@@ -158,7 +158,8 @@ const editor = useEditor({
     },
     handlePaste: (_view, event) => {
       // Excel 复制区域时会把「表格 HTML」和「一张区域快照 PNG」同时放进剪贴板，
-      // 必须先判表格再判图片，否则粘贴出来的永远是 image.png 那张快照。
+      // 所以先判表格再判图片。但只有「整段内容就是一张表」才在这里接管；
+      // 正文里夹表格的整篇粘贴交给 ProseMirror 原生解析，否则只会剩下那张表。
       const table = tableFromClipboard(event.clipboardData)
       const ed = editor.value
       if (table && ed) {
@@ -169,6 +170,9 @@ const editor = useEditor({
       const images = imageFilesFromEvent(event.clipboardData)
       const attachments = attachmentFilesFromEvent(event.clipboardData)
       if (!images.length && !attachments.length) return false
+      // 剪贴板带 HTML 表格却没被上面接管，说明是「正文 + 表格」：同样交回原生解析，
+      // 否则 Excel 附带的区域快照会被当图片上传，整段内容变成一张截图。
+      if (clipboardHasHtmlTable(event.clipboardData)) return false
       event.preventDefault()
       if (images.length) void uploadImages(images)
       if (attachments.length) void uploadAttachments(attachments)

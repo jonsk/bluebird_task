@@ -147,8 +147,59 @@ export function tsvToTableJson(text: string): JSONContent | null {
   }
 }
 
-/** 按优先级读取剪贴板中的 HTML 表格 / TSV 表格。 */
+/**
+ * 表格之外的「可见内容」判定：文本、图片、分割线等算内容；
+ * 空的包裹层（如 Tiptap 的 `div.tableWrapper`）不算，避免误伤。
+ */
+function hasVisibleContent(node: Node): boolean {
+  if (node.nodeType === Node.TEXT_NODE) return Boolean(node.textContent?.trim())
+  if (node.nodeType !== Node.ELEMENT_NODE) return false
+
+  const element = node as HTMLElement
+  if (element.tagName === 'TABLE') return false
+  if (element.tagName === 'BR') return false
+  if (element.tagName === 'IMG' || element.tagName === 'HR') return true
+
+  return Array.from(element.childNodes).some(hasVisibleContent)
+}
+
+/**
+ * 剪贴板 HTML 是否是「整段内容就是一张表」——即 Excel / WPS 复制单元格区域的形态。
+ *
+ * 必须区分两种粘贴：
+ * - Excel 区域：`body` 里只有一张 `<table>`，其余是 `<meta>`、样式、Office 命名空间和注释；
+ * - 文档：表格只是正文的一部分，还有段落、列表、图片等。
+ * 后者必须交回 ProseMirror 原生解析，否则转换器只取第一张表，整篇内容会只剩那张表。
+ */
+export function isHtmlOnlyTable(html: string): boolean {
+  if (!html || !/<table[\s>]/i.test(html)) return false
+
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const tables = Array.from(doc.body.querySelectorAll('table'))
+  if (tables.length !== 1) return false
+  if (!tables[0].rows.length) return false
+
+  return !Array.from(doc.body.childNodes).some(hasVisibleContent)
+}
+
+/** 剪贴板 HTML 里是否含表格：用于阻止「正文 + 表格」被 Excel 的区域快照抢走。 */
+export function clipboardHasHtmlTable(data: DataTransfer | null): boolean {
+  return /<table[\s>]/i.test(data?.getData('text/html') ?? '')
+}
+
+/**
+ * 按优先级读取剪贴板中的表格，**仅在「内容就是一张表」时接管**。
+ *
+ * - HTML 里还夹着正文、列表或图片 → 返回 `null`，交给 ProseMirror 原生解析；
+ * - 没有 `text/html` 时才用 TSV 兜底，避免把带制表符的代码误判成表格。
+ */
 export function tableFromClipboard(data: DataTransfer | null): JSONContent | null {
   if (!data) return null
-  return htmlTableToJson(data.getData('text/html')) ?? tsvToTableJson(data.getData('text/plain'))
+
+  const html = data.getData('text/html')
+  if (html) {
+    return isHtmlOnlyTable(html) ? htmlTableToJson(html) : null
+  }
+
+  return tsvToTableJson(data.getData('text/plain'))
 }
