@@ -4,7 +4,7 @@ import Highlight from '@tiptap/extension-highlight'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import TaskList from '@tiptap/extension-task-list'
-import Details, { DetailsContent } from '@tiptap/extension-details'
+import Details, { DetailsContent, DetailsSummary } from '@tiptap/extension-details'
 import Image from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
 import TextAlign from '@tiptap/extension-text-align'
@@ -66,6 +66,7 @@ export function buildNoteExtensions(options: NoteExtensionOptions = {}) {
         element.setAttribute('aria-label', isOpen ? '收起' : '展开')
       },
     }),
+    DetailsSummary,
     DetailsContent,
     ...(isWeekly
       ? []
