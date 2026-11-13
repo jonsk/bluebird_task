@@ -3313,7 +3313,7 @@ export interface components {
             /** @description 密文为掩码 `******`，永不返回明文 */
             value?: string | null;
             /** @enum {string} */
-            type?: "STRING" | "INT" | "BOOL" | "SELECT" | "JSON";
+            type?: "STRING" | "TEXT" | "SIZE" | "INT" | "BOOL" | "SELECT" | "JSON";
             /** @description 是否密文项 */
             secret?: boolean;
             /** @description 库中是否已存在密文值 */

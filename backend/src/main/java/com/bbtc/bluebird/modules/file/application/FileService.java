@@ -6,12 +6,13 @@ import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.exception.HttpStatusException;
 import com.bbtc.bluebird.common.model.UserContext;
 import com.bbtc.bluebird.common.spi.AttachmentReferenceGuard;
+import com.bbtc.bluebird.common.util.SizeText;
+import com.bbtc.bluebird.modules.config.application.ConfigService;
 import com.bbtc.bluebird.modules.file.domain.Attachment;
 import com.bbtc.bluebird.modules.file.dto.FileVO;
 import com.bbtc.bluebird.modules.file.infrastructure.AttachmentMapper;
 import com.bbtc.bluebird.modules.file.infrastructure.FileStorage;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -38,12 +39,10 @@ public class FileService {
     private final FileStorage fileStorage;
     private final AttachmentAccessService accessService;
     private final List<AttachmentReferenceGuard> referenceGuards;
+    private final ConfigService configService;
 
-    @Value("${app.storage.max-size:50MB}")
-    private String maxSize;
-
-    @Value("${app.storage.allowed-ext:}")
-    private String allowedExt;
+    /** 与 ConfigDefinition 中 storage.max-size 的默认值保持一致。 */
+    private static final long DEFAULT_MAX_BYTES = 50L * 1024 * 1024;
 
     public record Download(String fileName, Resource resource) {
     }
@@ -211,10 +210,13 @@ public class FileService {
     }
 
     public FileConfig config() {
+        // 每次请求都读配置：/admin 修改 storage.max-size、allowed-ext 后立即生效
+        long maxSize = SizeText.parseBytes(configService.get("storage", "max-size"), DEFAULT_MAX_BYTES);
+        String allowedExt = configService.get("storage", "allowed-ext");
         List<String> ext = allowedExt == null || allowedExt.isBlank()
                 ? List.of()
                 : List.of(allowedExt.toLowerCase(Locale.ROOT).split("\\s*,\\s*"));
-        return new FileConfig(parseSize(maxSize), ext);
+        return new FileConfig(maxSize, ext);
     }
 
     /* ==================== 内部 ==================== */
@@ -251,30 +253,5 @@ public class FileService {
 
     private boolean referencedByTask(Long attachmentId) {
         return referenceGuards.stream().anyMatch(g -> g.referencedByTask(attachmentId));
-    }
-
-    private long parseSize(String value) {
-        if (value == null || value.isBlank()) {
-            return Long.MAX_VALUE;
-        }
-        String v = value.trim().toUpperCase(Locale.ROOT);
-        long mul = 1;
-        if (v.endsWith("KB")) {
-            mul = 1024;
-            v = v.substring(0, v.length() - 2);
-        } else if (v.endsWith("MB")) {
-            mul = 1024 * 1024;
-            v = v.substring(0, v.length() - 2);
-        } else if (v.endsWith("GB")) {
-            mul = 1024L * 1024 * 1024;
-            v = v.substring(0, v.length() - 2);
-        } else if (v.endsWith("B")) {
-            v = v.substring(0, v.length() - 1);
-        }
-        try {
-            return Long.parseLong(v.trim()) * mul;
-        } catch (NumberFormatException e) {
-            return 50L * 1024 * 1024;
-        }
     }
 }

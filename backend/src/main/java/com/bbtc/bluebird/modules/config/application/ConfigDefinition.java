@@ -136,11 +136,12 @@ public final class ConfigDefinition {
                     new Item("weeklyreport", "max-notes", "单次读取日志数", "INT", "50",
                             false, false, "生成时最多读取的日志条数（从本周最新日志开始）", List.of(), null))),
 
-            new Group("storage", "文件存储", "上传限制；修改后需重启", List.of(
-                    new Item("storage", "max-size", "单文件上限", "STRING", "50MB",
-                            false, true, "例如 50MB / 2GB", List.of(), "app.storage.max-size"),
+            new Group("storage", "文件存储", "上传限制；保存后立即生效（单文件上限最大 2GB）", List.of(
+                    new Item("storage", "max-size", "单文件上限", "SIZE", "50MB",
+                            false, false, "支持 B / KB / MB / GB，例如 50MB、512MB、2GB；最大 2GB",
+                            List.of(), "app.storage.max-size"),
                     new Item("storage", "allowed-ext", "允许的扩展名", "STRING", "",
-                            false, true, "逗号分隔，留空表示不限制", List.of(), "app.storage.allowed-ext"))));
+                            false, false, "逗号分隔，留空表示不限制", List.of(), "app.storage.allowed-ext"))));
 
     private ConfigDefinition() {
     }

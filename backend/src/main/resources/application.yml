@@ -14,6 +14,11 @@ spring:
   web:
     resources:
       add-mappings: false                          # 关闭【默认】静态映射；静态资源由 WebConfig 显式注册（02 §1.7.1）
+  servlet:
+    multipart:
+      # 容器解析上限固定在 2GB：真正的单文件上限由 /admin 的 storage.max-size 动态校验（见 LocalFileStorage）
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:2GB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:2GB}
   datasource:
     driver-class-name: org.sqlite.JDBC
     url: ${SQLITE_URL:jdbc:sqlite:./data/bluebird.db}   # SQLite 嵌入式单文件（ADR-016）

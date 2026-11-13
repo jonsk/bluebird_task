@@ -3,6 +3,8 @@ package com.bbtc.bluebird.modules.file.infrastructure;
 import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
 import com.bbtc.bluebird.common.util.IdGenerator;
+import com.bbtc.bluebird.common.util.SizeText;
+import com.bbtc.bluebird.modules.config.application.ConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.PathResource;
@@ -31,18 +33,15 @@ import java.util.Set;
 @Component
 public class LocalFileStorage implements FileStorage {
 
-    private final Path root;
-    private final long maxBytes;
-    private final Set<String> allowedExt;
+    /** 与 ConfigDefinition 中 storage.max-size 的默认值保持一致。 */
+    private static final long DEFAULT_MAX_BYTES = 50L * 1024 * 1024;
 
-    public LocalFileStorage(@Value("${app.storage.root:./data/files}") String root,
-                            @Value("${app.storage.max-size:50MB}") String maxSize,
-                            @Value("${app.storage.allowed-ext:}") String allowedExt) {
+    private final Path root;
+    private final ConfigService config;
+
+    public LocalFileStorage(@Value("${app.storage.root:./data/files}") String root, ConfigService config) {
         this.root = Paths.get(root).toAbsolutePath().normalize();
-        this.maxBytes = parseSize(maxSize);
-        this.allowedExt = allowedExt == null || allowedExt.isBlank()
-                ? Set.of()
-                : Set.of(allowedExt.toLowerCase(Locale.ROOT).split("\\s*,\\s*"));
+        this.config = config;
         // 首次启动确保存储根目录存在（用户要求：存储目录不存在则自动创建）
         try {
             Files.createDirectories(this.root);
@@ -53,6 +52,12 @@ public class LocalFileStorage implements FileStorage {
 
     @Override
     public StoredFile store(String originalName, InputStream in, long size) {
+        // 每次上传都读一次配置：管理页修改 storage.max-size / allowed-ext 后无需重启
+        long maxBytes = SizeText.parseBytes(config.get("storage", "max-size"), DEFAULT_MAX_BYTES);
+        Set<String> allowedExt = allowedExtensions();
+        if (size > 0 && size > maxBytes) {
+            throw new BusinessException(ErrorCode.FILE_TOO_LARGE);
+        }
         String ext = extension(originalName);
         if (!allowedExt.isEmpty() && !allowedExt.contains(ext)) {
             throw new BusinessException(ErrorCode.FILE_TYPE_NOT_ALLOW);
@@ -118,28 +123,11 @@ public class LocalFileStorage implements FileStorage {
         return dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
-    private long parseSize(String value) {
+    private Set<String> allowedExtensions() {
+        String value = config.get("storage", "allowed-ext");
         if (value == null || value.isBlank()) {
-            return Long.MAX_VALUE;
+            return Set.of();
         }
-        String v = value.trim().toUpperCase(Locale.ROOT);
-        long mul = 1;
-        if (v.endsWith("KB")) {
-            mul = 1024;
-            v = v.substring(0, v.length() - 2);
-        } else if (v.endsWith("MB")) {
-            mul = 1024 * 1024;
-            v = v.substring(0, v.length() - 2);
-        } else if (v.endsWith("GB")) {
-            mul = 1024L * 1024 * 1024;
-            v = v.substring(0, v.length() - 2);
-        } else if (v.endsWith("B")) {
-            v = v.substring(0, v.length() - 1);
-        }
-        try {
-            return Long.parseLong(v.trim()) * mul;
-        } catch (NumberFormatException e) {
-            return 50L * 1024 * 1024;
-        }
+        return Set.of(value.toLowerCase(Locale.ROOT).split("\\s*,\\s*"));
     }
 }

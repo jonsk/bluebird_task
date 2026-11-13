@@ -3,6 +3,7 @@ package com.bbtc.bluebird.modules.config.application;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.bbtc.bluebird.common.exception.BusinessException;
 import com.bbtc.bluebird.common.exception.ErrorCode;
+import com.bbtc.bluebird.common.util.SizeText;
 import com.bbtc.bluebird.modules.config.domain.SysConfig;
 import com.bbtc.bluebird.modules.config.dto.ConfigGroupVO;
 import com.bbtc.bluebird.modules.config.dto.ConfigItemVO;
@@ -36,6 +37,9 @@ public class ConfigService {
 
     /** 密文掩码：前端回传该值表示「不修改」。 */
     public static final String MASK = "******";
+
+    /** multipart 解析上限（与 application.yml 的 spring.servlet.multipart 保持一致）。 */
+    public static final long MAX_UPLOAD_BYTES = 2L * 1024 * 1024 * 1024;
 
     private final SysConfigMapper mapper;
     private final ConfigCrypto crypto;
@@ -213,6 +217,16 @@ public class ConfigService {
             case "BOOL" -> {
                 if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
                     throw new BusinessException(ErrorCode.PARAM_ERROR, def.label() + "必须是 true/false");
+                }
+            }
+            case "SIZE" -> {
+                long bytes = SizeText.parseBytesOrInvalid(value);
+                if (bytes == SizeText.INVALID) {
+                    throw new BusinessException(ErrorCode.PARAM_ERROR,
+                            def.label() + "格式应为 50MB / 2GB 这类大小文本");
+                }
+                if (bytes > MAX_UPLOAD_BYTES) {
+                    throw new BusinessException(ErrorCode.PARAM_ERROR, def.label() + "不能超过 2GB");
                 }
             }
             case "SELECT" -> {

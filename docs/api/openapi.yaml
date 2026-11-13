@@ -1379,7 +1379,7 @@ components:
         key: { type: string }
         label: { type: string }
         value: { type: string, nullable: true, description: 密文为掩码 `******`，永不返回明文 }
-        type: { type: string, enum: [STRING, INT, BOOL, SELECT, JSON] }
+        type: { type: string, enum: [STRING, TEXT, SIZE, INT, BOOL, SELECT, JSON] }
         secret: { type: boolean, description: 是否密文项 }
         hasSecret: { type: boolean, description: 库中是否已存在密文值 }
         source: { type: string, enum: [DB, YML, DEFAULT], description: 当前值的实际来源 }

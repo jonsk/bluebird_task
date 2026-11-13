@@ -289,10 +289,10 @@ const configState: MockConfigGroup[] = [
   {
     group: 'storage',
     label: '文件存储',
-    description: '上传限制；修改后需重启',
+    description: '上传限制；保存后立即生效（单文件上限最大 2GB）',
     items: [
-      item('max-size', '单文件上限', '50MB', 'STRING', { requiresRestart: true }),
-      item('allowed-ext', '允许的扩展名', '', 'STRING', { requiresRestart: true }),
+      item('max-size', '单文件上限', '50MB', 'STRING'),
+      item('allowed-ext', '允许的扩展名', '', 'STRING'),
     ],
   },
 ]
