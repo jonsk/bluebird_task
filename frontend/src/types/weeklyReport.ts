@@ -3,6 +3,9 @@
 /** 周报状态：AI 生成即定稿，不再有 DRAFT。 */
 export type WeeklyReportStatus = 'GENERATING' | 'DONE' | 'FAILED'
 
+/** 生成类型：一周只保留一份报告，用户选择用每日记录或每周记录作为数据来源。 */
+export type WeeklyReportType = 'DAILY' | 'WEEKLY'
+
 export interface WeeklyReportBrief {
   id: number
   weekStart: string
@@ -45,6 +48,8 @@ export interface WeeklyReportVO {
   createdAt?: string
   updatedAt?: string
   version?: number
+  /** 本次生成使用的类型；历史报告可能为空（旧版同时使用两类记录）。 */
+  reportType?: WeeklyReportType | null
 }
 
 export interface WeeklyReportListData {
@@ -57,6 +62,7 @@ export interface WeeklyReportListData {
 export interface WeeklyReportGenerateReq {
   weekStart?: string
   overwrite?: boolean
+  type?: WeeklyReportType
 }
 
 export interface WeeklyReportUpdateReq {
@@ -70,4 +76,5 @@ export interface WeeklyReportPreference {
   style: WeeklyReportStyle
   focus?: string
   customRules?: string
+  reportType: WeeklyReportType
 }

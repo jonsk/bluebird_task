@@ -13,6 +13,7 @@ import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
 import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReport;
 import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReportPreference;
+import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReportType;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportBrief;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportGenerateReq;
 import com.bbtc.bluebird.modules.weeklyreport.dto.WeeklyReportPreferenceReq;
@@ -133,29 +134,39 @@ public class WeeklyReportService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "尚未启用 AI 模型，请联系管理员配置");
         }
         WeeklyReportPeriod period = periodOf(req == null ? null : req.weekStart());
-        long dailyCount = noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
-                .eq(Note::getOwnerId, me)
-                .eq(Note::getPeriodType, Note.PERIOD_DAY)
-                .ge(Note::getLogDate, period.start())
-                .le(Note::getLogDate, period.end()));
-        long weeklyCount = noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
-                .eq(Note::getOwnerId, me)
-                .eq(Note::getPeriodType, Note.PERIOD_WEEK)
-                .eq(Note::getPeriodStart, period.start()));
-        if (dailyCount + weeklyCount == 0) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "该周没有工作日志或每周记录，无法生成 AI 周工作总结");
+        WeeklyReportType type = req != null && req.type() != null
+                ? req.type()
+                : preferenceType(me);
+        if (type == WeeklyReportType.DAILY) {
+            long dailyCount = noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
+                    .eq(Note::getOwnerId, me)
+                    .eq(Note::getPeriodType, Note.PERIOD_DAY)
+                    .ge(Note::getLogDate, period.start())
+                    .le(Note::getLogDate, period.end()));
+            if (dailyCount == 0) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周没有每日工作记录，无法生成 AI 工作总结");
+            }
+        } else {
+            long weeklyCount = noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
+                    .eq(Note::getOwnerId, me)
+                    .eq(Note::getPeriodType, Note.PERIOD_WEEK)
+                    .eq(Note::getPeriodStart, period.start()));
+            if (weeklyCount == 0) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周没有每周工作记录，无法生成 AI 工作总结");
+            }
         }
 
         WeeklyReport report = findOwnedWeek(me, period.start());
         boolean overwrite = req != null && Boolean.TRUE.equals(req.overwrite());
         if (report != null) {
             if ("GENERATING".equals(report.getStatus())) {
-                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 周工作总结正在生成，请稍候");
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 工作总结正在生成，请稍候");
             }
             if (!overwrite && StringUtils.hasText(report.getContentHtml())) {
-                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 周工作总结已存在，如需重新生成请确认覆盖");
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 工作总结已存在，如需重新生成请确认覆盖");
             }
             report.setStatus("GENERATING");
+            report.setReportType(type.name());
             report.setErrorMessage(null);
             reportMapper.updateById(report);
         } else {
@@ -164,13 +175,14 @@ public class WeeklyReportService {
             report.setWeekStart(period.start());
             report.setWeekEnd(period.end());
             report.setStatus("GENERATING");
+            report.setReportType(type.name());
             report.setVersion(0);
             report.setDeleted(0);
             report.setCreatedBy(me);
             try {
                 reportMapper.insert(report);
             } catch (DuplicateKeyException e) {
-                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 周工作总结已存在，请刷新后重试");
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "该周 AI 工作总结已存在，请刷新后重试");
             }
         }
         generationService.generate(report.getId(), me);
@@ -209,9 +221,10 @@ public class WeeklyReportService {
         Long me = requireUser();
         WeeklyReportPreference pref = findPreference(me);
         if (pref == null) {
-            return new WeeklyReportPreferenceVO("concise", null, null);
+            return new WeeklyReportPreferenceVO("concise", null, null, WeeklyReportType.WEEKLY);
         }
-        return new WeeklyReportPreferenceVO(pref.getStyle(), pref.getFocus(), pref.getCustomRules());
+        return new WeeklyReportPreferenceVO(pref.getStyle(), pref.getFocus(), pref.getCustomRules(),
+                WeeklyReportType.from(pref.getReportType()));
     }
 
     @Transactional
@@ -227,13 +240,15 @@ public class WeeklyReportService {
         pref.setStyle(StringUtils.hasText(req.style()) ? req.style().trim() : "concise");
         pref.setFocus(trimToNull(req.focus()));
         pref.setCustomRules(trimToNull(req.customRules()));
+        pref.setReportType(resolveReportType(req.reportType(), pref.getReportType()).name());
         pref.setUpdatedBy(me);
         if (isNew) {
             preferenceMapper.insert(pref);
         } else {
             preferenceMapper.updateById(pref);
         }
-        return new WeeklyReportPreferenceVO(pref.getStyle(), pref.getFocus(), pref.getCustomRules());
+        return new WeeklyReportPreferenceVO(pref.getStyle(), pref.getFocus(), pref.getCustomRules(),
+                WeeklyReportType.from(pref.getReportType()));
     }
 
     /* ==================== 自动生成（定时任务） ==================== */
@@ -254,13 +269,34 @@ public class WeeklyReportService {
                 .in(Note::getPeriodType, Note.PERIOD_DAY, Note.PERIOD_WEEK)
                 .ge(Note::getLogDate, period.start())
                 .le(Note::getLogDate, period.end())
-                .select(Note::getId, Note::getOwnerId));
-        Map<Long, Integer> counts = new LinkedHashMap<>();
+                .select(Note::getId, Note::getOwnerId, Note::getPeriodType));
+        Map<Long, Map<WeeklyReportType, Integer>> counts = new LinkedHashMap<>();
         for (Note note : notes) {
-            counts.merge(note.getOwnerId(), 1, Integer::sum);
+            WeeklyReportType type = Note.PERIOD_WEEK.equals(note.getPeriodType())
+                    ? WeeklyReportType.WEEKLY
+                    : WeeklyReportType.DAILY;
+            counts.computeIfAbsent(note.getOwnerId(), key -> new LinkedHashMap<>())
+                    .merge(type, 1, Integer::sum);
+        }
+        if (counts.isEmpty()) {
+            return 0;
+        }
+        // 每个用户保存的偏好决定定时任务用哪类记录；没有偏好记录的用户按默认「每周工作记录」。
+        Map<Long, WeeklyReportType> preferredTypes = new HashMap<>();
+        List<WeeklyReportPreference> prefs = preferenceMapper.selectList(
+                Wrappers.<WeeklyReportPreference>lambdaQuery()
+                        .in(WeeklyReportPreference::getUserId, counts.keySet()));
+        for (WeeklyReportPreference pref : prefs) {
+            preferredTypes.put(pref.getUserId(), WeeklyReportType.from(pref.getReportType()));
         }
         int created = 0;
-        for (Long ownerId : counts.keySet()) {
+        for (Map.Entry<Long, Map<WeeklyReportType, Integer>> entry : counts.entrySet()) {
+            Long ownerId = entry.getKey();
+            WeeklyReportType type = preferredTypes.getOrDefault(ownerId, WeeklyReportType.WEEKLY);
+            // 所选类型当周没有记录：跳过，不创建报告，避免产生一条无意义的失败记录。
+            if (entry.getValue().getOrDefault(type, 0) == 0) {
+                continue;
+            }
             if (findOwnedWeek(ownerId, period.start()) != null) {
                 continue;
             }
@@ -269,6 +305,7 @@ public class WeeklyReportService {
             report.setWeekStart(period.start());
             report.setWeekEnd(period.end());
             report.setStatus("GENERATING");
+            report.setReportType(type.name());
             report.setVersion(0);
             report.setDeleted(0);
             report.setCreatedBy(ownerId);
@@ -334,6 +371,16 @@ public class WeeklyReportService {
                 .last("limit 1"));
     }
 
+    /** 用户未显式指定生成类型时，沿用偏好；没有偏好则默认每周工作记录。 */
+    private WeeklyReportType preferenceType(Long userId) {
+        WeeklyReportPreference pref = findPreference(userId);
+        return pref == null ? WeeklyReportType.WEEKLY : WeeklyReportType.from(pref.getReportType());
+    }
+
+    private WeeklyReportType resolveReportType(WeeklyReportType requested, String stored) {
+        return requested != null ? requested : WeeklyReportType.from(stored);
+    }
+
     private WeeklyReportPeriod periodOf(String weekStart) {
         LocalDate date = LocalDate.now(ZONE);
         if (StringUtils.hasText(weekStart)) {
@@ -361,7 +408,7 @@ public class WeeklyReportService {
                 r.getContentHtml(), r.getAiResultJson(), noteIds(r.getSourceNoteIds()),
                 r.getModelName(), r.getErrorMessage(), r.getInputTokens(), r.getOutputTokens(),
                 r.getGeneratedAt(), r.getCompletedAt(), r.getCreatedAt(), r.getUpdatedAt(),
-                r.getVersion());
+                r.getVersion(), r.getReportType());
     }
 
     private List<Long> noteIds(String json) {

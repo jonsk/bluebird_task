@@ -41,7 +41,7 @@ public class WeeklyReportAutoJob {
         try {
             int created = service.autoGenerate();
             if (created > 0) {
-                log.info("周报自动生成任务完成：新建 {} 份草稿", created);
+                log.info("周报自动生成任务完成：新建 {} 份报告", created);
             }
         } catch (Exception e) {
             log.warn("周报自动生成任务失败：{}", e.getMessage());

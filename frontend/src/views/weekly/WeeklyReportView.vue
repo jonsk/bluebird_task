@@ -18,6 +18,7 @@ import type {
   WeeklyReportPreference,
   WeeklyReportStatus,
   WeeklyReportStyle,
+  WeeklyReportType,
   WeeklyReportVO,
   WeeklyReportWeek,
 } from '@/types/weeklyReport'
@@ -47,6 +48,17 @@ const styles: Array<{ value: WeeklyReportStyle; label: string }> = [
   { value: 'plan', label: '计划导向' },
 ]
 
+const reportTypes: Array<{ value: WeeklyReportType; label: string }> = [
+  { value: 'DAILY', label: '每日工作记录' },
+  { value: 'WEEKLY', label: '每周工作记录' },
+]
+
+/** 生成类型的显示名；历史报告没有类型时按旧版「每日 + 每周」展示。 */
+function reportTypeLabel(type?: WeeklyReportType | null): string {
+  if (!type) return '每日 + 每周（旧版）'
+  return reportTypes.find((t) => t.value === type)?.label ?? type
+}
+
 const loadingWeeks = ref(false)
 const loadingDetail = ref(false)
 const generating = ref(false)
@@ -56,7 +68,8 @@ const detail = ref<WeeklyReportVO | null>(null)
 const content = ref('')
 const prefVisible = ref(false)
 const prefSaving = ref(false)
-const preference = ref<WeeklyReportPreference>({ style: 'concise' })
+const preference = ref<WeeklyReportPreference>({ style: 'concise', reportType: 'WEEKLY' })
+const typeSaving = ref(false)
 
 /* ==================== 自动保存状态 ==================== */
 
@@ -229,10 +242,11 @@ async function startGenerate(): Promise<void> {
     return
   }
   const existing = selected.value
+  const typeLabel = reportTypeLabel(preference.value.reportType)
   if (existing?.reportId) {
     try {
       await ElMessageBox.confirm(
-        `「${weekStart} ~ ${existing.weekEnd}」已有 AI 周工作总结，重新生成会覆盖当前正文。`,
+        `「${weekStart} ~ ${existing.weekEnd}」已有 AI 工作总结，将使用「${typeLabel}」重新生成并覆盖当前正文。`,
         '重新生成',
         { type: 'warning', confirmButtonText: '覆盖生成' },
       )
@@ -243,7 +257,11 @@ async function startGenerate(): Promise<void> {
   }
   generating.value = true
   try {
-    const d = await generateWeeklyReport({ weekStart, overwrite: Boolean(existing?.reportId) })
+    const d = await generateWeeklyReport({
+      weekStart,
+      overwrite: Boolean(existing?.reportId),
+      type: preference.value.reportType,
+    })
     refreshWeekRow(d)
     // 生成期间用户可能切到别的周：只刷新周列表，不把 A 周内容写进 B 周编辑器。
     if (selectedWeek.value !== weekStart) return
@@ -347,12 +365,30 @@ async function removeReport(): Promise<void> {
 
 /* ==================== 个人规则 ==================== */
 
-async function openPreference(): Promise<void> {
+async function loadPreference(): Promise<void> {
   try {
     preference.value = await getWeeklyReportPreference()
   } catch {
-    preference.value = { style: 'concise' }
+    preference.value = { style: 'concise', reportType: 'WEEKLY' }
   }
+}
+
+/** 生成类型切换后立即保存，后台定时任务读取这份偏好。 */
+async function changeReportType(type: WeeklyReportType): Promise<void> {
+  if (typeSaving.value) return
+  typeSaving.value = true
+  try {
+    preference.value = await saveWeeklyReportPreference({ ...preference.value, reportType: type })
+  } catch (e) {
+    ElMessage.error((e as Error).message || '生成类型保存失败')
+    await loadPreference()
+  } finally {
+    typeSaving.value = false
+  }
+}
+
+async function openPreference(): Promise<void> {
+  await loadPreference()
   prefVisible.value = true
 }
 
@@ -370,7 +406,7 @@ async function savePreference(): Promise<void> {
 }
 
 onMounted(async () => {
-  await loadWeeks()
+  await Promise.all([loadWeeks(), loadPreference()])
 })
 
 onBeforeUnmount(() => {
@@ -420,6 +456,7 @@ onBeforeUnmount(() => {
         <div class="weekly__meta">
           <template v-if="detail?.modelName">
             生成模型：{{ detail.modelName }}
+            <span v-if="detail.reportType"> · 生成类型：{{ reportTypeLabel(detail.reportType) }}</span>
             <span v-if="detail.sourceNoteIds?.length"> · 引用 {{ detail.sourceNoteIds.length }} 条记录</span>
             <span v-if="detail.generatedAt"> · {{ new Date(detail.generatedAt).toLocaleString('zh-CN') }}</span>
           </template>
@@ -428,6 +465,18 @@ onBeforeUnmount(() => {
           </template>
         </div>
         <div class="weekly__ops">
+          <el-select
+            v-model="preference.reportType"
+            class="weekly__type"
+            size="small"
+            :disabled="generating"
+            :loading="typeSaving"
+            title="生成时使用的数据来源；切换后自动保存，供定时生成使用"
+            data-test="weekly-report-type"
+            @change="changeReportType"
+          >
+            <el-option v-for="t in reportTypes" :key="t.value" :label="t.label" :value="t.value" />
+          </el-select>
           <el-button
             size="small"
             type="primary"
@@ -494,6 +543,11 @@ onBeforeUnmount(() => {
       @submit="savePreference"
     >
       <el-form label-width="90px">
+        <el-form-item label="生成类型">
+          <el-select v-model="preference.reportType" class="weekly__pref-control">
+            <el-option v-for="t in reportTypes" :key="t.value" :label="t.label" :value="t.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="行文风格">
           <el-select v-model="preference.style" class="weekly__pref-control">
             <el-option v-for="s in styles" :key="s.value" :label="s.label" :value="s.value" />
@@ -618,6 +672,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.weekly__type {
+  width: 150px;
 }
 .weekly__alert {
   margin-bottom: 10px;

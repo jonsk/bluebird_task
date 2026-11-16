@@ -11,6 +11,7 @@ import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.note.infrastructure.NoteMapper;
 import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReport;
 import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReportPreference;
+import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReportType;
 import com.bbtc.bluebird.modules.weeklyreport.infrastructure.WeeklyReportMapper;
 import com.bbtc.bluebird.modules.weeklyreport.infrastructure.WeeklyReportPreferenceMapper;
 import com.bbtc.bluebird.common.util.RichTextGuard;
@@ -61,9 +62,10 @@ public class WeeklyReportGenerationService {
         }
         Instant started = Instant.now();
         try {
-            List<Note> notes = loadNotes(report, userId);
+            WeeklyReportType type = WeeklyReportType.from(report.getReportType());
+            List<Note> notes = loadNotes(report, userId, type);
             if (notes.isEmpty()) {
-                fail(report, "该周没有可用的工作日志或每周记录");
+                fail(report, "该周没有可用的" + type.label());
                 return;
             }
             SysUser user = userMapper.selectById(userId);
@@ -74,7 +76,7 @@ public class WeeklyReportGenerationService {
             AiModelConfig model = modelService.activeEntity();
             WeeklyReportPromptBuilder.Prompt prompt = promptBuilder.build(
                     report.getWeekStart(), report.getWeekEnd(),
-                    user == null ? null : user.getName(), notes, pref);
+                    user == null ? null : user.getName(), notes, pref, type);
 
             AiClient.AiChatResult result = aiClient.chat(
                     model, modelService.decryptKey(model), prompt.system(), prompt.user(),
@@ -115,12 +117,21 @@ public class WeeklyReportGenerationService {
     }
 
     /**
-     * 取该周参与总结的记录：每日工作日志（最多 {@code weeklyreport.max-notes} 条）+ 该周周一对应的每周工作记录。
+     * 取该周参与总结的记录：按生成类型只用其中一类。
      *
-     * <p>每周记录放在最前面：它是这一周的整体复盘，先给模型一个全局框架；同时保证日记录很多、
-     * 触发总字符裁剪时，每周记录不会被挤掉。
+     * <p>每日工作记录最多 {@code weeklyreport.max-notes} 条，按时间正序送给模型；
+     * 每周工作记录取该周周一对应的那一条。两类记录不混用，避免总结口径不清。
      */
-    private List<Note> loadNotes(WeeklyReport report, Long userId) {
+    private List<Note> loadNotes(WeeklyReport report, Long userId, WeeklyReportType type) {
+        if (type == WeeklyReportType.WEEKLY) {
+            Note weekly = noteMapper.selectOne(Wrappers.<Note>lambdaQuery()
+                    .eq(Note::getOwnerId, userId)
+                    .eq(Note::getPeriodType, Note.PERIOD_WEEK)
+                    .eq(Note::getPeriodStart, report.getWeekStart())
+                    .orderByDesc(Note::getCreatedAt)
+                    .last("limit 1"));
+            return weekly == null ? List.of() : List.of(weekly);
+        }
         int max = Math.max(1, Math.min(200, config.getInt("weeklyreport", "max-notes", 50)));
         List<Note> daily = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
                 .eq(Note::getOwnerId, userId)
@@ -130,19 +141,8 @@ public class WeeklyReportGenerationService {
                 .orderByDesc(Note::getLogDate)
                 .orderByDesc(Note::getCreatedAt)
                 .last("limit " + max));
-        Note weekly = noteMapper.selectOne(Wrappers.<Note>lambdaQuery()
-                .eq(Note::getOwnerId, userId)
-                .eq(Note::getPeriodType, Note.PERIOD_WEEK)
-                .eq(Note::getPeriodStart, report.getWeekStart())
-                .orderByDesc(Note::getCreatedAt)
-                .last("limit 1"));
-        List<Note> notes = new ArrayList<>();
-        if (weekly != null) {
-            notes.add(weekly);
-        }
         // 提示词里按时间正序更符合叙事，查询倒序只是为了取「最近 N 条」。
-        notes.addAll(daily.reversed());
-        return notes;
+        return new ArrayList<>(daily.reversed());
     }
 
     private Set<Long> weeklyNoteIds(List<Note> notes) {

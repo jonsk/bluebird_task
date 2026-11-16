@@ -84,6 +84,7 @@ class WeeklyReportGenerationServiceTest {
         report.setStatus("RUNNING");
         report.setWeekStart("2026-11-02");
         report.setWeekEnd("2026-11-08");
+        report.setReportType("DAILY");
 
         model = new AiModelConfig();
         model.setId(9L);
@@ -119,7 +120,7 @@ class WeeklyReportGenerationServiceTest {
         service.generate(REPORT_ID, OWNER);
 
         assertEquals("FAILED", report.getStatus());
-        assertEquals("该周没有可用的工作日志或每周记录", report.getErrorMessage());
+        assertEquals("该周没有可用的每日工作记录", report.getErrorMessage());
         assertNull(report.getContentHtml());
         verify(reportMapper).updateById(report);
         verify(aiClient, never()).chat(any(), any(), any(), any(), anyInt());
@@ -131,7 +132,7 @@ class WeeklyReportGenerationServiceTest {
         when(userMapper.selectById(OWNER)).thenReturn(user());
         when(modelService.activeEntity()).thenReturn(model);
         when(modelService.decryptKey(model)).thenReturn("k");
-        when(promptBuilder.build(any(), any(), any(), any(), any()))
+        when(promptBuilder.build(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new WeeklyReportPromptBuilder.Prompt("sys", "usr", "v1"));
         when(aiClient.chat(any(), any(), any(), any(), anyInt()))
                 .thenThrow(new IllegalStateException("连接被重置\n\t超时"));
@@ -148,7 +149,7 @@ class WeeklyReportGenerationServiceTest {
         when(userMapper.selectById(OWNER)).thenReturn(user());
         when(modelService.activeEntity()).thenReturn(model);
         when(modelService.decryptKey(model)).thenReturn("k");
-        when(promptBuilder.build(any(), any(), any(), any(), any()))
+        when(promptBuilder.build(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new WeeklyReportPromptBuilder.Prompt("sys", "usr", "v1"));
         when(aiClient.chat(any(), any(), any(), any(), anyInt()))
                 .thenThrow(new IllegalStateException("错".repeat(1200)));
@@ -166,7 +167,7 @@ class WeeklyReportGenerationServiceTest {
         when(userMapper.selectById(OWNER)).thenReturn(user());
         when(modelService.activeEntity()).thenReturn(model);
         when(modelService.decryptKey(model)).thenReturn("k");
-        when(promptBuilder.build(any(), any(), eq("张三"), any(), any()))
+        when(promptBuilder.build(any(), any(), eq("张三"), any(), any(), any()))
                 .thenReturn(new WeeklyReportPromptBuilder.Prompt("sys", "user prompt body", "v2"));
         when(aiClient.chat(any(), any(), any(), any(), eq(1024)))
                 .thenReturn(new AiClient.AiChatResult("{\"summary\":\"ok\"}", 120, 30));
@@ -194,8 +195,7 @@ class WeeklyReportGenerationServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void 每周工作记录一并参与生成且引用带周口径() {
-        Note daily = note(11L);
+    void 每周类型只使用每周记录且引用带周口径() {
         Note weekly = new Note();
         weekly.setId(21L);
         weekly.setOwnerId(OWNER);
@@ -204,13 +204,13 @@ class WeeklyReportGenerationServiceTest {
         weekly.setPeriodStart("2026-11-02");
         weekly.setContent("本周复盘：登录改造完成");
         weekly.setVersion(2);
+        report.setReportType("WEEKLY");
 
-        when(noteMapper.selectList(any())).thenReturn(List.of(daily));
         when(noteMapper.selectOne(any())).thenReturn(weekly);
         when(userMapper.selectById(OWNER)).thenReturn(user());
         when(modelService.activeEntity()).thenReturn(model);
         when(modelService.decryptKey(model)).thenReturn("k");
-        when(promptBuilder.build(any(), any(), eq("张三"), any(), any()))
+        when(promptBuilder.build(any(), any(), eq("张三"), any(), any(), any()))
                 .thenReturn(new WeeklyReportPromptBuilder.Prompt("sys", "usr", "v2"));
         when(aiClient.chat(any(), any(), any(), any(), anyInt()))
                 .thenReturn(new AiClient.AiChatResult("{\"summary\":\"ok\"}", 10, 5));
@@ -222,11 +222,24 @@ class WeeklyReportGenerationServiceTest {
         service.generate(REPORT_ID, OWNER);
 
         ArgumentCaptor<List<Note>> notesCaptor = ArgumentCaptor.forClass(List.class);
-        verify(promptBuilder).build(any(), any(), eq("张三"), notesCaptor.capture(), any());
-        assertEquals(List.of(21L, 11L), notesCaptor.getValue().stream().map(Note::getId).toList(),
-                "每周记录排在最前，日记录按时间正序随后");
-        assertEquals("[21,11]", report.getSourceNoteIds());
+        verify(promptBuilder).build(any(), any(), eq("张三"), notesCaptor.capture(), any(), any());
+        assertEquals(List.of(21L), notesCaptor.getValue().stream().map(Note::getId).toList(),
+                "每周类型只把每周记录送给模型");
+        assertEquals("[21]", report.getSourceNoteIds());
         assertEquals("DONE", report.getStatus());
+        verify(noteMapper, never()).selectList(any());
+    }
+
+    @Test
+    void 每周类型没有每周记录时标为失败() {
+        report.setReportType("WEEKLY");
+        when(noteMapper.selectOne(any())).thenReturn(null);
+
+        service.generate(REPORT_ID, OWNER);
+
+        assertEquals("FAILED", report.getStatus());
+        assertEquals("该周没有可用的每周工作记录", report.getErrorMessage());
+        verify(aiClient, never()).chat(any(), any(), any(), any(), anyInt());
     }
 
     @Test
@@ -235,7 +248,7 @@ class WeeklyReportGenerationServiceTest {
         when(userMapper.selectById(OWNER)).thenReturn(user());
         when(modelService.activeEntity()).thenReturn(model);
         when(modelService.decryptKey(model)).thenReturn("k");
-        when(promptBuilder.build(any(), any(), any(), any(), any()))
+        when(promptBuilder.build(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new WeeklyReportPromptBuilder.Prompt("sys", "usr", "v1"));
         when(aiClient.chat(any(), any(), any(), any(), anyInt()))
                 .thenReturn(new AiClient.AiChatResult("raw", 1, 1));
@@ -257,7 +270,7 @@ class WeeklyReportGenerationServiceTest {
         when(userMapper.selectById(OWNER)).thenReturn(user());
         when(modelService.activeEntity()).thenReturn(model);
         when(modelService.decryptKey(model)).thenReturn("k");
-        when(promptBuilder.build(any(), any(), any(), any(), any()))
+        when(promptBuilder.build(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new WeeklyReportPromptBuilder.Prompt("sys", "usr", "v1"));
         when(aiClient.chat(any(), any(), any(), any(), eq(2048)))
                 .thenReturn(new AiClient.AiChatResult("raw", 1, 1));
@@ -275,7 +288,7 @@ class WeeklyReportGenerationServiceTest {
         when(userMapper.selectById(OWNER)).thenReturn(user());
         when(modelService.activeEntity()).thenReturn(model);
         when(modelService.decryptKey(model)).thenReturn("k");
-        when(promptBuilder.build(any(), any(), any(), any(), any()))
+        when(promptBuilder.build(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new WeeklyReportPromptBuilder.Prompt("sys", "usr", "v1"));
         when(aiClient.chat(any(), any(), any(), any(), anyInt()))
                 .thenReturn(new AiClient.AiChatResult("raw", 1, 1));

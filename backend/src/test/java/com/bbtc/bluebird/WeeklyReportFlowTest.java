@@ -83,18 +83,21 @@ class WeeklyReportFlowTest {
 
         mvc.perform(get("/api/v1/weekly-reports/preference").header("Authorization", token(u)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.style").value("concise"));
+                .andExpect(jsonPath("$.data.style").value("concise"))
+                .andExpect(jsonPath("$.data.reportType").value("WEEKLY"));
 
         mvc.perform(put("/api/v1/weekly-reports/preference")
                         .header("Authorization", token(u))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"style\":\"result\",\"focus\":\"delivery\",\"customRules\":\"short\"}"))
+                        .content("{\"style\":\"result\",\"focus\":\"delivery\",\"customRules\":\"short\",\"reportType\":\"DAILY\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.style").value("result"))
+                .andExpect(jsonPath("$.data.reportType").value("DAILY"))
                 .andExpect(jsonPath("$.data.focus").value("delivery"));
 
         mvc.perform(get("/api/v1/weekly-reports/preference").header("Authorization", token(u)))
-                .andExpect(jsonPath("$.data.customRules").value("short"));
+                .andExpect(jsonPath("$.data.customRules").value("short"))
+                .andExpect(jsonPath("$.data.reportType").value("DAILY"));
     }
 
     @Test

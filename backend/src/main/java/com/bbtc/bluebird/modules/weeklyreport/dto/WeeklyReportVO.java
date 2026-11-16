@@ -21,5 +21,6 @@ public record WeeklyReportVO(
         Instant completedAt,
         Instant createdAt,
         Instant updatedAt,
-        Integer version) {
+        Integer version,
+        String reportType) {
 }

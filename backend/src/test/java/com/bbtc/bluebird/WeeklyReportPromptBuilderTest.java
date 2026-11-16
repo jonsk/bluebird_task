@@ -1,9 +1,11 @@
 package com.bbtc.bluebird;
 
+import com.bbtc.bluebird.modules.config.application.ConfigDefinition;
 import com.bbtc.bluebird.modules.config.application.ConfigService;
 import com.bbtc.bluebird.modules.note.domain.Note;
 import com.bbtc.bluebird.modules.weeklyreport.application.WeeklyReportPromptBuilder;
 import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReportPreference;
+import com.bbtc.bluebird.modules.weeklyreport.domain.WeeklyReportType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,15 +20,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 提示词组装：变量替换、管理员改模板时的兜底、偏好规则、日志裁剪。
- *
- * <p>这层决定了「AI 看到什么」，此前 0% 覆盖，但它的兜底分支（模板缺 {{notes}}）
- * 正是"生成结果凭空缺日志"这类问题的防线。
+ * 提示词组装：变量替换、管理员改模板时的兜底、偏好规则、日志裁剪、生成类型。
  */
 class WeeklyReportPromptBuilderTest {
 
     private static final String TEMPLATE = """
-            请为 {{userName}} 生成本周周报：{{weekStart}} ~ {{weekEnd}}
+            请为 {{userName}} 生成本周总结：{{weekStart}} ~ {{weekEnd}}
+            类型：{{reportType}}
             规则：{{userRules}}
             日志：{{notes}}
             """;
@@ -45,25 +45,27 @@ class WeeklyReportPromptBuilderTest {
         when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString())).thenReturn(TEMPLATE);
 
         var prompt = builder.build("2026-11-02", "2026-11-08", "张三",
-                List.of(note(1L, "2026-11-03", "完成了登录改造")), null);
+                List.of(note(1L, "2026-11-03", "完成了登录改造")), null, WeeklyReportType.DAILY);
 
         assertTrue(prompt.user().contains("张三"));
         assertTrue(prompt.user().contains("2026-11-02 ~ 2026-11-08"));
+        assertTrue(prompt.user().contains("类型：每日工作记录"));
         assertTrue(prompt.user().contains("[#1] 2026-11-03"));
         assertTrue(prompt.user().contains("完成了登录改造"));
         assertTrue(prompt.user().contains("无补充规则"));
         assertTrue(prompt.system().contains("JSON"), "系统提示词要保留 JSON 输出约束");
+        assertTrue(prompt.system().contains("每日工作记录"), "系统提示词要限定本次生成类型");
     }
 
     @Test
     void 模板缺少日志变量时末尾兜底补上() {
         when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString()))
-                .thenReturn("只为 {{userName}} 生成周报，别忘规则：{{userRules}}");
+                .thenReturn("只为 {{userName}} 生成总结，别忘规则：{{userRules}}");
 
         var prompt = builder.build("2026-11-02", "2026-11-08", "张三",
-                List.of(note(7L, "2026-11-04", "修复了导出乱码")), null);
+                List.of(note(7L, "2026-11-04", "修复了导出乱码")), null, WeeklyReportType.DAILY);
 
-        assertTrue(prompt.user().contains("工作日志"), "模板丢了 {{notes}} 必须仍把日志补进去");
+        assertTrue(prompt.user().contains("工作记录"), "模板丢了 {{notes}} 必须仍把记录补进去");
         assertTrue(prompt.user().contains("[#7]"));
         assertTrue(prompt.user().contains("修复了导出乱码"));
     }
@@ -71,11 +73,11 @@ class WeeklyReportPromptBuilderTest {
     @Test
     void 模板缺少规则变量时末尾兜底补上用户偏好() {
         when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString()))
-                .thenReturn("周报：{{weekStart}} ~ {{weekEnd}} {{notes}}");
+                .thenReturn("总结：{{weekStart}} ~ {{weekEnd}} {{notes}}");
         WeeklyReportPreference pref = preference("result", "交付风险", "不要写客套话");
 
         var prompt = builder.build("2026-11-02", "2026-11-08", null,
-                List.of(note(1L, "2026-11-03", "内容")), pref);
+                List.of(note(1L, "2026-11-03", "内容")), pref, WeeklyReportType.DAILY);
 
         assertTrue(prompt.user().contains("用户补充规则"));
         assertTrue(prompt.user().contains("结果导向"));
@@ -88,10 +90,12 @@ class WeeklyReportPromptBuilderTest {
         when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString())).thenReturn("  ");
 
         var prompt = builder.build("2026-11-02", "2026-11-08", "李四",
-                List.of(note(1L, "2026-11-03", "内容")), null);
+                List.of(note(1L, "2026-11-03", "内容")), null, WeeklyReportType.WEEKLY);
 
         assertTrue(prompt.user().contains("李四"));
-        assertTrue(prompt.user().contains("[#1]"), "默认模板也要带日志块");
+        assertTrue(prompt.user().contains("[#1]"), "默认模板也要带记录块");
+        assertTrue(prompt.user().contains("每周工作记录"));
+        assertFalse(prompt.user().contains("{{"), "默认模板的占位符必须全部替换");
     }
 
     @Test
@@ -100,7 +104,7 @@ class WeeklyReportPromptBuilderTest {
 
         String longText = "进展".repeat(2000);
         var prompt = builder.build("2026-11-02", "2026-11-08", "张三",
-                List.of(note(3L, "2026-11-05", longText)), null);
+                List.of(note(3L, "2026-11-05", longText)), null, WeeklyReportType.DAILY);
 
         assertTrue(prompt.user().contains("[#3]"));
         assertFalse(prompt.user().contains(longText), "超长正文必须被裁剪，避免撑爆上下文");
@@ -117,7 +121,7 @@ class WeeklyReportPromptBuilderTest {
                 note(3L, "2026-11-05", big),
                 note(4L, "2026-11-06", big));
 
-        var prompt = builder.build("2026-11-02", "2026-11-08", "张三", notes, null);
+        var prompt = builder.build("2026-11-02", "2026-11-08", "张三", notes, null, WeeklyReportType.DAILY);
 
         assertTrue(prompt.user().contains("[#1]"));
         assertTrue(prompt.user().length() < 30000, "总长要受 TOTAL_CHAR_LIMIT 约束");
@@ -128,43 +132,63 @@ class WeeklyReportPromptBuilderTest {
         when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString())).thenReturn(TEMPLATE);
 
         var prompt = builder.build("2026-11-02", "2026-11-08", "张三",
-                List.of(note(9L, "2026-11-03", "   ")), null);
+                List.of(note(9L, "2026-11-03", "   ")), null, WeeklyReportType.DAILY);
 
         assertFalse(prompt.user().contains("[#9]"), "纯空白日志应被跳过");
     }
 
     @Test
-    void 日志按每日与每周来源标注() {
+    void 每日与每周记录各自标注来源() {
         when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString())).thenReturn(TEMPLATE);
         Note daily = note(1L, "2026-11-03", "完成了登录改造");
         Note weekly = note(21L, "2026-11-02", "本周整体完成登录与权限改造");
         weekly.setPeriodType(Note.PERIOD_WEEK);
         weekly.setPeriodStart("2026-11-02");
 
-        var prompt = builder.build("2026-11-02", "2026-11-08", "张三", List.of(weekly, daily), null);
+        var dailyPrompt = builder.build("2026-11-02", "2026-11-08", "张三",
+                List.of(daily), null, WeeklyReportType.DAILY);
+        var weeklyPrompt = builder.build("2026-11-02", "2026-11-08", "张三",
+                List.of(weekly), null, WeeklyReportType.WEEKLY);
 
-        assertTrue(prompt.user().contains("[#1] 2026-11-03（每日工作记录）"));
-        assertTrue(prompt.user().contains("[#21] 2026-11-02（每周工作记录）"));
-        assertTrue(prompt.system().contains("dailyWork") && prompt.system().contains("weeklyWork"),
-                "系统提示词必须要求按来源分类");
+        assertTrue(dailyPrompt.user().contains("[#1] 2026-11-03（每日工作记录）"));
+        assertTrue(weeklyPrompt.user().contains("[#21] 2026-11-02（每周工作记录）"));
+        assertTrue(dailyPrompt.system().contains("每日工作记录"));
+        assertTrue(weeklyPrompt.system().contains("每周工作记录"));
     }
 
     @Test
-    void 旧模板缺少来源分类结构时末尾兜底补上() {
+    void 旧模板缺少输出结构时末尾兜底补上() {
         when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString())).thenReturn(TEMPLATE);
 
         var prompt = builder.build("2026-11-02", "2026-11-08", "张三",
-                List.of(note(1L, "2026-11-03", "内容")), null);
+                List.of(note(1L, "2026-11-03", "内容")), null, WeeklyReportType.WEEKLY);
 
-        assertTrue(prompt.user().contains("\"dailyWork\""), "旧模板没有新结构时必须补固定 schema");
-        assertTrue(prompt.user().contains("\"weeklyWork\""));
+        assertTrue(prompt.user().contains("\"achievements\""), "旧模板没有 {{outputSchema}} 时必须补固定结构");
+        assertTrue(prompt.user().contains("本次只总结「每周工作记录」"));
+        assertFalse(prompt.user().contains("dailyWork"), "新结构不再按来源分组");
+        assertFalse(prompt.user().contains("weeklyWork"));
+    }
+
+    @Test
+    void 默认模板注入类型与输出结构() {
+        when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString()))
+                .thenReturn(ConfigDefinition.DEFAULT_WEEKLY_PROMPT);
+
+        var prompt = builder.build("2026-11-02", "2026-11-08", "张三",
+                List.of(note(1L, "2026-11-03", "内容")), null, WeeklyReportType.WEEKLY);
+
+        assertTrue(prompt.user().contains("本次请只根据下面提供的「每周工作记录」"));
+        assertTrue(prompt.user().contains("\"achievements\""));
+        assertFalse(prompt.user().contains("{{outputSchema}}"));
+        assertFalse(prompt.user().contains("{{reportType}}"));
     }
 
     @Test
     void 提示词版本号固定输出() {
         when(config.get(any(), any(), any())).thenReturn(TEMPLATE);
 
-        var prompt = builder.build("2026-11-02", "2026-11-08", "张三", List.of(), null);
+        var prompt = builder.build("2026-11-02", "2026-11-08", "张三", List.of(), null,
+                WeeklyReportType.WEEKLY);
 
         assertTrue(prompt.version() != null && !prompt.version().isBlank(), "版本号要落库，便于回溯");
     }

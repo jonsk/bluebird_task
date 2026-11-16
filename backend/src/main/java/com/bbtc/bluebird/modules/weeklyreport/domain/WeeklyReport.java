@@ -32,6 +32,8 @@ public class WeeklyReport extends BaseEntity {
     private String weekEnd;
     /** GENERATING | DONE | FAILED（不再有 DRAFT：AI 生成即定稿）。 */
     private String status;
+    /** DAILY | WEEKLY；历史报告为空表示旧版同时使用每日与每周记录。 */
+    private String reportType;
 
     private String contentHtml;
     private String aiResultJson;
