@@ -91,26 +91,32 @@ test.describe('每周工作记录', () => {
     await expect(page.locator('[data-test="weekly-inline-editor"]')).toBeVisible()
   })
 
-  test('W-04 滚正文时工具栏吸顶，外层页面不跟着滚动', async ({ page }) => {
+  test('W-04 只有正文区滚动，工具栏与页面不跟着滚动', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 600 })
-    const scroller = page.locator('.right-box-bottom')
+    const pageScroller = page.locator('.right-box-bottom')
+    const body = page.locator('.note-editor__body')
     const toolbar = page.locator('.note-toolbar')
     await expect(toolbar).toBeVisible()
 
-    // 单层滚动：页头 + 正文固定一屏，外层 .layout__main 不产生滚动条。
+    // 页头 + 编辑器固定一屏：外层页面和编辑器外壳都不产生滚动条。
     const outer = await page.locator('.layout__main').evaluate((el) => ({
       scrollHeight: el.scrollHeight,
       clientHeight: el.clientHeight,
     }))
     expect(outer.scrollHeight).toBeLessThanOrEqual(outer.clientHeight)
+    const shell = await pageScroller.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }))
+    expect(shell.scrollHeight).toBeLessThanOrEqual(shell.clientHeight)
 
     const before = await toolbar.boundingBox()
-    await scroller.evaluate((el) => {
+    await body.evaluate((el) => {
       el.scrollTop = 200
     })
-    await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+    await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
     const after = await toolbar.boundingBox()
-    // 工具栏与滚动区顶部重合，滚动时位置不应有任何位移。
+    // 滚动条在正文区内部，工具栏位置不应有任何位移。
     expect(after?.y).toBe(before?.y)
   })
 })

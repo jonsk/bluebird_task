@@ -515,11 +515,24 @@ function retryInlineSave(): void {
 .right-box-bottom {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  /* 页面本身不再滚动：滚动条只出现在编辑器正文区。 */
+  overflow: hidden;
 }
 .note-page {
   padding: 0 var(--bb-page-padding) 24px;
   box-sizing: border-box;
+}
+.weekly-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 0;
+}
+.weekly-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
 }
 .weekly-header__range {
   margin-left: 10px;
@@ -556,7 +569,36 @@ function retryInlineSave(): void {
   min-height: 240px;
 }
 .weekly-editor :deep(.note-editor) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 0;
+}
+/* 编辑器占满可用高度，只有正文区滚动；工具栏与大纲保持不动。 */
+.weekly-editor :deep(.note-editor__content) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.weekly-editor :deep(.note-editor__main) {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.weekly-editor :deep(.note-editor__body) {
+  min-height: 0;
+  overflow-y: auto;
+}
+.weekly-editor :deep(.note-editor__outline) {
+  min-height: 0;
+}
+.weekly-editor :deep(.note-outline) {
+  position: static;
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
 }
 /* 外框的 1px 上边框会让工具栏静态位置比吸附位置低 1px，滚动时这条线先滚走。
    改由吸顶工具栏自己画上边框：位置与吸附点重合，滚动时不再有区域位移。 */
