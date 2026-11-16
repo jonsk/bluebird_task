@@ -606,7 +606,7 @@ function retryInlineSave(): void {
   border-top: 0;
 }
 .weekly-editor :deep(.note-toolbar) {
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--bb-toolbar-border);
 }
 .note-side {
   flex: 0 0 var(--bb-calendar-width);

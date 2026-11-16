@@ -28,6 +28,18 @@
   --bb-radius-sm: 2px;
   --bb-radius: 6px;
 
+  /* ── 编辑器工具栏（note-editor.css 专用） ──
+     工具栏是编辑器里最常驻、面积最大的一条控件带，单靠 --bg-secondary / --el-border-color-lighter
+     无法让 5 套主题都区分开（浅色·柔和与浅色·鲜明原本完全同色）。这里给工具栏独立的
+     令牌层：各主题只覆盖这几个变量，组件选择器保持稳定，不涉及 Tiptap 扩展与命令。 */
+  --bb-toolbar-bg: #faf9f8;
+  --bb-toolbar-border: #ebeef5;
+  --bb-toolbar-fg: #606266;
+  --bb-toolbar-hover-bg: #f5f5f5;
+  --bb-toolbar-hover-fg: #000;
+  --bb-toolbar-active-bg: #eff6fc;
+  --bb-toolbar-active-fg: #0065c0;
+
   /* Element Plus 语义色（保留供各组件引用） */
   --bb-color-primary: #0065c0;
   --bb-color-success: #2fae62;
@@ -55,6 +67,9 @@
    EP 的红/黄/绿等语义色由 element-plus/theme-chalk/dark/css-vars.css 提供（挂在 html.dark），
    这里只覆盖与自有布局强相关的 --el-* 值，顺序上必须晚于官方暗色变量。 */
 :root[data-theme^='dark'] {
+  /* 让原生控件（工具栏里的 <select> 下拉、滚动条等）走系统深色绘制。
+     option 弹层由浏览器/系统渲染，CSS 无法逐项上色，这是唯一可控的开关。 */
+  color-scheme: dark;
   --bg-primary: #1a1f27;
   --bg-secondary: #14181f;
   --bg-hover: #232933;
@@ -106,6 +121,14 @@
   --bb-hl-blue: rgba(127, 184, 255, 0.32);
   --bb-hl-pink: rgba(255, 158, 196, 0.30);
   --bb-hl-text: inherit;
+  /* 深色·柔和：工具栏比正文底再压暗一档，悬停/激活沿用低对比蓝 */
+  --bb-toolbar-bg: #171c24;
+  --bb-toolbar-border: #2c3546;
+  --bb-toolbar-fg: #cbd5e1;
+  --bb-toolbar-hover-bg: #232933;
+  --bb-toolbar-hover-fg: #e5e7eb;
+  --bb-toolbar-active-bg: #20324a;
+  --bb-toolbar-active-fg: #7fb0ff;
 }
 
 /* 浅色·鲜明：底色与浅色一致（白底黑字对比已经够高），只把四色高亮换成饱和实色 + 深字。
@@ -116,6 +139,14 @@
   --bb-hl-blue: #60a5fa;
   --bb-hl-pink: #ff9ec4;
   --bb-hl-text: #12161d;
+  /* 页面仍是白底，工具栏靠一层浅蓝带 + 蓝色激活块与「柔和」拉开差别 */
+  --bb-toolbar-bg: #f4f8ff;
+  --bb-toolbar-border: #cfe1fb;
+  --bb-toolbar-fg: #4a5568;
+  --bb-toolbar-hover-bg: #e6f0fe;
+  --bb-toolbar-hover-fg: #0b1220;
+  --bb-toolbar-active-bg: #d5e7fd;
+  --bb-toolbar-active-fg: #0057ad;
 }
 
 /* 浅色·硬朗：不止高亮，整页配色也「上硬度」——
@@ -164,6 +195,14 @@
   --bb-hl-blue: #60a5fa;
   --bb-hl-pink: #ff9ec4;
   --bb-hl-text: #12161d;
+  /* 工具栏压灰 + 边框加深，激活块用更亮的蓝，和「鲜明」的浅蓝带区分 */
+  --bb-toolbar-bg: #e9edf3;
+  --bb-toolbar-border: #c3c9d4;
+  --bb-toolbar-fg: #2b3038;
+  --bb-toolbar-hover-bg: #dde3ea;
+  --bb-toolbar-hover-fg: #0b0d12;
+  --bb-toolbar-active-bg: #cfe2ff;
+  --bb-toolbar-active-fg: #0a58ca;
 }
 
 /* 深色·鲜明：底色与柔和一致，提高文字/强调色对比，配合编辑器的高饱和高亮（见 note-editor.css）。 */
@@ -190,6 +229,14 @@
   --bb-hl-blue: #7fb8ff;
   --bb-hl-pink: #ff9ec4;
   --bb-hl-text: #12161d;
+  /* 深色·鲜明：工具栏整体提亮一档，边框与激活蓝都更强 */
+  --bb-toolbar-bg: #1d2530;
+  --bb-toolbar-border: #3a4a63;
+  --bb-toolbar-fg: #dbe3ee;
+  --bb-toolbar-hover-bg: #2a3444;
+  --bb-toolbar-hover-fg: #f4f7fb;
+  --bb-toolbar-active-bg: #24405f;
+  --bb-toolbar-active-fg: #9cc2fd;
 }
 
 /* preflight 关闭后的最小 reset（R8：不干扰 Element Plus） */
