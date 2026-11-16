@@ -35,9 +35,9 @@ public class WeeklyReport extends BaseEntity {
 
     private String contentHtml;
     private String aiResultJson;
-    /** 参与生成的日志 ID（JSON 数组字符串）。 */
+    /** 参与生成的记录 ID（每日日志 + 每周记录，JSON 数组字符串）。 */
     private String sourceNoteIds;
-    /** 参与生成的日志版本快照（JSON 对象字符串）。 */
+    /** 参与生成的记录版本快照（JSON 对象字符串）。 */
     private String sourceNoteVersions;
 
     private Long modelConfigId;

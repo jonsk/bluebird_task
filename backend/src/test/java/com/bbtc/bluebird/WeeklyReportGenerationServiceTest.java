@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -118,7 +119,7 @@ class WeeklyReportGenerationServiceTest {
         service.generate(REPORT_ID, OWNER);
 
         assertEquals("FAILED", report.getStatus());
-        assertEquals("该周没有可用的工作日志", report.getErrorMessage());
+        assertEquals("该周没有可用的工作日志或每周记录", report.getErrorMessage());
         assertNull(report.getContentHtml());
         verify(reportMapper).updateById(report);
         verify(aiClient, never()).chat(any(), any(), any(), any(), anyInt());
@@ -171,7 +172,8 @@ class WeeklyReportGenerationServiceTest {
                 .thenReturn(new AiClient.AiChatResult("{\"summary\":\"ok\"}", 120, 30));
         var root = new ObjectMapper().createObjectNode().put("summary", "ok");
         when(renderer.parse("{\"summary\":\"ok\"}")).thenReturn(root);
-        when(renderer.render(root)).thenReturn(new WeeklyReportContentRenderer.Rendered("<p>本周进展</p>", "本周进展"));
+        when(renderer.render(root, Set.of()))
+                .thenReturn(new WeeklyReportContentRenderer.Rendered("<p>本周进展</p>", "本周进展"));
 
         service.generate(REPORT_ID, OWNER);
 
@@ -188,6 +190,43 @@ class WeeklyReportGenerationServiceTest {
         assertEquals(9L, report.getModelConfigId());
         assertTrue(report.getCompletedAt() != null);
         verify(reportMapper).updateById(report);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 每周工作记录一并参与生成且引用带周口径() {
+        Note daily = note(11L);
+        Note weekly = new Note();
+        weekly.setId(21L);
+        weekly.setOwnerId(OWNER);
+        weekly.setLogDate("2026-11-02");
+        weekly.setPeriodType(Note.PERIOD_WEEK);
+        weekly.setPeriodStart("2026-11-02");
+        weekly.setContent("本周复盘：登录改造完成");
+        weekly.setVersion(2);
+
+        when(noteMapper.selectList(any())).thenReturn(List.of(daily));
+        when(noteMapper.selectOne(any())).thenReturn(weekly);
+        when(userMapper.selectById(OWNER)).thenReturn(user());
+        when(modelService.activeEntity()).thenReturn(model);
+        when(modelService.decryptKey(model)).thenReturn("k");
+        when(promptBuilder.build(any(), any(), eq("张三"), any(), any()))
+                .thenReturn(new WeeklyReportPromptBuilder.Prompt("sys", "usr", "v2"));
+        when(aiClient.chat(any(), any(), any(), any(), anyInt()))
+                .thenReturn(new AiClient.AiChatResult("{\"summary\":\"ok\"}", 10, 5));
+        var root = new ObjectMapper().createObjectNode().put("summary", "ok");
+        when(renderer.parse("{\"summary\":\"ok\"}")).thenReturn(root);
+        when(renderer.render(root, Set.of(21L)))
+                .thenReturn(new WeeklyReportContentRenderer.Rendered("<p>ok</p>", "ok"));
+
+        service.generate(REPORT_ID, OWNER);
+
+        ArgumentCaptor<List<Note>> notesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(promptBuilder).build(any(), any(), eq("张三"), notesCaptor.capture(), any());
+        assertEquals(List.of(21L, 11L), notesCaptor.getValue().stream().map(Note::getId).toList(),
+                "每周记录排在最前，日记录按时间正序随后");
+        assertEquals("[21,11]", report.getSourceNoteIds());
+        assertEquals("DONE", report.getStatus());
     }
 
     @Test
@@ -242,7 +281,7 @@ class WeeklyReportGenerationServiceTest {
                 .thenReturn(new AiClient.AiChatResult("raw", 1, 1));
         var root = new ObjectMapper().createObjectNode();
         when(renderer.parse("raw")).thenReturn(root);
-        when(renderer.render(root)).thenReturn(null);
+        when(renderer.render(root, Set.of())).thenReturn(null);
         when(renderer.renderRaw("raw")).thenReturn(new WeeklyReportContentRenderer.Rendered("<p>裸文本</p>", "裸文本"));
 
         service.generate(REPORT_ID, OWNER);

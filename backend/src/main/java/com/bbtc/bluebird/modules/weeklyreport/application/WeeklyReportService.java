@@ -83,7 +83,7 @@ public class WeeklyReportService {
      * <p>口径：只统计当前用户自己的日志，且
      * <ol>
      *   <li>周次不晚于当前周（未来的周没有意义）；</li>
-     *   <li>该周至少有 1 条日志。</li>
+     *   <li>该周至少有 1 条每日工作日志或每周工作记录。</li>
      * </ol>
      * 该周已有周报时带上 {@code reportId} 与状态，没有则为 null，前端选中即可直接生成。
      * 结果按 weekStart 倒序（最近的周在最上面）。
@@ -93,11 +93,11 @@ public class WeeklyReportService {
         String currentWeek = WeeklyReportPeriod.of(LocalDate.now(ZONE)).start();
         List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
                 .eq(Note::getOwnerId, me)
-                .eq(Note::getPeriodType, Note.PERIOD_DAY)
-                .select(Note::getId, Note::getLogDate));
+                .in(Note::getPeriodType, Note.PERIOD_DAY, Note.PERIOD_WEEK)
+                .select(Note::getId, Note::getLogDate, Note::getPeriodType, Note::getPeriodStart));
         Map<String, Long> counts = new HashMap<>();
         for (Note note : notes) {
-            String start = weekStartOf(note.getLogDate());
+            String start = weekStartOf(note);
             if (start == null || start.compareTo(currentWeek) > 0) {
                 continue;
             }
@@ -133,13 +133,17 @@ public class WeeklyReportService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "尚未启用 AI 模型，请联系管理员配置");
         }
         WeeklyReportPeriod period = periodOf(req == null ? null : req.weekStart());
-        long noteCount = noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
+        long dailyCount = noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
                 .eq(Note::getOwnerId, me)
                 .eq(Note::getPeriodType, Note.PERIOD_DAY)
                 .ge(Note::getLogDate, period.start())
                 .le(Note::getLogDate, period.end()));
-        if (noteCount == 0) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "该周没有工作日志，无法生成 AI 周工作总结");
+        long weeklyCount = noteMapper.selectCount(Wrappers.<Note>lambdaQuery()
+                .eq(Note::getOwnerId, me)
+                .eq(Note::getPeriodType, Note.PERIOD_WEEK)
+                .eq(Note::getPeriodStart, period.start()));
+        if (dailyCount + weeklyCount == 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "该周没有工作日志或每周记录，无法生成 AI 周工作总结");
         }
 
         WeeklyReport report = findOwnedWeek(me, period.start());
@@ -247,7 +251,7 @@ public class WeeklyReportService {
         WeeklyReportPeriod period = WeeklyReportPeriod.of(LocalDate.now(ZONE));
         List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
                 .isNotNull(Note::getOwnerId)
-                .eq(Note::getPeriodType, Note.PERIOD_DAY)
+                .in(Note::getPeriodType, Note.PERIOD_DAY, Note.PERIOD_WEEK)
                 .ge(Note::getLogDate, period.start())
                 .le(Note::getLogDate, period.end())
                 .select(Note::getId, Note::getOwnerId));
@@ -303,6 +307,14 @@ public class WeeklyReportService {
                 .eq(WeeklyReport::getOwnerId, ownerId)
                 .eq(WeeklyReport::getWeekStart, weekStart)
                 .last("limit 1"));
+    }
+
+    /** 记录所属周的周一：周记录优先用 period_start，日记录按 log_date 归一。 */
+    private String weekStartOf(Note note) {
+        if (Note.PERIOD_WEEK.equals(note.getPeriodType()) && StringUtils.hasText(note.getPeriodStart())) {
+            return note.getPeriodStart().trim();
+        }
+        return weekStartOf(note.getLogDate());
     }
 
     private String weekStartOf(String logDate) {

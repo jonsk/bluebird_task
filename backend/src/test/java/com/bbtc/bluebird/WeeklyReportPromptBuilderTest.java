@@ -134,6 +134,33 @@ class WeeklyReportPromptBuilderTest {
     }
 
     @Test
+    void 日志按每日与每周来源标注() {
+        when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString())).thenReturn(TEMPLATE);
+        Note daily = note(1L, "2026-11-03", "完成了登录改造");
+        Note weekly = note(21L, "2026-11-02", "本周整体完成登录与权限改造");
+        weekly.setPeriodType(Note.PERIOD_WEEK);
+        weekly.setPeriodStart("2026-11-02");
+
+        var prompt = builder.build("2026-11-02", "2026-11-08", "张三", List.of(weekly, daily), null);
+
+        assertTrue(prompt.user().contains("[#1] 2026-11-03（每日工作记录）"));
+        assertTrue(prompt.user().contains("[#21] 2026-11-02（每周工作记录）"));
+        assertTrue(prompt.system().contains("dailyWork") && prompt.system().contains("weeklyWork"),
+                "系统提示词必须要求按来源分类");
+    }
+
+    @Test
+    void 旧模板缺少来源分类结构时末尾兜底补上() {
+        when(config.get(eq("weeklyreport"), eq("prompt-template"), anyString())).thenReturn(TEMPLATE);
+
+        var prompt = builder.build("2026-11-02", "2026-11-08", "张三",
+                List.of(note(1L, "2026-11-03", "内容")), null);
+
+        assertTrue(prompt.user().contains("\"dailyWork\""), "旧模板没有新结构时必须补固定 schema");
+        assertTrue(prompt.user().contains("\"weeklyWork\""));
+    }
+
+    @Test
     void 提示词版本号固定输出() {
         when(config.get(any(), any(), any())).thenReturn(TEMPLATE);
 

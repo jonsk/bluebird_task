@@ -407,10 +407,10 @@ onBeforeUnmount(() => {
               {{ statusOf(row.status)!.label }}
             </el-tag>
           </div>
-          <p class="weekly__item-summary">{{ row.noteCount }} 条日志</p>
+          <p class="weekly__item-summary">{{ row.noteCount }} 条记录</p>
         </button>
         <p v-if="!loadingWeeks && !weeks.length" class="weekly__empty">
-          当前周及之前还没有工作日志，先去「日志」写几条再来生成。
+          当前周及之前还没有工作日志或每周记录，先去「每日工作记录」或「每周工作记录」写几条再来生成。
         </p>
       </div>
     </aside>
@@ -420,11 +420,11 @@ onBeforeUnmount(() => {
         <div class="weekly__meta">
           <template v-if="detail?.modelName">
             生成模型：{{ detail.modelName }}
-            <span v-if="detail.sourceNoteIds?.length"> · 引用 {{ detail.sourceNoteIds.length }} 条日志</span>
+            <span v-if="detail.sourceNoteIds?.length"> · 引用 {{ detail.sourceNoteIds.length }} 条记录</span>
             <span v-if="detail.generatedAt"> · {{ new Date(detail.generatedAt).toLocaleString('zh-CN') }}</span>
           </template>
           <template v-else-if="selected">
-            {{ selected.weekStart }} ~ {{ selected.weekEnd }} · {{ selected.noteCount }} 条日志
+            {{ selected.weekStart }} ~ {{ selected.weekEnd }} · {{ selected.noteCount }} 条记录
           </template>
         </div>
         <div class="weekly__ops">

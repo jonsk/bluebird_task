@@ -141,6 +141,37 @@ class WeeklyReportFlowTest {
         org.junit.jupiter.api.Assertions.assertEquals(1, data.get(1).path("noteCount").asInt());
     }
 
+    @Test
+    void weeksListIncludesWeekWithOnlyWeeklyRecord() throws Exception {
+        SysUser u = user("weeks-weekly");
+        java.time.LocalDate currentMonday = java.time.LocalDate.parse(
+                com.bbtc.bluebird.modules.weeklyreport.application.WeeklyReportService.currentWeekStart());
+        weeklyNote(u, currentMonday.toString());
+
+        String body = mvc.perform(get("/api/v1/weekly-reports/weeks").header("Authorization", token(u)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode data = objectMapper.readTree(body).path("data");
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, data.size());
+        org.junit.jupiter.api.Assertions.assertEquals(currentMonday.toString(),
+                data.get(0).path("weekStart").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(1, data.get(0).path("noteCount").asInt());
+    }
+
+    private void weeklyNote(SysUser owner, String weekStart) {
+        Note note = new Note();
+        note.setOwnerId(owner.getId());
+        note.setContent("<p>weekly " + weekStart + "</p>");
+        note.setLogDate(weekStart);
+        note.setPeriodType(Note.PERIOD_WEEK);
+        note.setPeriodStart(weekStart);
+        note.setVersion(0);
+        note.setDeleted(0);
+        noteMapper.insert(note);
+    }
+
     private void note(SysUser owner, String logDate) {
         Note note = new Note();
         note.setOwnerId(owner.getId());

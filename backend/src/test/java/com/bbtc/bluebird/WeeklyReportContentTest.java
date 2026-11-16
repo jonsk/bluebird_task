@@ -54,6 +54,35 @@ class WeeklyReportContentTest {
     }
 
     @Test
+    void rendersDailyAndWeeklyWorkGroupsWithSourceLinks() {
+        JsonNode root = renderer.parse("""
+                {"summary":"本周完成登录改造",
+                 "dailyWork":{"achievements":[{"text":"每日完成 JWT 续签","noteIds":[11]}],"inProgress":[]},
+                 "weeklyWork":{"achievements":[{"text":"周记录：联调完成","noteIds":[21]}]},
+                 "risks":[],"nextWeek":[]}
+                """);
+        String html = renderer.render(root, java.util.Set.of(21L)).html();
+
+        assertTrue(html.contains("<h2>每日工作</h2><h3>主要成果</h3>"), html);
+        assertTrue(html.contains("每日完成 JWT 续签"));
+        assertTrue(html.contains("<h2>每周工作</h2><h3>主要成果</h3>"), html);
+        assertTrue(html.contains("周记录：联调完成"));
+        // 日记录走普通详情，周记录带 period=WEEK
+        assertTrue(html.contains("<a href=\"/notes/11\">#11</a>"), html);
+        assertTrue(html.contains("<a href=\"/notes/21?period=WEEK\">#21</a>"), html);
+    }
+
+    @Test
+    void legacyFlatSchemaStillRenders() {
+        JsonNode root = renderer.parse("""
+                {"achievements":[{"text":"旧版结构","noteIds":[11]}]}
+                """);
+        String html = renderer.render(root).html();
+        assertTrue(html.contains("<h2>主要成果</h2>"));
+        assertTrue(html.contains("旧版结构"));
+    }
+
+    @Test
     void citationLinksDropDuplicatedMarkerAndInvalidIds() {
         JsonNode root = renderer.parse("""
                 {"achievements":[{"text":"完成联调（#369165902139392）","noteIds":[369165902139392,"abc"]},

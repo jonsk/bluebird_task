@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 把模型输出的结构化 JSON 渲染为可编辑 HTML（Tiptap 可直接解析）。
@@ -65,18 +66,34 @@ public class WeeklyReportContentRenderer {
     }
 
     public Rendered render(JsonNode root) {
+        return render(root, Set.of());
+    }
+
+    /**
+     * @param weeklyNoteIds 每周工作记录 ID：引用链接带上 {@code ?period=WEEK}，
+     *                      点开后详情页按周口径展示，而不是当成每日日志
+     */
+    public Rendered render(JsonNode root, Set<Long> weeklyNoteIds) {
         if (root == null || !root.isObject()) {
             return null;
         }
+        Set<Long> weeklyIds = weeklyNoteIds == null ? Set.of() : weeklyNoteIds;
         StringBuilder html = new StringBuilder();
         String summary = text(root.get("summary"));
         if (StringUtils.hasText(summary)) {
             html.append("<h2>本周概述</h2><p>").append(escape(summary)).append("</p>");
         }
-        appendList(html, "主要成果", root.get("achievements"));
-        appendList(html, "进行中", root.get("inProgress"));
-        appendList(html, "风险与阻塞", root.get("risks"));
-        appendList(html, "下周计划", root.get("nextWeek"));
+        // 新结构按来源分「每日工作 / 每周工作」；旧版模型输出（或旧自定义模板）仍走原来的四个列表。
+        boolean grouped = root.hasNonNull("dailyWork") || root.hasNonNull("weeklyWork");
+        if (grouped) {
+            appendWork(html, "每日工作", root.get("dailyWork"), weeklyIds);
+            appendWork(html, "每周工作", root.get("weeklyWork"), weeklyIds);
+        } else {
+            appendList(html, "主要成果", root.get("achievements"), 2, weeklyIds);
+            appendList(html, "进行中", root.get("inProgress"), 2, weeklyIds);
+        }
+        appendList(html, "风险与阻塞", root.get("risks"), 2, weeklyIds);
+        appendList(html, "下周计划", root.get("nextWeek"), 2, weeklyIds);
         appendMetrics(html, root.get("metrics"));
         if (html.isEmpty()) {
             return null;
@@ -94,10 +111,39 @@ public class WeeklyReportContentRenderer {
         return StringUtils.hasText(summary) ? summary : null;
     }
 
-    private void appendList(StringBuilder html, String title, JsonNode node) {
+    /** 「每日工作 / 每周工作」分组：兼容 {achievements, inProgress} 对象与直接数组两种模型输出。 */
+    private void appendWork(StringBuilder html, String title, JsonNode node, Set<Long> weeklyIds) {
+        if (node == null || node.isNull()) {
+            return;
+        }
+        StringBuilder section = new StringBuilder();
+        if (node.isArray()) {
+            StringBuilder items = listItems(node, weeklyIds);
+            if (!items.isEmpty()) {
+                section.append("<ul>").append(items).append("</ul>");
+            }
+        } else if (node.isObject()) {
+            appendList(section, "主要成果", node.get("achievements"), 3, weeklyIds);
+            appendList(section, "进行中", node.get("inProgress"), 3, weeklyIds);
+        }
+        if (!section.isEmpty()) {
+            html.append("<h2>").append(title).append("</h2>").append(section);
+        }
+    }
+
+    private void appendList(StringBuilder html, String title, JsonNode node, int level, Set<Long> weeklyIds) {
         if (node == null || !node.isArray() || node.isEmpty()) {
             return;
         }
+        StringBuilder items = listItems(node, weeklyIds);
+        if (!items.isEmpty()) {
+            String tag = "h" + level;
+            html.append('<').append(tag).append('>').append(title)
+                    .append("</").append(tag).append("><ul>").append(items).append("</ul>");
+        }
+    }
+
+    private StringBuilder listItems(JsonNode node, Set<Long> weeklyIds) {
         StringBuilder items = new StringBuilder();
         for (JsonNode item : node) {
             String text = text(item);
@@ -106,11 +152,9 @@ public class WeeklyReportContentRenderer {
             }
             List<String> ids = noteIds(item);
             items.append("<li>").append(escape(stripInlineCitations(text, ids)))
-                    .append(citations(ids)).append("</li>");
+                    .append(citations(ids, weeklyIds)).append("</li>");
         }
-        if (!items.isEmpty()) {
-            html.append("<h2>").append(title).append("</h2><ul>").append(items).append("</ul>");
-        }
+        return items;
     }
 
     private void appendMetrics(StringBuilder html, JsonNode node) {
@@ -174,8 +218,8 @@ public class WeeklyReportContentRenderer {
         return out;
     }
 
-    /** 引用渲染成站内链接，点一下就能回到对应日志。 */
-    private String citations(List<String> ids) {
+    /** 引用渲染成站内链接，点一下就能回到对应日志；周记录带 period=WEEK 走周口径详情。 */
+    private String citations(List<String> ids, Set<Long> weeklyIds) {
         if (ids.isEmpty()) {
             return "";
         }
@@ -185,7 +229,9 @@ public class WeeklyReportContentRenderer {
                 sb.append('、');
             }
             String id = ids.get(i);
-            sb.append("<a href=\"/notes/").append(id).append("\">#").append(id).append("</a>");
+            boolean weekly = weeklyIds.stream().anyMatch(w -> String.valueOf(w).equals(id));
+            sb.append("<a href=\"/notes/").append(id).append(weekly ? "?period=WEEK" : "")
+                    .append("\">#").append(id).append("</a>");
         }
         return sb.append("）").toString();
     }

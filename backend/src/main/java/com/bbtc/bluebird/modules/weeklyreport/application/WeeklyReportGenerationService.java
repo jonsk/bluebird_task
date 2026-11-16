@@ -22,9 +22,12 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 周报异步生成器。
@@ -60,7 +63,7 @@ public class WeeklyReportGenerationService {
         try {
             List<Note> notes = loadNotes(report, userId);
             if (notes.isEmpty()) {
-                fail(report, "该周没有可用的工作日志");
+                fail(report, "该周没有可用的工作日志或每周记录");
                 return;
             }
             SysUser user = userMapper.selectById(userId);
@@ -80,7 +83,7 @@ public class WeeklyReportGenerationService {
             JsonNode root = renderer.parse(result.content());
             WeeklyReportContentRenderer.Rendered rendered = root == null
                     ? renderer.renderRaw(result.content())
-                    : renderer.render(root);
+                    : renderer.render(root, weeklyNoteIds(notes));
             if (rendered == null) {
                 rendered = renderer.renderRaw(result.content());
             }
@@ -111,9 +114,15 @@ public class WeeklyReportGenerationService {
         }
     }
 
+    /**
+     * 取该周参与总结的记录：每日工作日志（最多 {@code weeklyreport.max-notes} 条）+ 该周周一对应的每周工作记录。
+     *
+     * <p>每周记录放在最前面：它是这一周的整体复盘，先给模型一个全局框架；同时保证日记录很多、
+     * 触发总字符裁剪时，每周记录不会被挤掉。
+     */
     private List<Note> loadNotes(WeeklyReport report, Long userId) {
         int max = Math.max(1, Math.min(200, config.getInt("weeklyreport", "max-notes", 50)));
-        List<Note> notes = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
+        List<Note> daily = noteMapper.selectList(Wrappers.<Note>lambdaQuery()
                 .eq(Note::getOwnerId, userId)
                 .eq(Note::getPeriodType, Note.PERIOD_DAY)
                 .ge(Note::getLogDate, report.getWeekStart())
@@ -121,8 +130,29 @@ public class WeeklyReportGenerationService {
                 .orderByDesc(Note::getLogDate)
                 .orderByDesc(Note::getCreatedAt)
                 .last("limit " + max));
+        Note weekly = noteMapper.selectOne(Wrappers.<Note>lambdaQuery()
+                .eq(Note::getOwnerId, userId)
+                .eq(Note::getPeriodType, Note.PERIOD_WEEK)
+                .eq(Note::getPeriodStart, report.getWeekStart())
+                .orderByDesc(Note::getCreatedAt)
+                .last("limit 1"));
+        List<Note> notes = new ArrayList<>();
+        if (weekly != null) {
+            notes.add(weekly);
+        }
         // 提示词里按时间正序更符合叙事，查询倒序只是为了取「最近 N 条」。
-        return notes.reversed();
+        notes.addAll(daily.reversed());
+        return notes;
+    }
+
+    private Set<Long> weeklyNoteIds(List<Note> notes) {
+        Set<Long> ids = new LinkedHashSet<>();
+        for (Note note : notes) {
+            if (Note.PERIOD_WEEK.equals(note.getPeriodType()) && note.getId() != null) {
+                ids.add(note.getId());
+            }
+        }
+        return ids;
     }
 
     private Map<String, Object> versions(List<Note> notes) {
