@@ -90,4 +90,27 @@ test.describe('每周工作记录', () => {
     await expect(page.locator('[data-test="weekly-range"]')).toHaveText('2026-09-28 ~ 2026-10-04')
     await expect(page.locator('[data-test="weekly-inline-editor"]')).toBeVisible()
   })
+
+  test('W-04 滚正文时工具栏吸顶，外层页面不跟着滚动', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 600 })
+    const scroller = page.locator('.right-box-bottom')
+    const toolbar = page.locator('.note-toolbar')
+    await expect(toolbar).toBeVisible()
+
+    // 单层滚动：页头 + 正文固定一屏，外层 .layout__main 不产生滚动条。
+    const outer = await page.locator('.layout__main').evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }))
+    expect(outer.scrollHeight).toBeLessThanOrEqual(outer.clientHeight)
+
+    const before = await toolbar.boundingBox()
+    await scroller.evaluate((el) => {
+      el.scrollTop = 200
+    })
+    await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+    const after = await toolbar.boundingBox()
+    // 只允许内容边框造成的 1px 差异；工具栏不应随滚动上移。
+    expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThanOrEqual(1)
+  })
 })

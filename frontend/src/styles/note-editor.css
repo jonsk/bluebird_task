@@ -1275,26 +1275,3 @@
 .note-editor__editor {
   min-height: 460px;
 }
-
-.note-editor__status {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-  min-height: 20px;
-  font-size: 12px;
-  color: var(--bb-text-muted);
-}
-
-.note-editor__status.is-error {
-  color: var(--el-color-danger);
-}
-
-.note-editor__retry {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-}

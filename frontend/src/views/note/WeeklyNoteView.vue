@@ -489,28 +489,37 @@ function retryInlineSave(): void {
 </template>
 
 <style scoped>
+/* 单层滚动：整页固定一屏高，只有 .right-box-bottom 纵向滚动。
+   之前用 min-height:100vh + 固定 height:calc(100vh - 80px)，页头换行或窗口变矮时
+   外层 .layout__main 也会滚动，吸顶工具栏会跟着整页一起上移。 */
 .right-box {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-sizing: border-box;
 }
 .right-box-div {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   justify-content: space-between;
 }
 .right-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .right-box-bottom {
-  height: calc(100vh - 80px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 .note-page {
   padding: 0 var(--bb-page-padding) 24px;
   box-sizing: border-box;
-}
-.weekly-page {
-  padding-top: 8px;
 }
 .weekly-header__range {
   margin-left: 10px;
@@ -553,7 +562,7 @@ function retryInlineSave(): void {
   flex: 0 0 var(--bb-calendar-width);
   width: var(--bb-calendar-width);
   min-width: 0;
-  height: calc(100vh - 20px);
+  height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
