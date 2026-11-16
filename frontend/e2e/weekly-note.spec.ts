@@ -110,7 +110,7 @@ test.describe('每周工作记录', () => {
     })
     await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
     const after = await toolbar.boundingBox()
-    // 只允许内容边框造成的 1px 差异；工具栏不应随滚动上移。
-    expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThanOrEqual(1)
+    // 工具栏与滚动区顶部重合，滚动时位置不应有任何位移。
+    expect(after?.y).toBe(before?.y)
   })
 })

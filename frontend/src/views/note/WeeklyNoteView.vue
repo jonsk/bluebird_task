@@ -558,6 +558,14 @@ function retryInlineSave(): void {
 .weekly-editor :deep(.note-editor) {
   padding: 0;
 }
+/* 外框的 1px 上边框会让工具栏静态位置比吸附位置低 1px，滚动时这条线先滚走。
+   改由吸顶工具栏自己画上边框：位置与吸附点重合，滚动时不再有区域位移。 */
+.weekly-editor :deep(.note-editor__content) {
+  border-top: 0;
+}
+.weekly-editor :deep(.note-toolbar) {
+  border-top: 1px solid var(--el-border-color-lighter);
+}
 .note-side {
   flex: 0 0 var(--bb-calendar-width);
   width: var(--bb-calendar-width);
