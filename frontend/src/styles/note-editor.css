@@ -636,6 +636,20 @@
   text-decoration-color: var(--el-border-color);
 }
 
+/* 待办创建时间：独立右侧列，长文本换行时贴首行，不占用历史待办的空间。 */
+.note-prose ul[data-type='taskList'] li[data-created-at-label]::after {
+  content: attr(data-created-at-label);
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-top: 1px;
+  color: var(--bb-text-muted);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
 .note-prose blockquote {
   margin: 1em 0;
   padding: 4px 0 4px 16px;
